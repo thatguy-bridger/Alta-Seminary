@@ -10,8 +10,8 @@ import sitemap from '@astrojs/sitemap';
 //   switch back to `base: '/'` (the default) and update `site` to the real domain.
 // Getting this wrong is the most common GitHub Pages footgun — see PROJECT_SPEC.md / build plan.
 export default defineConfig({
-  site: 'https://altaseminary.com',
-  // base: '/REPLACE_WITH_REPO_NAME', // uncomment while serving from username.github.io/<repo>
+  site: 'https://thatguy-bridger.github.io',
+  base: '/Alta-Seminary', // remove once public/CNAME + custom domain are set, and switch `site` back to the real domain
   integrations: [
     react(),
     sitemap({
