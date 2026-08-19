@@ -1,0 +1,13 @@
+-- log_change() (0010_change_history.sql) assumes every tracked table has a
+-- uuid `id` column and compares it against change_log.record_id (uuid).
+-- site_settings.id is `boolean` (it's a singleton row keyed `id boolean
+-- primary key default true`), so that comparison fails with
+-- "operator does not exist: uuid = boolean" -- and since log_publish_event()
+-- touches site_settings on every publish (see 0001_init.sql), this broke
+-- publishing entirely.
+--
+-- site_settings is a single settings row; undo/audit history isn't a
+-- meaningful concept for it the way it is for pages/posts/etc., so this
+-- just stops tracking it rather than teaching log_change() to special-case
+-- a non-uuid id column.
+drop trigger if exists trg_site_settings_change on public.site_settings;
