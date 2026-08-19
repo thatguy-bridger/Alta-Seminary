@@ -14,6 +14,7 @@ import { Tabs } from '../../design-system/components/core/Tabs.jsx';
 import { Toast } from '../../design-system/components/core/Toast.jsx';
 import { Card } from '../../design-system/components/core/Card.jsx';
 import { ImageUploadField } from '../ImageUploadField.jsx';
+import { withBase } from '../../lib/url.js';
 
 const AUTOSAVE_DELAY_MS = 1000;
 
@@ -145,7 +146,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
 
   return (
     <div>
-      <a href={backHref} style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-link)', textDecoration: 'none' }}>← Back</a>
+      <a href={withBase(backHref)} style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-link)', textDecoration: 'none' }}>← Back</a>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 'var(--space-3) 0 var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
