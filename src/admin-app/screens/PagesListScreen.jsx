@@ -8,6 +8,7 @@ import { Select } from '../../design-system/components/forms/Select.jsx';
 import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { EyeIcon, EyeOffIcon, CopyIcon, TrashIcon } from '../icons.jsx';
 import { slugify, uniqueSlug } from '../slug.js';
+import { withBase } from '../../lib/url.js';
 
 // The block-builder pages this phase seeds if missing. Every other nav entry
 // (Schedule/Announcements/Directory+subpages/Gallery/Events/Contact/Makeup
@@ -176,7 +177,7 @@ function PageRow({ row, siblings, onToggle, onMove, onCopy, onDelete, depth }) {
         </Badge>
 
         {isBuilder && (
-          <a href={`/admin/pages/edit?slug=${row.slug}`} style={{ textDecoration: 'none' }}>
+          <a href={withBase(`/admin/pages/edit?slug=${row.slug}`)} style={{ textDecoration: 'none' }}>
             <Button variant="primary" size="sm">Edit</Button>
           </a>
         )}

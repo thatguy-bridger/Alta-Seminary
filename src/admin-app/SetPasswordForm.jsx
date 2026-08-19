@@ -3,6 +3,7 @@ import { supabaseBrowser } from '../lib/supabase/browser-client';
 import { Input } from '../design-system/components/forms/Input.jsx';
 import { Button } from '../design-system/components/forms/Button.jsx';
 import { Card } from '../design-system/components/core/Card.jsx';
+import { withBase } from '../lib/url.js';
 
 // Landing page for invite-email links. Supabase's client detects the invite
 // token in the URL automatically (detectSessionInUrl, on by default) and
@@ -42,7 +43,7 @@ export function SetPasswordForm() {
       return;
     }
     setDone(true);
-    setTimeout(() => { window.location.href = '/admin'; }, 1200);
+    setTimeout(() => { window.location.href = withBase('/admin'); }, 1200);
   }
 
   return (

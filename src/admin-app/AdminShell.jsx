@@ -1,6 +1,7 @@
 import React from 'react';
 import { supabaseBrowser } from '../lib/supabase/browser-client';
 import { ThemeToggle } from '../design-system/components/core/ThemeToggle.jsx';
+import { withBase } from '../lib/url.js';
 import logo from '../assets/alta-seminary-logo.png';
 
 const NAV_ITEMS = [
@@ -17,7 +18,7 @@ const NAV_ITEMS = [
 export function AdminShell({ children, activePath }) {
   async function signOut() {
     await supabaseBrowser.auth.signOut();
-    window.location.href = '/admin/login';
+    window.location.href = withBase('/admin/login');
   }
 
   return (
@@ -57,7 +58,7 @@ export function AdminShell({ children, activePath }) {
             {NAV_ITEMS.map((item) => (
               <a
                 key={item.href}
-                href={item.href}
+                href={withBase(item.href)}
                 style={{
                   fontFamily: 'var(--font-sans)',
                   fontSize: 'var(--fs-small)',

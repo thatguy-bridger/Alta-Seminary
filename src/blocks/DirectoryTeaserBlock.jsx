@@ -2,6 +2,7 @@ import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { Card } from '../design-system/components/core/Card.jsx';
+import { withBase } from '../lib/url.js';
 
 const KIND_PATH = { staff: 'staff', council: 'council', missionary: 'missionaries' };
 
@@ -55,7 +56,7 @@ export function DirectoryTeaserBlock({ heading, sourceType = 'staff', count = '3
               </Card>
             );
             return path ? (
-              <a key={person.id} href={`/directory/${path}`} style={{ textDecoration: 'none' }}>{card}</a>
+              <a key={person.id} href={withBase(`/directory/${path}`)} style={{ textDecoration: 'none' }}>{card}</a>
             ) : (
               <div key={person.id}>{card}</div>
             );

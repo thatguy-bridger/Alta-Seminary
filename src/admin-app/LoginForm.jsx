@@ -3,6 +3,7 @@ import { supabaseBrowser } from '../lib/supabase/browser-client';
 import { Input } from '../design-system/components/forms/Input.jsx';
 import { Button } from '../design-system/components/forms/Button.jsx';
 import { Card } from '../design-system/components/core/Card.jsx';
+import { withBase } from '../lib/url.js';
 import logo from '../assets/alta-seminary-logo.png';
 
 export function LoginForm() {
@@ -21,7 +22,7 @@ export function LoginForm() {
       setError('Incorrect email or password.');
       return;
     }
-    window.location.href = '/admin';
+    window.location.href = withBase('/admin');
   }
 
   return (

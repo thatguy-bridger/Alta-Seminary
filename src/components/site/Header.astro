@@ -3,10 +3,11 @@ import { Image } from 'astro:assets';
 import Nav from './Nav.astro';
 import { ThemeToggle } from '../../design-system/components/core/ThemeToggle.jsx';
 import logo from '../../assets/alta-seminary-logo.png';
+import { withBase } from '../../lib/url.js';
 ---
 
 <header class="site-header">
-  <a href="/" class="site-header__wordmark">
+  <a href={withBase('/')} class="site-header__wordmark">
     <Image src={logo} alt="Alta Seminary" height={40} />
   </a>
   <Nav />

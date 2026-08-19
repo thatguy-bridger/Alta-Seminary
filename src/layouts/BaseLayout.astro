@@ -1,5 +1,6 @@
 ---
 import '../design-system/styles.css';
+import { withBase } from '../lib/url.js';
 
 interface Props {
   title: string;
@@ -18,10 +19,10 @@ const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" href="/favicon.ico" sizes="32x32" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" href={withBase('/favicon.ico')} sizes="32x32" />
+    <link rel="icon" type="image/png" sizes="16x16" href={withBase('/favicon-16x16.png')} />
+    <link rel="icon" type="image/png" sizes="32x32" href={withBase('/favicon-32x32.png')} />
+    <link rel="apple-touch-icon" sizes="180x180" href={withBase('/apple-touch-icon.png')} />
     <meta name="generator" content={Astro.generator} />
 
     <title>{title} | Alta Seminary</title>
@@ -36,7 +37,7 @@ const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
     <meta property="og:url" content={canonicalURL} />
 
     <!-- Loaded before the stylesheet so data-theme is set with no flash of the wrong theme -->
-    <script is:inline src="/theme-init.js"></script>
+    <script is:inline src={withBase('/theme-init.js')}></script>
 
     {gaId && !noindex && (
       <>

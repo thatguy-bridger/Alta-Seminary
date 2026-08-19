@@ -1,4 +1,5 @@
 import { supabaseBuild } from './supabase/build-client';
+import { withBase } from './url.js';
 
 // Build-time only: reads the public_pages VIEW (never the base `pages` table),
 // which only exposes published_blocks for rows with status='published' --
@@ -37,7 +38,7 @@ export async function getNavTree() {
   }
   const attachChildren = (row) => ({
     label: row.nav_label,
-    href: row.route_path || undefined,
+    href: row.route_path ? withBase(row.route_path) : undefined,
     children: (byParent.get(row.id) || []).map(attachChildren),
   });
   return (byParent.get('root') || []).map(attachChildren);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { supabaseBrowser } from '../lib/supabase/browser-client';
+import { withBase } from '../lib/url.js';
 
 // Wraps any authenticated admin screen. Redirects to /admin/login if there's no session.
 // Note: this is a client-side gate only (GitHub Pages can't check auth server-side) —
@@ -24,7 +25,7 @@ export function AdminGuard({ children }) {
 
   React.useEffect(() => {
     if (status === 'anon') {
-      window.location.href = '/admin/login';
+      window.location.href = withBase('/admin/login');
     }
   }, [status]);
 

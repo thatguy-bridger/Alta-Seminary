@@ -1,10 +1,11 @@
 ---
+import { withBase } from '../../lib/url.js';
 const year = new Date().getFullYear();
 ---
 
 <footer class="site-footer">
   <p>&copy; {year} Alta Seminary &middot; Seminaries and Institutes, The Church of Jesus Christ of Latter-day Saints</p>
-  <p><a href="/contact">Contact</a></p>
+  <p><a href={withBase('/contact')}>Contact</a></p>
 </footer>
 
 <style>

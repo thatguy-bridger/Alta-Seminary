@@ -7,6 +7,7 @@ import { Input } from '../../design-system/components/forms/Input.jsx';
 import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { CopyIcon, TrashIcon } from '../icons.jsx';
 import { slugify, uniqueSlug } from '../slug.js';
+import { withBase } from '../../lib/url.js';
 
 export function PostsListScreen() {
   const [posts, setPosts] = React.useState(null);
@@ -83,7 +84,7 @@ export function PostsListScreen() {
               )}
             </div>
             <Badge tone={row.status === 'published' ? 'success' : 'neutral'}>{row.status}</Badge>
-            <a href={`/admin/posts/edit?slug=${row.slug}`} style={{ textDecoration: 'none' }}>
+            <a href={withBase(`/admin/posts/edit?slug=${row.slug}`)} style={{ textDecoration: 'none' }}>
               <Button variant="primary" size="sm">Edit</Button>
             </a>
             <button onClick={() => handleCopy(row)} title="Copy this announcement" style={iconButtonStyle}>
