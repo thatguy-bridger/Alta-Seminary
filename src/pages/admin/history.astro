@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { HistoryPage } from '../../admin-app/pages/HistoryPage.jsx';
+---
+
+<BaseLayout title="History" noindex>
+  <HistoryPage client:only="react" />
+</BaseLayout>

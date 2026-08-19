@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { LoginForm } from '../../admin-app/LoginForm.jsx';
+---
+
+<BaseLayout title="Admin Login" noindex>
+  <LoginForm client:only="react" />
+</BaseLayout>

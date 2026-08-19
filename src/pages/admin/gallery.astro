@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { GalleryPage } from '../../admin-app/pages/GalleryPage.jsx';
+---
+
+<BaseLayout title="Gallery" noindex>
+  <GalleryPage client:only="react" />
+</BaseLayout>

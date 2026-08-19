@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { EventsPage } from '../../admin-app/pages/EventsPage.jsx';
+---
+
+<BaseLayout title="Events" noindex>
+  <EventsPage client:only="react" />
+</BaseLayout>

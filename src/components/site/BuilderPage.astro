@@ -1,0 +1,42 @@
+---
+// Shared shell for every block-builder-driven public page (Home, About,
+// Enrollment, Schedule, Announcements, Directory + subpages, Gallery, Events,
+// Contact, Makeup Work -- see 0006_all_pages_editable.sql). Fetches the page
+// by slug, resolves any teaser blocks' data, and renders through the same
+// BlockRenderer used by the admin canvas/preview.
+//
+// client:load on BlockRenderer below: several block types need real
+// client-side JS on the public page itself, not just in the admin canvas --
+// Carousel (autoplay/arrows/dots), Announcement Banner (dismiss button),
+// Contact Form (submit handler). Astro ships zero JS for a framework
+// component with no client directive, so without this those controls would
+// render but silently do nothing for real visitors. The cost is shipping
+// React for every builder page, even ones with only static blocks -- a
+// reasonable trade for "the buttons actually work" over shaving bytes on
+// pages that happen not to need it.
+import PublicLayout from '../../layouts/PublicLayout.astro';
+import { BlockRenderer } from '../../blocks/BlockRenderer.jsx';
+import { getPublishedPage } from '../../lib/pages.js';
+import { resolveTeaserData } from '../../blocks/teaserData.js';
+import { supabaseBuild } from '../../lib/supabase/build-client';
+
+interface Props {
+  slug: string;
+  fallbackTitle: string;
+}
+
+const { slug, fallbackTitle } = Astro.props;
+const page = await getPublishedPage(slug);
+const blocks = page?.published_blocks || [];
+const teaserData = await resolveTeaserData(blocks, supabaseBuild);
+---
+
+<PublicLayout title={page?.title || fallbackTitle} description={page?.meta_description} ogImage={page?.og_image_url}>
+  {blocks.length > 0 ? (
+    <BlockRenderer blocks={blocks} teaserData={teaserData} client:load />
+  ) : (
+    <p style="color:var(--text-muted); text-align:center; padding: var(--space-16) 0;">
+      This page hasn't been published yet.
+    </p>
+  )}
+</PublicLayout>

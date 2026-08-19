@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { DashboardPage } from '../../admin-app/pages/DashboardPage.jsx';
+---
+
+<BaseLayout title="Dashboard" noindex>
+  <DashboardPage client:only="react" />
+</BaseLayout>

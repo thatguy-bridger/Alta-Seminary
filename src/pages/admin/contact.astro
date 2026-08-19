@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { ContactPage } from '../../admin-app/pages/ContactPage.jsx';
+---
+
+<BaseLayout title="Contact Submissions" noindex>
+  <ContactPage client:only="react" />
+</BaseLayout>

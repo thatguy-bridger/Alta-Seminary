@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { DirectoryPage } from '../../admin-app/pages/DirectoryPage.jsx';
+---
+
+<BaseLayout title="Directories" noindex>
+  <DirectoryPage client:only="react" />
+</BaseLayout>

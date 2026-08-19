@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { PostsListPage } from '../../../admin-app/pages/PostsListPage.jsx';
+---
+
+<BaseLayout title="Announcements" noindex>
+  <PostsListPage client:only="react" />
+</BaseLayout>

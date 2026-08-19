@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { TeamPage } from '../../admin-app/pages/TeamPage.jsx';
+---
+
+<BaseLayout title="Team" noindex>
+  <TeamPage client:only="react" />
+</BaseLayout>

@@ -1,0 +1,228 @@
+import React from 'react';
+import { supabaseBrowser } from '../../lib/supabase/browser-client';
+import { createBlock } from '../../blocks/registry.js';
+import { BlockRenderer } from '../../blocks/BlockRenderer.jsx';
+import { EditableCanvas } from './EditableCanvas.jsx';
+import { BlockConfigPanel } from './BlockConfigPanel.jsx';
+import { AddBlockButton } from './AddBlockButton.jsx';
+import { Button } from '../../design-system/components/forms/Button.jsx';
+import { Input } from '../../design-system/components/forms/Input.jsx';
+import { Textarea } from '../../design-system/components/forms/Textarea.jsx';
+import { Dialog } from '../../design-system/components/core/Dialog.jsx';
+import { Badge } from '../../design-system/components/core/Badge.jsx';
+import { Tabs } from '../../design-system/components/core/Tabs.jsx';
+import { Toast } from '../../design-system/components/core/Toast.jsx';
+import { Card } from '../../design-system/components/core/Card.jsx';
+import { ImageUploadField } from '../ImageUploadField.jsx';
+
+const AUTOSAVE_DELAY_MS = 1000;
+
+// Shared by the Pages editor (table="pages") and the Announcements editor
+// (table="blog_posts") -- both rows have the same draft_blocks/published_blocks
+// shape (see 0001_init.sql), so one screen drives both rather than duplicating
+// ~200 lines of autosave/publish logic per content type.
+export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }) {
+  const [row, setRow] = React.useState(null);
+  const [blocks, setBlocks] = React.useState([]);
+  const [selectedId, setSelectedId] = React.useState(null);
+  const [saveState, setSaveState] = React.useState('idle'); // idle | saving | saved
+  const [view, setView] = React.useState('Edit');
+  const [publishOpen, setPublishOpen] = React.useState(false);
+  const [publishing, setPublishing] = React.useState(false);
+  const [toast, setToast] = React.useState(null);
+  const saveTimer = React.useRef(null);
+  const isPost = table === 'blog_posts';
+
+  React.useEffect(() => {
+    let active = true;
+    supabaseBrowser.from(table).select('*').eq('slug', slug).single().then(({ data }) => {
+      if (!active || !data) return;
+      setRow(data);
+      setBlocks(Array.isArray(data.draft_blocks) ? data.draft_blocks : []);
+    });
+    return () => { active = false; };
+  }, [slug, table]);
+
+  const selectedBlock = blocks.find((b) => b.id === selectedId) || null;
+
+  function scheduleSave(nextBlocks, extra) {
+    setSaveState('saving');
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      await supabaseBrowser
+        .from(table)
+        .update({ draft_blocks: nextBlocks, draft_updated_at: new Date().toISOString(), ...extra })
+        .eq('id', row.id);
+      setSaveState('saved');
+    }, AUTOSAVE_DELAY_MS);
+  }
+
+  function updateBlocks(next) {
+    setBlocks(next);
+    scheduleSave(next);
+  }
+
+  function updateMeta(patch) {
+    setRow((r) => ({ ...r, ...patch }));
+    scheduleSave(blocks, patch);
+  }
+
+  function handleAdd(type) {
+    const block = createBlock(type);
+    updateBlocks([...blocks, block]);
+    setSelectedId(block.id);
+  }
+
+  function handleReorder(next) {
+    updateBlocks(next);
+  }
+
+  function handleRemove(id) {
+    updateBlocks(blocks.filter((b) => b.id !== id));
+    if (selectedId === id) setSelectedId(null);
+  }
+
+  function handleDuplicate(id) {
+    const idx = blocks.findIndex((b) => b.id === id);
+    if (idx === -1) return;
+    // Deep-clone props, not a shallow spread -- a block with an array/object
+    // prop (e.g. carousel's `items`) would otherwise leave the original and
+    // the duplicate sharing the exact same nested reference.
+    const copy = { ...blocks[idx], id: crypto.randomUUID(), props: structuredClone(blocks[idx].props) };
+    const next = [...blocks.slice(0, idx + 1), copy, ...blocks.slice(idx + 1)];
+    updateBlocks(next);
+  }
+
+  // Selecting several photos at once in an Image block's file picker (see
+  // EditableImage's `multiple` mode): the first becomes this block's own
+  // image via the normal field-change path, and one duplicate of this block
+  // is inserted right after it per remaining photo.
+  function handleDuplicateWithImages(id, urls) {
+    const idx = blocks.findIndex((b) => b.id === id);
+    if (idx === -1 || urls.length === 0) return;
+    const copies = urls.map((url) => ({
+      ...blocks[idx],
+      id: crypto.randomUUID(),
+      props: { ...structuredClone(blocks[idx].props), imageUrl: url },
+    }));
+    const next = [...blocks.slice(0, idx + 1), ...copies, ...blocks.slice(idx + 1)];
+    updateBlocks(next);
+  }
+
+  function handleConfigChange(updatedBlock) {
+    updateBlocks(blocks.map((b) => (b.id === updatedBlock.id ? updatedBlock : b)));
+  }
+
+  function handleFieldChange(blockId, key, value) {
+    updateBlocks(blocks.map((b) => (b.id === blockId ? { ...b, props: { ...b.props, [key]: value } } : b)));
+  }
+
+  async function handlePublish() {
+    setPublishing(true);
+    const { error } = await supabaseBrowser
+      .from(table)
+      .update({ published_blocks: blocks, status: 'published', published_at: new Date().toISOString() })
+      .eq('id', row.id);
+    setPublishing(false);
+    setPublishOpen(false);
+    if (error) {
+      setToast({ tone: 'error', text: 'Could not publish: ' + error.message });
+    } else {
+      setToast({ tone: 'success', text: 'Published — live in about a minute.' });
+      setRow((r) => ({ ...r, status: 'published' }));
+    }
+    setTimeout(() => setToast(null), 4000);
+  }
+
+  async function handleResetToPublished() {
+    if (!row.published_blocks) return;
+    updateBlocks(row.published_blocks);
+  }
+
+  if (!row) {
+    return <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>;
+  }
+
+  return (
+    <div>
+      <a href={backHref} style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-link)', textDecoration: 'none' }}>← Back</a>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 'var(--space-3) 0 var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', margin: 0 }}>{row.title}</h2>
+          <Badge tone={row.status === 'published' ? 'success' : 'neutral'}>{row.status}</Badge>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+            {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Draft saved' : ''}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+          {row.published_blocks && <Button variant="ghost" size="sm" onClick={handleResetToPublished}>Reset to current setup - unedited</Button>}
+          <Button variant="primary" onClick={() => setPublishOpen(true)}>Publish</Button>
+        </div>
+      </div>
+
+      {isPost && (
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          <Card title="Post details">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              <Input label="Title" value={row.title} onChange={(e) => updateMeta({ title: e.target.value })} />
+              <Textarea label="Excerpt (shown on the announcements list)" value={row.excerpt} onChange={(e) => updateMeta({ excerpt: e.target.value })} rows={2} />
+              <ImageUploadField label="Cover image" value={row.cover_image_url} onChange={(url) => updateMeta({ cover_image_url: url })} pathPrefix={`posts/${row.id}`} aspect={16 / 9} />
+            </div>
+          </Card>
+        </div>
+      )}
+
+      <Tabs tabs={['Edit', 'Preview']} active={view} onChange={setView} />
+
+      <div style={{ marginTop: 'var(--space-6)' }}>
+        {view === 'Edit' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 'var(--space-6)', alignItems: 'start' }}>
+            <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', background: 'var(--surface-page)' }}>
+              <EditableCanvas
+                blocks={blocks}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onReorder={handleReorder}
+                onFieldChange={handleFieldChange}
+                onRemove={handleRemove}
+                onDuplicate={handleDuplicate}
+                onDuplicateWithImages={handleDuplicateWithImages}
+                pathPrefix={`${table}/${row.id}`}
+              />
+              <div style={{ marginTop: 'var(--space-6)' }}>
+                <AddBlockButton onAdd={handleAdd} />
+              </div>
+            </div>
+            <div style={{ position: 'sticky', top: 'var(--space-6)' }}>
+              <BlockConfigPanel block={selectedBlock} onChange={handleConfigChange} />
+            </div>
+          </div>
+        ) : (
+          <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-8)', background: 'var(--surface-page)' }}>
+            <BlockRenderer blocks={blocks} />
+          </div>
+        )}
+      </div>
+
+      <Dialog open={publishOpen} title="Publish this page?" onClose={() => setPublishOpen(false)}>
+        <p style={{ color: 'var(--text-secondary)', marginTop: 0 }}>
+          This replaces the live version of "{row.title}" with your current draft. It'll be visible on the public
+          site within about a minute.
+        </p>
+        <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onClick={() => setPublishOpen(false)}>Cancel</Button>
+          <Button variant="primary" disabled={publishing} onClick={handlePublish}>
+            {publishing ? 'Publishing…' : 'Publish'}
+          </Button>
+        </div>
+      </Dialog>
+
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 'var(--space-6)', right: 'var(--space-6)' }}>
+          <Toast tone={toast.tone}>{toast.text}</Toast>
+        </div>
+      )}
+    </div>
+  );
+}

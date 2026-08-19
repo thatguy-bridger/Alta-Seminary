@@ -1,0 +1,4 @@
+import React from "react";
+export function Checkbox({label,checked,onChange}) {
+  return <label className="checkbox"><input type="checkbox" checked={checked} onChange={onChange} />{label}</label>;
+}

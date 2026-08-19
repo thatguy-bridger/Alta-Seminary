@@ -1,0 +1,31 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Header from '../components/site/Header.astro';
+import Footer from '../components/site/Footer.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+}
+
+const { title, description, ogImage } = Astro.props;
+---
+
+<BaseLayout title={title} description={description} ogImage={ogImage}>
+  <Header />
+  <main class="site-main">
+    <slot />
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>
+  .site-main {
+    flex: 1;
+    width: 100%;
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: var(--space-8) var(--space-6);
+  }
+</style>

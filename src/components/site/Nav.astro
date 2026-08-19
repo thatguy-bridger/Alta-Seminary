@@ -1,0 +1,102 @@
+---
+import { getNavTree } from '../../lib/pages.js';
+
+const links = await getNavTree();
+const currentPath = Astro.url.pathname;
+---
+
+<nav class="site-nav" aria-label="Main navigation">
+  <ul class="site-nav__list">
+    {links.map((link) => (
+      <li class="site-nav__item">
+        {link.children.length > 0 ? (
+          <details class="site-nav__dropdown">
+            <summary>{link.label}</summary>
+            <ul>
+              {link.children.map((child) => (
+                <li>
+                  <a href={child.href} aria-current={currentPath === child.href ? 'page' : undefined}>
+                    {child.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : (
+          <a href={link.href} aria-current={currentPath === link.href ? 'page' : undefined}>
+            {link.label}
+          </a>
+        )}
+      </li>
+    ))}
+  </ul>
+</nav>
+
+<style>
+  .site-nav__list {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    margin: 0;
+    padding: 0;
+    align-items: center;
+  }
+  .site-nav__item > a {
+    font-family: var(--font-sans);
+    font-size: var(--fs-small);
+    font-weight: var(--fw-bold);
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: var(--space-2) 0;
+    border-bottom: 2px solid transparent;
+    transition: color var(--duration-fast), border-color var(--duration-fast);
+  }
+  .site-nav__item > a:hover,
+  .site-nav__item > a[aria-current='page'] {
+    color: var(--text-primary);
+    border-bottom-color: var(--brand-secondary);
+  }
+  .site-nav__dropdown {
+    position: relative;
+    font-family: var(--font-sans);
+  }
+  .site-nav__dropdown summary {
+    font-size: var(--fs-small);
+    font-weight: var(--fw-bold);
+    color: var(--text-secondary);
+    cursor: pointer;
+    list-style: none;
+  }
+  .site-nav__dropdown summary::-webkit-details-marker {
+    display: none;
+  }
+  .site-nav__dropdown summary:hover {
+    color: var(--text-primary);
+  }
+  .site-nav__dropdown ul {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: var(--space-2);
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 160px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    z-index: 20;
+  }
+  .site-nav__dropdown ul a {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--fs-small);
+    color: var(--text-primary);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+  }
+  .site-nav__dropdown ul a:hover {
+    background: var(--surface-sunken);
+  }
+</style>

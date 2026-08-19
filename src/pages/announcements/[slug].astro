@@ -1,0 +1,43 @@
+---
+import PublicLayout from '../../layouts/PublicLayout.astro';
+import { BlockRenderer } from '../../blocks/BlockRenderer.jsx';
+import { resolveTeaserData } from '../../blocks/teaserData.js';
+import { supabaseBuild } from '../../lib/supabase/build-client';
+
+export async function getStaticPaths() {
+  const { data } = await supabaseBuild.from('public_blog_posts').select('slug');
+  return (data || []).map((post) => ({ params: { slug: post.slug } }));
+}
+
+const { slug } = Astro.params;
+const { data: post } = await supabaseBuild
+  .from('public_blog_posts')
+  .select('title, excerpt, cover_image_url, published_blocks, published_at')
+  .eq('slug', slug)
+  .maybeSingle();
+
+const blocks = post?.published_blocks || [];
+const teaserData = await resolveTeaserData(blocks, supabaseBuild);
+---
+
+<PublicLayout title={post?.title || 'Announcement'} description={post?.excerpt} ogImage={post?.cover_image_url}>
+  {post ? (
+    <>
+      <header style="text-align:center; margin-bottom: var(--space-8);">
+        <h1 style="font-family: var(--font-display); font-size: var(--fs-display); color: var(--text-primary); margin: 0 0 var(--space-2);">
+          {post.title}
+        </h1>
+        {post.published_at && (
+          <p style="font-family: var(--font-sans); font-size: var(--fs-small); color: var(--text-muted); margin: 0;">
+            {new Date(post.published_at).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+          </p>
+        )}
+      </header>
+      {blocks.length > 0 && <BlockRenderer blocks={blocks} teaserData={teaserData} client:load />}
+    </>
+  ) : (
+    <p style="color:var(--text-muted); text-align:center; padding: var(--space-16) 0;">
+      This announcement couldn't be found.
+    </p>
+  )}
+</PublicLayout>

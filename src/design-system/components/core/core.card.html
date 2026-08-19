@@ -1,0 +1,34 @@
+<!-- @dsCard group="Components" viewport="700x560" name="Core" subtitle="Card, Badge, Tag, Tabs, Dialog, Tooltip, Toast" -->
+<link rel="stylesheet" href="../../styles.css">
+<script src="../../theme-init.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<div id="root" style="padding:20px;background:var(--surface-page);font-family:var(--font-sans)"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel">
+const { Card, Badge, Tag, Tabs, Dialog, Tooltip, Toast, ThemeToggle } = window.AltaSeminaryDesignSystem_8cf2e8;
+function Demo(){
+  const [tab,setTab]=React.useState("Home");
+  const [open,setOpen]=React.useState(false);
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <ThemeToggle />
+      <Tabs tabs={["Home","Schedule","Announcements"]} active={tab} onChange={setTab} />
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <Badge>Neutral</Badge><Badge tone="success">Present</Badge><Badge tone="warning">Pending</Badge><Badge tone="error">Missing</Badge><Badge tone="info">New</Badge>
+      </div>
+      <div style={{display:"flex",gap:8}}><Tag>Old Testament</Tag><Tag onRemove={()=>{}}>Period 3</Tag></div>
+      <Card title="Today's Reading" footer={<Button_placeholder/>}>Alma 32:26–43</Card>
+      <div style={{display:"flex",gap:16,alignItems:"center"}}>
+        <Tooltip label="Mark as read"><span style={{padding:8,border:"1px solid var(--border-default)",borderRadius:8}}>Hover me</span></Tooltip>
+        <button className="btn btn-outline" onClick={()=>setOpen(true)}>Open dialog</button>
+      </div>
+      <Toast>Attendance saved for Period 3</Toast>
+      <Dialog open={open} title="Mark attendance" onClose={()=>setOpen(false)}><p style={{margin:0}}>Confirm attendance for today's class?</p></Dialog>
+    </div>
+  );
+}
+function Button_placeholder(){return <span style={{fontSize:"var(--fs-caption)",color:"var(--text-muted)"}}>Alma 32</span>;}
+ReactDOM.createRoot(document.getElementById("root")).render(<Demo/>);
+</script>

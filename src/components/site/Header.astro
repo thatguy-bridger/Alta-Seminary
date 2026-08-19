@@ -1,0 +1,35 @@
+---
+import { Image } from 'astro:assets';
+import Nav from './Nav.astro';
+import { ThemeToggle } from '../../design-system/components/core/ThemeToggle.jsx';
+import logo from '../../assets/alta-seminary-logo.png';
+---
+
+<header class="site-header">
+  <a href="/" class="site-header__wordmark">
+    <Image src={logo} alt="Alta Seminary" height={40} />
+  </a>
+  <Nav />
+  <ThemeToggle client:idle />
+</header>
+
+<style>
+  .site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-6);
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--surface-card);
+    flex-wrap: wrap;
+  }
+  .site-header__wordmark {
+    display: inline-flex;
+    align-items: center;
+  }
+  .site-header__wordmark img {
+    display: block;
+    width: auto;
+  }
+</style>
