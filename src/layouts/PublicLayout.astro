@@ -81,6 +81,13 @@ const { title, description, ogImage, ogType, publishedTime, structuredData } = A
     z-index: 200;
     max-width: min(90vw, 480px);
   }
+  /* The shared .toast class sets display:flex unconditionally, which beats
+     the browser's native [hidden]{display:none} UA rule (author styles
+     always win over UA styles) -- so the element still rendered visible
+     even with hidden=true set correctly in the DOM. This restores it. */
+  .not-found-toast[hidden] {
+    display: none;
+  }
   .not-found-toast button {
     flex-shrink: 0;
     border: none;
