@@ -1,5 +1,11 @@
 name: Deploy to GitHub Pages
 
+# The site itself now lives on Vercel (server-rendered, see astro.config.mjs
+# and the "instant updates" migration) -- this old GitHub Pages URL no
+# longer builds the Astro app at all (that stopped making sense once output
+# switched to server mode). It just deploys a single static redirect page,
+# so anyone still holding the old link lands on the real site.
+
 on:
   push:
     branches: [main]
@@ -18,25 +24,27 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - name: Build
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: npm run build
-        env:
-          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
-          PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
-          PUBLIC_GA_MEASUREMENT_ID: ${{ vars.PUBLIC_GA_MEASUREMENT_ID }}
+      - name: Create redirect page
+        run: |
+          mkdir -p redirect-site
+          cat > redirect-site/index.html << 'EOF'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta http-equiv="refresh" content="0; url=https://alta-seminary-omega.vercel.app/" />
+            <link rel="canonical" href="https://alta-seminary-omega.vercel.app/" />
+            <title>Alta Seminary</title>
+          </head>
+          <body>
+            <p>This site has moved. <a href="https://alta-seminary-omega.vercel.app/">Continue to the new site</a>.</p>
+            <script>window.location.replace("https://alta-seminary-omega.vercel.app/");</script>
+          </body>
+          </html>
+          EOF
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist
+          path: ./redirect-site
 
   deploy:
     needs: build
@@ -47,19 +55,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-
-  # Runs only when build or deploy ultimately failed (after the build step's
-  # own retries above are exhausted) -- logs it into the admin History tab
-  # via report-deploy-status, since GitHub's own Actions log isn't something
-  # an admin routinely checks. See supabase/functions/report-deploy-status.
-  notify-failure:
-    needs: [build, deploy]
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Report deploy failure
-        run: |
-          curl -sf -X POST "https://huabopvggyiuljmgzhlq.supabase.co/functions/v1/report-deploy-status" \
-            -H "Content-Type: application/json" \
-            -H "x-webhook-secret: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}" \
-            -d "{\"runUrl\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
