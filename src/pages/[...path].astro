@@ -10,12 +10,17 @@
 import BuilderPage from '../components/site/BuilderPage.astro';
 import { supabaseBuild } from '../lib/supabase/build-client';
 
-const RESERVED_PATHS = new Set([
-  'about', 'enrollment', 'schedule', 'events', 'gallery', 'contact', 'makeup-work',
-  'announcements', 'directory', 'directory/council', 'directory/missionaries', 'directory/staff',
-]);
-
+// RESERVED_PATHS must live INSIDE getStaticPaths, not as a frontmatter const
+// above it -- Astro extracts getStaticPaths into its own chunk for the
+// static-path-generation phase, and a top-level const declared elsewhere in
+// the frontmatter isn't reliably in scope there ("RESERVED_PATHS is not
+// defined" at build time, confirmed by reproducing the build locally).
 export async function getStaticPaths() {
+  const RESERVED_PATHS = new Set([
+    'about', 'enrollment', 'schedule', 'events', 'gallery', 'contact', 'makeup-work',
+    'announcements', 'directory', 'directory/council', 'directory/missionaries', 'directory/staff',
+  ]);
+
   const { data } = await supabaseBuild
     .from('public_pages')
     .select('slug, route_path')
