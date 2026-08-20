@@ -5,6 +5,7 @@ import { Badge } from '../../design-system/components/core/Badge.jsx';
 import { Tabs } from '../../design-system/components/core/Tabs.jsx';
 import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Toast } from '../../design-system/components/core/Toast.jsx';
+import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { HistoryDetails } from '../history/HistoryDetails.jsx';
 
 const PAGE_SIZE = 50;
@@ -57,12 +58,22 @@ function signatureOf(row) {
   return row.changed_by_name || row.changed_by_email || 'Unknown admin';
 }
 
+// Plain-language explanation of what undo_change() (0010_change_history.sql)
+// actually does for each action type, shown in the confirm dialog so
+// "Undo" isn't a leap of faith.
+function undoExplanation(row, label) {
+  if (row.action === 'insert') return `This removes "${label}" completely — it didn't exist before this change.`;
+  if (row.action === 'delete') return `This brings "${label}" back, exactly as it was right before it was deleted.`;
+  return `This restores "${label}" back to how it looked right before this change — the fields below will flip back to their earlier values.`;
+}
+
 export function HistoryScreen() {
   const [filter, setFilter] = React.useState('All');
   const [rows, setRows] = React.useState(null);
   const [hasMore, setHasMore] = React.useState(false);
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [undoingId, setUndoingId] = React.useState(null);
+  const [undoTarget, setUndoTarget] = React.useState(null);
   const [toast, setToast] = React.useState(null);
 
   async function load(offset = 0, append = false) {
@@ -94,9 +105,10 @@ export function HistoryScreen() {
     setLoadingMore(false);
   }
 
-  async function handleUndo(row) {
+  async function confirmUndo() {
+    const row = undoTarget;
     const label = row.record_label || TABLE_LABELS[row.table_name] || row.table_name;
-    if (!window.confirm(`Undo this change to "${label}"? This restores it to how it was before.`)) return;
+    setUndoTarget(null);
     setUndoingId(row.id);
     const { error } = await supabaseBrowser.rpc('undo_change', { p_change_id: row.id });
     setUndoingId(null);
@@ -153,8 +165,8 @@ export function HistoryScreen() {
                   )}
                 </div>
                 {row.action !== 'undo' && row.action !== 'error' && !row.reverted_by_change_id && (
-                  <Button variant="ghost" size="sm" disabled={undoingId === row.id} onClick={() => handleUndo(row)}>
-                    {undoingId === row.id ? 'Undoing…' : 'Undo'}
+                  <Button variant="outline" size="sm" disabled={undoingId === row.id} onClick={() => setUndoTarget(row)}>
+                    {undoingId === row.id ? 'Undoing…' : '↺ Undo this change'}
                   </Button>
                 )}
               </div>
@@ -177,6 +189,23 @@ export function HistoryScreen() {
             {loadingMore ? 'Loading…' : 'Load more'}
           </Button>
         </div>
+      )}
+
+      {undoTarget && (
+        <Dialog open title="Undo this change?" onClose={() => setUndoTarget(null)} wide>
+          <p style={{ color: 'var(--text-secondary)', marginTop: 0 }}>
+            {undoExplanation(undoTarget, undoTarget.record_label || TABLE_LABELS[undoTarget.table_name] || undoTarget.table_name)}
+          </p>
+          {(undoTarget.before_data || undoTarget.after_data) && (
+            <div style={{ margin: '0 0 var(--space-4)' }}>
+              <HistoryDetails row={{ before_data: undoTarget.after_data, after_data: undoTarget.before_data }} />
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+            <Button variant="ghost" onClick={() => setUndoTarget(null)}>Cancel</Button>
+            <Button variant="primary" onClick={confirmUndo}>Yes, undo it</Button>
+          </div>
+        </Dialog>
       )}
 
       {toast && (

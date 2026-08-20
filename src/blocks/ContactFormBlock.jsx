@@ -7,9 +7,22 @@ import { Button } from '../design-system/components/forms/Button.jsx';
 
 const emptyForm = { name: '', email: '', phone: '', message: '', honeypot: '' };
 
+// Matches the 2-minute window enforced server-side by
+// enforce_contact_rate_limit() (0014_contact_form_rate_limit.sql) -- this is
+// just the friendly front-line version so a visitor sees a plain message
+// instead of a raw database error if they try to send twice quickly.
+const COOLDOWN_MS = 2 * 60 * 1000;
+const LAST_SUBMIT_KEY = 'alta-contact-last-submit';
+
 export function ContactFormBlock({ heading, successMessage, headingStyle, editable, onFieldChange }) {
   const [form, setForm] = React.useState(emptyForm);
-  const [status, setStatus] = React.useState('idle'); // idle | submitting | done | error | invalid
+  const [status, setStatus] = React.useState('idle'); // idle | submitting | done | error | invalid | cooldown
+
+  React.useEffect(() => {
+    if (editable) return;
+    const last = Number(localStorage.getItem(LAST_SUBMIT_KEY) || 0);
+    if (Date.now() - last < COOLDOWN_MS) setStatus('cooldown');
+  }, [editable]);
 
   function patch(key, value) { setForm((f) => ({ ...f, [key]: value })); }
 
@@ -27,9 +40,10 @@ export function ContactFormBlock({ heading, successMessage, headingStyle, editab
     });
     if (error) {
       console.error('contact submission failed:', error.message);
-      setStatus('error');
+      setStatus(error.message.includes('wait a moment') ? 'cooldown' : 'error');
       return;
     }
+    localStorage.setItem(LAST_SUBMIT_KEY, String(Date.now()));
     setForm(emptyForm);
     setStatus('done');
   }
@@ -51,6 +65,10 @@ export function ContactFormBlock({ heading, successMessage, headingStyle, editab
       ) : status === 'done' ? (
         <p style={{ textAlign: 'center', color: 'var(--color-success)', fontFamily: 'var(--font-sans)' }}>
           {successMessage || "Thanks — we'll be in touch soon."}
+        </p>
+      ) : status === 'cooldown' ? (
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
+          You already sent a message a moment ago — thanks for your patience while we catch up. Try again in a couple minutes.
         </p>
       ) : (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
