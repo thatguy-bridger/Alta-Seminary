@@ -2,6 +2,7 @@ import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { Card } from '../design-system/components/core/Card.jsx';
+import { withBase } from '../lib/url.js';
 
 // See DirectoryTeaserBlock.jsx for the `items` pre-fetch-vs-client-fetch pattern.
 export function PostsTeaserBlock({ heading, count = '6', items, headingStyle, editable, onFieldChange }) {
@@ -37,7 +38,7 @@ export function PostsTeaserBlock({ heading, count = '6', items, headingStyle, ed
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           {list.map((post) => (
             <Card key={post.id}>
-              <a href={editable ? undefined : `/announcements/${post.slug}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              <a href={editable ? undefined : withBase(`/announcements/${post.slug}`)} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 'var(--space-3)' }}>
                   <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{post.title}</span>
                   {post.published_at && (
