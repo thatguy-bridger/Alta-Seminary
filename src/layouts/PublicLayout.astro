@@ -22,7 +22,8 @@ const { title, description, ogImage, ogType, publishedTime, structuredData } = A
     <slot />
   </main>
   <Footer />
-  <div id="not-found-toast" class="toast not-found-toast" role="status" hidden>
+  <div id="not-found-toast" class="not-found-toast" role="status" hidden>
+    <span class="not-found-toast__icon" aria-hidden="true">⚠</span>
     <span>That page doesn't exist — it may still be a work in progress. We brought you here instead.</span>
     <button type="button" aria-label="Dismiss">&times;</button>
   </div>
@@ -73,27 +74,46 @@ const { title, description, ogImage, ogType, publishedTime, structuredData } = A
   .skip-link:focus {
     top: var(--space-4);
   }
+  /* Top-anchored and deliberately louder than a normal toast (this is
+     telling a visitor they didn't land where they clicked, worth noticing) --
+     warning-toned, bordered, and wider on desktop than the typical small
+     bottom-corner notification. */
   .not-found-toast {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
     position: fixed;
-    bottom: var(--space-6);
+    top: var(--space-4);
     left: 50%;
     transform: translateX(-50%);
     z-index: 200;
-    max-width: min(90vw, 480px);
+    width: min(94vw, 640px);
+    padding: var(--space-4) var(--space-5);
+    background: var(--tint-warning-bg);
+    color: var(--color-warning);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-bold);
   }
-  /* The shared .toast class sets display:flex unconditionally, which beats
-     the browser's native [hidden]{display:none} UA rule (author styles
-     always win over UA styles) -- so the element still rendered visible
-     even with hidden=true set correctly in the DOM. This restores it. */
   .not-found-toast[hidden] {
     display: none;
+  }
+  .not-found-toast__icon {
+    flex-shrink: 0;
+    font-size: 1.3em;
+  }
+  .not-found-toast span:not(.not-found-toast__icon) {
+    flex: 1;
   }
   .not-found-toast button {
     flex-shrink: 0;
     border: none;
     background: none;
     color: inherit;
-    font-size: 1.1em;
+    font-size: 1.3em;
     line-height: 1;
     cursor: pointer;
     opacity: 0.7;

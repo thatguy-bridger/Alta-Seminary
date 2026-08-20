@@ -8,14 +8,14 @@ import { withBase } from '../../lib/url.js';
 ---
 
 <header class="site-header">
-  <a href={withBase('/')} class="site-header__wordmark">
-    <Image src={logo} alt="Alta Seminary" height={40} />
-  </a>
-  <Nav />
   <div style="display: flex; align-items: center; gap: var(--space-3);">
+    <a href={withBase('/')} class="site-header__wordmark">
+      <Image src={logo} alt="Alta Seminary" height={40} />
+    </a>
     <SiteSearch client:idle />
-    <ThemeToggle client:idle />
   </div>
+  <Nav />
+  <ThemeToggle client:idle />
 </header>
 
 <style>
