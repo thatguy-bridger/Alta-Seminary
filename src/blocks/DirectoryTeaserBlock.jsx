@@ -99,10 +99,14 @@ export function DirectoryTeaserBlock({ heading, sourceType = 'staff', count = '3
                 <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)', textAlign: 'center' }}>{person.name}</div>
               </Card>
             );
-            if (!path) return <div key={person.id} style={{ height: uniformCardSize ? '100%' : undefined }}>{card}</div>;
+            // Editable (admin canvas): never a real link -- href was
+            // previously always set to the live URL regardless of editable,
+            // so clicking a card in the page editor actually navigated to
+            // the public site instead of just selecting the block.
+            if (!path || editable) return <div key={person.id} style={{ height: uniformCardSize ? '100%' : undefined }}>{card}</div>;
             // Already on this directory's own page -- open the larger
             // preview in place instead of a pointless self-navigation.
-            const onOwnPage = !editable && typeof window !== 'undefined'
+            const onOwnPage = typeof window !== 'undefined'
               && window.location.pathname.endsWith(withBase(`/directory/${path}`));
             return (
               <a
