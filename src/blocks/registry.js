@@ -103,27 +103,25 @@ export const BLOCK_REGISTRY = {
   columns: {
     label: 'Columns',
     icon: 'columns-3',
-    description: 'Two or three side-by-side columns, each with its own image and text.',
+    description: 'Two or three side-by-side columns, each its own image + text or any other block type.',
+    // `columns` is an array of exactly 3 slots (only the first `columnCount`
+    // render) rather than numbered col1Image/col2Image/... flat props -- see
+    // ColumnsBlock.jsx, which mirrors the carousel's {id, type, props} shape
+    // (CarouselBlock.jsx) so each column can independently be the original
+    // "content" type (image + heading + body) or any other BLOCK_TYPES entry.
     defaultProps: {
       columnCount: '2', textAlign: 'left', widthRatio: 'equal', divider: false,
-      col1Image: '', col1Heading: '', col1Body: '',
-      col2Image: '', col2Heading: '', col2Body: '',
-      col3Image: '', col3Heading: '', col3Body: '',
+      columns: [
+        { id: 'col-1', type: 'content', props: { image: '', heading: '', body: '' } },
+        { id: 'col-2', type: 'content', props: { image: '', heading: '', body: '' } },
+        { id: 'col-3', type: 'content', props: { image: '', heading: '', body: '' } },
+      ],
     },
     fields: [
       { key: 'columnCount', kind: 'select', label: 'Number of columns', options: [{value:'2',label:'2'},{value:'3',label:'3'}] },
       { key: 'widthRatio', kind: 'select', label: 'Width ratio', options: [{value:'equal',label:'Equal'},{value:'wide-left',label:'Wide left (2:1)'},{value:'wide-right',label:'Wide right (1:2)'}], showIf: (p) => p.columnCount === '2' },
       { key: 'textAlign', kind: 'select', label: 'Text alignment', options: [{value:'left',label:'Left'},{value:'center',label:'Center'}] },
       { key: 'divider', kind: 'toggle', label: 'Vertical divider lines between columns' },
-      { key: 'col1Image', kind: 'image', label: 'Column 1 image (optional)' },
-      { key: 'col1Heading', kind: 'text', label: 'Column 1 heading' },
-      { key: 'col1Body', kind: 'richtext', label: 'Column 1 body' },
-      { key: 'col2Image', kind: 'image', label: 'Column 2 image (optional)' },
-      { key: 'col2Heading', kind: 'text', label: 'Column 2 heading' },
-      { key: 'col2Body', kind: 'richtext', label: 'Column 2 body' },
-      { key: 'col3Image', kind: 'image', label: 'Column 3 image (optional)', showIf: (p) => p.columnCount === '3' },
-      { key: 'col3Heading', kind: 'text', label: 'Column 3 heading', showIf: (p) => p.columnCount === '3' },
-      { key: 'col3Body', kind: 'richtext', label: 'Column 3 body', showIf: (p) => p.columnCount === '3' },
     ],
   },
   quote: {
