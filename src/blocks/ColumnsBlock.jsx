@@ -137,7 +137,7 @@ export function ColumnsBlock({
                   {editable ? (
                     <EditableImage value={col.props.image} alt="" onChange={(url) => updateColumnProps(i, { image: url })} pathPrefix={pathPrefix} emptyLabel={`Column ${i + 1} image (optional)`} />
                   ) : (
-                    <img src={col.props.image} alt="" style={{ width: '100%', borderRadius: 'var(--radius-md)' }} />
+                    <img src={col.props.image} alt="" loading="lazy" style={{ width: '100%', borderRadius: 'var(--radius-md)' }} />
                   )}
                 </div>
               )}

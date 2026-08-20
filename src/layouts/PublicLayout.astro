@@ -7,12 +7,15 @@ interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  ogType?: 'website' | 'article';
+  publishedTime?: string;
+  structuredData?: Record<string, unknown> | Record<string, unknown>[];
 }
 
-const { title, description, ogImage } = Astro.props;
+const { title, description, ogImage, ogType, publishedTime, structuredData } = Astro.props;
 ---
 
-<BaseLayout title={title} description={description} ogImage={ogImage}>
+<BaseLayout title={title} description={description} ogImage={ogImage} ogType={ogType} publishedTime={publishedTime} structuredData={structuredData}>
   <a href="#main-content" class="skip-link">Skip to content</a>
   <Header />
   <main class="site-main" id="main-content">

@@ -22,7 +22,7 @@ export function ImageTextBlock({
       {editable ? (
         <EditableImage value={imageUrl} alt={alt} onChange={(url) => onFieldChange('imageUrl', url)} pathPrefix={pathPrefix} style={{ boxShadow: 'var(--shadow-sm)' }} />
       ) : imageUrl ? (
-        <img src={imageUrl} alt={alt} style={{ width: '100%', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', display: 'block' }} />
+        <img src={imageUrl} alt={alt} loading="lazy" style={{ width: '100%', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', display: 'block' }} />
       ) : null}
     </div>
   );

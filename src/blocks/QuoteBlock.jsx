@@ -36,7 +36,7 @@ export function QuoteBlock({
                 <EditableImage value={avatarImage} alt="" onChange={(url) => onFieldChange('avatarImage', url)} pathPrefix={pathPrefix} emptyLabel="Photo" style={{ width: 40, height: 40 }} />
               </div>
             ) : avatarImage ? (
-              <img src={avatarImage} alt={citation || ''} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              <img src={avatarImage} alt={citation || ''} loading="lazy" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
             ) : null
           )}
           {(editable || citation) && (

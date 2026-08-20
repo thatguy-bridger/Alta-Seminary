@@ -5,15 +5,18 @@
 // by slug, resolves any teaser blocks' data, and renders through the same
 // BlockRenderer used by the admin canvas/preview.
 //
-// client:load on BlockRenderer below: several block types need real
+// client:visible on BlockRenderer below: several block types need real
 // client-side JS on the public page itself, not just in the admin canvas --
 // Carousel (autoplay/arrows/dots), Announcement Banner (dismiss button),
 // Contact Form (submit handler). Astro ships zero JS for a framework
 // component with no client directive, so without this those controls would
-// render but silently do nothing for real visitors. The cost is shipping
-// React for every builder page, even ones with only static blocks -- a
-// reasonable trade for "the buttons actually work" over shaving bytes on
-// pages that happen not to need it.
+// render but silently do nothing for real visitors. client:visible (rather
+// than client:load) defers hydrating the whole tree until it scrolls into
+// view -- a free win on any page where those blocks sit below the fold,
+// with no behavior change for above-the-fold ones (they're visible
+// immediately, so they hydrate immediately too). Still ships React for
+// every builder page rather than skipping it on fully-static ones -- that's
+// the real per-block-hydration split, a bigger restructuring left for later.
 import PublicLayout from '../../layouts/PublicLayout.astro';
 import { BlockRenderer } from '../../blocks/BlockRenderer.jsx';
 import { getPublishedPage } from '../../lib/pages.js';
@@ -29,11 +32,37 @@ const { slug, fallbackTitle } = Astro.props;
 const page = await getPublishedPage(slug);
 const blocks = page?.published_blocks || [];
 const teaserData = await resolveTeaserData(blocks, supabaseBuild);
+
+// Event structured data only makes sense on the events page itself -- there
+// are no individual per-event pages (see events.astro), so this is the one
+// slug that gets its own upcoming-events query rather than relying on
+// whatever a Directory Teaser-style block already fetched.
+let structuredData;
+if (slug === 'events') {
+  const { data: events } = await supabaseBuild
+    .from('calendar_events')
+    .select('title, description, location, start_at, end_at')
+    .eq('status', 'published')
+    .gte('start_at', new Date().toISOString())
+    .order('start_at')
+    .limit(20);
+  if (events && events.length > 0) {
+    structuredData = events.map((event) => ({
+      '@context': 'https://schema.org',
+      '@type': 'Event',
+      name: event.title,
+      description: event.description || undefined,
+      location: event.location ? { '@type': 'Place', name: event.location } : undefined,
+      startDate: event.start_at,
+      endDate: event.end_at || undefined,
+    }));
+  }
+}
 ---
 
-<PublicLayout title={page?.title || fallbackTitle} description={page?.meta_description} ogImage={page?.og_image_url}>
+<PublicLayout title={page?.title || fallbackTitle} description={page?.meta_description} ogImage={page?.og_image_url} structuredData={structuredData}>
   {blocks.length > 0 ? (
-    <BlockRenderer blocks={blocks} teaserData={teaserData} client:load />
+    <BlockRenderer blocks={blocks} teaserData={teaserData} client:visible />
   ) : (
     <p style="color:var(--text-muted); text-align:center; padding: var(--space-16) 0;">
       This page hasn't been published yet.

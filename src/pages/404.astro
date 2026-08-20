@@ -28,21 +28,21 @@ import Footer from '../components/site/Footer.astro';
   // src/lib/pages.js's getAllRoutes().
   const BASE = import.meta.env.BASE_URL;
 
-  function stripBase(pathname) {
+  function stripBase(pathname: string): string {
     if (BASE !== '/' && pathname.startsWith(BASE)) return '/' + pathname.slice(BASE.length);
     return pathname;
   }
-  function withBase(path) {
+  function withBase(path: string): string {
     const cleanBase = BASE.endsWith('/') ? BASE.slice(0, -1) : BASE;
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
     return `${cleanBase}${cleanPath}`;
   }
-  function normalize(path) {
+  function normalize(path: string): string {
     return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
   }
 
   const brokenPath = normalize(stripBase(window.location.pathname));
-  const fallbackLink = document.getElementById('fallback-link');
+  const fallbackLink = document.getElementById('fallback-link') as HTMLAnchorElement | null;
   if (fallbackLink) fallbackLink.href = withBase('/');
 
   fetch(withBase('/routes.json'))

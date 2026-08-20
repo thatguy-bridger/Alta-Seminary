@@ -44,6 +44,7 @@ export function GalleryBlock({ heading, albumFilter = 'all', columns = '3', coun
               <img
                 src={photo.image_url}
                 alt={photo.alt_text || photo.caption || ''}
+                loading="lazy"
                 style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-sm)' }}
               />
             </button>

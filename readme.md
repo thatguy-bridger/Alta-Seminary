@@ -69,3 +69,12 @@ This directory now also contains the Astro application that consumes this design
 | `npm run astro -- --help` | Astro CLI help |
 
 Design-system source files (`tokens/`, `styles.css`, `components/`, `theme-init.js`, `guidelines/`) are being consumed from `src/design-system/` inside the Astro app — see that directory for how they're wired in.
+
+### Caching
+
+GitHub Pages doesn't support custom cache-control headers (no `_headers`-style config, unlike Netlify/Vercel) — its CDN sets its own headers automatically, and that's not something we can override. The caching that matters is already handled by two things working together, not a setting to turn on:
+
+- **Every JS/CSS asset Astro builds gets a content hash in its filename** (e.g. `_astro/client.a1b2c3.js`). Since the filename itself changes whenever the content does, these are safe to cache "forever" — a stale cached copy is never actually wrong, because a real change gets a new filename instead of overwriting the old one.
+- **HTML pages** (the actual `.astro` routes) don't have hashed filenames, so GitHub's CDN caches them for a shorter default window and revalidates more often — which is correct, since HTML is what changes on every publish.
+
+Net effect: nothing to configure here, and nothing currently fights this default behavior.

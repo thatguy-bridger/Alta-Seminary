@@ -1,7 +1,13 @@
 ---
 import { getNavTree } from '../../lib/pages.js';
 
-const links = await getNavTree();
+interface NavLink {
+  label: string;
+  href?: string;
+  children: NavLink[];
+}
+
+const links: NavLink[] = await getNavTree();
 const currentPath = Astro.url.pathname;
 ---
 

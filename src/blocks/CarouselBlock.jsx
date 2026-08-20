@@ -435,14 +435,14 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, pauseOnHover, show
         {transition === 'fade' ? (
           items.map((item, i) => (
             <div key={item.id ?? i} style={{ position: 'absolute', inset: 0, opacity: i === index ? 1 : 0, transition: 'opacity var(--duration-standard)', pointerEvents: i === index ? 'auto' : 'none' }}>
-              <Slide item={item} />
+              <Slide item={item} eager={i === 0} />
             </div>
           ))
         ) : (
           <div style={{ display: 'flex', width: '100%', height: '100%', transform: `translateX(-${index * 100}%)`, transition: 'transform var(--duration-standard) var(--ease-standard)' }}>
             {items.map((item, i) => (
               <div key={item.id ?? i} style={{ flex: '0 0 100%', height: '100%' }}>
-                <Slide item={item} />
+                <Slide item={item} eager={i === 0} />
               </div>
             ))}
           </div>
@@ -486,8 +486,8 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, pauseOnHover, show
 // Dispatches a live (read-only) slide to its renderer: the original
 // image+heading/caption overlay for 'media' slides, or the nested block's
 // own component for everything else (see AddBlockButton's excludeTypes above).
-function Slide({ item }) {
-  if (item.type === 'media') return <MediaSlide {...item.props} />;
+function Slide({ item, eager }) {
+  if (item.type === 'media') return <MediaSlide {...item.props} eager={eager} />;
   const Component = BLOCK_COMPONENTS[item.type];
   if (!Component) return null;
   return (
@@ -499,11 +499,16 @@ function Slide({ item }) {
   );
 }
 
-function MediaSlide({ image, heading, caption, headingStyle, captionStyle }) {
+// `eager` is only ever true for slide 0 -- the rest sit outside the visible
+// frame (translated via CSS, not conditionally mounted), so the browser
+// correctly treats them as offscreen and defers them regardless of the
+// active index. See ImageBlock.jsx/DirectoryTeaserBlock.jsx etc. for the
+// same loading="lazy" treatment on other public-facing content images.
+function MediaSlide({ image, heading, caption, headingStyle, captionStyle, eager }) {
   if (!image) return null;
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <img src={image} alt={heading || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <img src={image} alt={heading || ''} loading={eager ? 'eager' : 'lazy'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       {(heading || caption) && (
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 'var(--space-4)', background: 'linear-gradient(transparent, rgba(0,0,0,0.65))', color: '#fff' }}>
           {heading && <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', ...textStyleToCss(headingStyle) }}>{heading}</div>}

@@ -18,9 +18,25 @@ const { data: post } = await supabaseBuild
 
 const blocks = post?.published_blocks || [];
 const teaserData = await resolveTeaserData(blocks, supabaseBuild);
+
+const articleSchema = post ? {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: post.title,
+  description: post.excerpt || undefined,
+  image: post.cover_image_url || undefined,
+  datePublished: post.published_at || undefined,
+} : undefined;
 ---
 
-<PublicLayout title={post?.title || 'Announcement'} description={post?.excerpt} ogImage={post?.cover_image_url}>
+<PublicLayout
+  title={post?.title || 'Announcement'}
+  description={post?.excerpt}
+  ogImage={post?.cover_image_url}
+  ogType="article"
+  publishedTime={post?.published_at}
+  structuredData={articleSchema}
+>
   {post ? (
     <>
       <header style="text-align:center; margin-bottom: var(--space-8);">
@@ -33,7 +49,7 @@ const teaserData = await resolveTeaserData(blocks, supabaseBuild);
           </p>
         )}
       </header>
-      {blocks.length > 0 && <BlockRenderer blocks={blocks} teaserData={teaserData} client:load />}
+      {blocks.length > 0 && <BlockRenderer blocks={blocks} teaserData={teaserData} client:visible />}
     </>
   ) : (
     <p style="color:var(--text-muted); text-align:center; padding: var(--space-16) 0;">

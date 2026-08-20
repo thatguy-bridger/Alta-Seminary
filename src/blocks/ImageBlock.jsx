@@ -32,7 +32,7 @@ export function ImageBlock({
       style={{ aspectRatio: RATIO[aspectRatio], boxShadow: shadow ? 'var(--shadow-sm)' : 'none', borderRadius: corners === 'rounded' ? 'var(--radius-lg)' : 0, border: border ? '1px solid var(--border-default)' : 'none' }}
     />
   ) : (
-    <img src={imageUrl} alt={alt} style={imgStyle} onClick={lightbox ? () => setOpen(true) : undefined} />
+    <img src={imageUrl} alt={alt} loading="lazy" style={imgStyle} onClick={lightbox ? () => setOpen(true) : undefined} />
   );
 
   return (
