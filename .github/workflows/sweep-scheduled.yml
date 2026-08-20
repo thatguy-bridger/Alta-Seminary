@@ -1,0 +1,28 @@
+name: Sweep scheduled content
+
+# Flips status='scheduled' rows to 'published' once their publish_at time
+# passes (and 'published' rows with an unpublish_at back to 'draft') -- see
+# supabase/functions/sweep-scheduled-content. This is independent of hosting
+# (Vercel just renders whatever the database currently says on each
+# request) -- nothing else runs this on a schedule, so deleting this
+# workflow silently breaks scheduled publish entirely, it just never fires.
+#
+# If this keeps failing: the usual cause is that sweep-scheduled-content
+# was never actually deployed as an Edge Function in the Supabase dashboard
+# (the code existing in this repo isn't enough -- it has to be pasted in
+# and deployed there separately).
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish/unpublish anything due
+        run: |
+          curl -sf -X POST "https://huabopvggyiuljmgzhlq.supabase.co/functions/v1/sweep-scheduled-content" \
+            -H "Content-Type: application/json" \
+            -H "x-webhook-secret: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}"
