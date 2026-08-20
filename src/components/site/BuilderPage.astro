@@ -29,7 +29,7 @@ interface Props {
 }
 
 const { slug, fallbackTitle } = Astro.props;
-const page = await getPublishedPage(slug);
+const page = slug ? await getPublishedPage(slug) : null;
 const blocks = page?.published_blocks || [];
 const teaserData = await resolveTeaserData(blocks, supabaseBuild);
 

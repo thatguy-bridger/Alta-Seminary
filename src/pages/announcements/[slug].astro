@@ -4,11 +4,8 @@ import { BlockRenderer } from '../../blocks/BlockRenderer.jsx';
 import { resolveTeaserData } from '../../blocks/teaserData.js';
 import { supabaseBuild } from '../../lib/supabase/build-client';
 
-export async function getStaticPaths() {
-  const { data } = await supabaseBuild.from('public_blog_posts').select('slug');
-  return (data || []).map((post) => ({ params: { slug: post.slug } }));
-}
-
+// Server-rendered per-request (see astro.config.mjs) -- no getStaticPaths,
+// Astro.params is populated straight from the incoming request URL.
 const { slug } = Astro.params;
 const { data: post } = await supabaseBuild
   .from('public_blog_posts')

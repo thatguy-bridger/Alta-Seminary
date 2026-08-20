@@ -2,16 +2,22 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
+import vercel from '@astrojs/vercel';
 
-// NOTE on `site`/`base`:
-// - Before the custom domain is pointed, this deploys to https://<user>.github.io/<repo>/,
-//   which requires `base: '/<repo>'` (uncomment + set below) so internal links/asset paths resolve.
-// - Once `public/CNAME` is added and the domain is repointed in GitHub Pages settings,
-//   switch back to `base: '/'` (the default) and update `site` to the real domain.
-// Getting this wrong is the most common GitHub Pages footgun — see PROJECT_SPEC.md / build plan.
+// Moved off GitHub Pages (static-only) to Vercel specifically so content
+// edits show up on the next page load instead of waiting on a GitHub
+// Actions rebuild -- see the "instant updates" discussion in chat history.
+// `output: 'server'` + the Vercel adapter means every route below renders
+// per-request by default; `site`/`base` no longer need the GitHub Pages
+// repo-subpath dance since Vercel serves from the deployment's own root.
 export default defineConfig({
-  site: 'https://thatguy-bridger.github.io',
-  base: '/Alta-Seminary', // remove once public/CNAME + custom domain are set, and switch `site` back to the real domain
+  // Vercel auto-names the project from the repo, so this is a best guess --
+  // check the actual URL Vercel assigns after the first deploy and fix this
+  // if it's different (wrong canonical URLs/sitemap entries otherwise).
+  // Swap to the real altaseminary.com once the custom domain is pointed.
+  site: 'https://alta-seminary.vercel.app',
+  output: 'server',
+  adapter: vercel(),
   integrations: [
     react(),
     sitemap({
