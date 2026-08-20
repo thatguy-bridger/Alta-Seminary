@@ -5,7 +5,7 @@
 --brand-primary:var(--color-neutral-900);--brand-primary-hover:var(--color-neutral-800);--brand-primary-active:var(--color-neutral-700);
 --brand-secondary:var(--color-crimson-600);--brand-secondary-hover:var(--color-crimson-700);
 --surface-page:var(--color-neutral-50);--surface-card:var(--color-neutral-0);--surface-sunken:var(--color-neutral-100);--surface-inverse:var(--color-neutral-900);
---text-primary:var(--color-neutral-900);--text-secondary:var(--color-neutral-600);--text-muted:var(--color-neutral-500);--text-on-primary:var(--color-neutral-0);--text-on-secondary:var(--color-neutral-0);--text-on-inverse:var(--color-neutral-50);--text-link:var(--color-crimson-600);--text-link-hover:var(--color-crimson-700);
+--text-primary:var(--color-neutral-900);--text-secondary:var(--color-neutral-600);--text-muted:#6E7278;--text-on-primary:var(--color-neutral-0);--text-on-secondary:var(--color-neutral-0);--text-on-inverse:var(--color-neutral-50);--text-link:var(--color-crimson-600);--text-link-hover:var(--color-crimson-700);
 --border-subtle:var(--color-neutral-200);--border-default:var(--color-neutral-300);--border-strong:var(--color-neutral-400);
 --tint-success-bg:#E7F0E7;--tint-warning-bg:#F6EBD9;--tint-error-bg:#F5E7E5;--tint-info-bg:#E2EAEF;
 }

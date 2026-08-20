@@ -43,7 +43,7 @@ export function DirectoryPersonDialog({ personId, sourceType, onClose }) {
           {entry.photo_url && (
             <img
               src={entry.photo_url}
-              alt=""
+              alt={entry.name}
               style={{ width: 160, height: 160, objectFit: 'cover', borderRadius: 'var(--radius-md)', alignSelf: 'center' }}
             />
           )}

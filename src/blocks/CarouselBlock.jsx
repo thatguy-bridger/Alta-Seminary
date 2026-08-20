@@ -370,10 +370,28 @@ function PeekSlide({ slide, onClick, slideNumber, aspectRatio }) {
   );
 }
 
+// A visitor pausing any carousel on the site sticks -- WCAG 2.2.2 wants a
+// way to stop auto-updating content, and a per-visit-only pause (reset on
+// every page load) means someone who's sensitive to motion has to re-pause
+// it constantly. One shared preference, not per-carousel, since a visitor
+// who doesn't want autoplay generally doesn't want it anywhere.
+const AUTOPLAY_OFF_KEY = 'alta-carousel-autoplay-off';
+
 function LiveCarousel({ items, autoplay, autoplaySpeed, loop, pauseOnHover, showArrows, showDots, transition, aspectRatio }) {
   const [index, setIndex] = React.useState(0);
-  const [paused, setPaused] = React.useState(false);
+  const [paused, setPaused] = React.useState(() => {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem(AUTOPLAY_OFF_KEY) === 'true';
+  });
   const touchStartX = React.useRef(null);
+
+  function togglePaused() {
+    setPaused((p) => {
+      const next = !p;
+      localStorage.setItem(AUTOPLAY_OFF_KEY, String(next));
+      return next;
+    });
+  }
 
   const go = React.useCallback((next) => {
     setIndex((current) => {
@@ -440,7 +458,7 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, pauseOnHover, show
         {autoplay && (
           <button
             aria-label={paused ? 'Play carousel' : 'Pause carousel'}
-            onClick={() => setPaused((p) => !p)}
+            onClick={togglePaused}
             style={{ position: 'absolute', top: 'var(--space-3)', right: 'var(--space-3)', width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'rgba(20,20,22,0.6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
             {paused ? <PlayIcon /> : <PauseIcon />}

@@ -72,7 +72,7 @@ export function DirectoryTeaserBlock({ heading, sourceType = 'staff', count = '3
             const card = (
               <Card>
                 {person.photo_url && (
-                  <img src={person.photo_url} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)' }} />
+                  <img src={person.photo_url} alt={person.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)' }} />
                 )}
                 <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)', textAlign: 'center' }}>{person.name}</div>
               </Card>

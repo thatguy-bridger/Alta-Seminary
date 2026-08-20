@@ -13,8 +13,9 @@ const { title, description, ogImage } = Astro.props;
 ---
 
 <BaseLayout title={title} description={description} ogImage={ogImage}>
+  <a href="#main-content" class="skip-link">Skip to content</a>
   <Header />
-  <main class="site-main">
+  <main class="site-main" id="main-content">
     <slot />
   </main>
   <Footer />
@@ -27,5 +28,22 @@ const { title, description, ogImage } = Astro.props;
     max-width: var(--content-max);
     margin: 0 auto;
     padding: var(--space-8) var(--space-6);
+  }
+  .skip-link {
+    position: absolute;
+    top: -100%;
+    left: var(--space-4);
+    z-index: 100;
+    padding: var(--space-3) var(--space-5);
+    background: var(--text-primary);
+    color: var(--surface-card);
+    font-family: var(--font-sans);
+    font-weight: var(--fw-bold);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    transition: top var(--duration-fast);
+  }
+  .skip-link:focus {
+    top: var(--space-4);
   }
 </style>

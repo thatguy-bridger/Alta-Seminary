@@ -31,8 +31,16 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const [publishOpen, setPublishOpen] = React.useState(false);
   const [publishing, setPublishing] = React.useState(false);
   const [toast, setToast] = React.useState(null);
+  const [modKeyLabel, setModKeyLabel] = React.useState('Ctrl');
   const saveTimer = React.useRef(null);
   const isPost = table === 'blog_posts';
+
+  // `navigator` doesn't exist during Astro's build-time server render of this
+  // client:load component -- read it in an effect (client-only), not inline
+  // in the render, or `astro build` fails with "navigator is not defined".
+  React.useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.platform.includes('Mac')) setModKeyLabel('⌘');
+  }, []);
 
   React.useEffect(() => {
     let active = true;
@@ -93,6 +101,52 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     const next = [...blocks.slice(0, idx + 1), copy, ...blocks.slice(idx + 1)];
     updateBlocks(next);
   }
+
+  function moveBlock(id, direction) {
+    const idx = blocks.findIndex((b) => b.id === id);
+    const target = idx + direction;
+    if (idx === -1 || target < 0 || target >= blocks.length) return;
+    const next = [...blocks];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    updateBlocks(next);
+  }
+
+  // Keyboard shortcuts for the selected block -- Delete/Backspace to match
+  // the trash-icon button exactly (no confirm dialog there either), the rest
+  // mirroring common editor conventions. Ignored while typing anywhere
+  // (inputs, textareas, or a block's own contentEditable text) so e.g.
+  // deleting a character in a heading never deletes the whole block.
+  React.useEffect(() => {
+    function isTypingInField() {
+      const el = document.activeElement;
+      if (!el) return false;
+      if (el.isContentEditable) return true;
+      return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT';
+    }
+
+    function onKeyDown(e) {
+      if (view !== 'Edit' || !selectedId || isTypingInField()) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !mod) {
+        e.preventDefault();
+        handleRemove(selectedId);
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        handleDuplicate(selectedId);
+      } else if (e.key === 'Escape') {
+        setSelectedId(null);
+      } else if (mod && e.shiftKey && e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveBlock(selectedId, -1);
+      } else if (mod && e.shiftKey && e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveBlock(selectedId, 1);
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [view, selectedId, blocks]);
 
   // Selecting several photos at once in an Image block's file picker (see
   // EditableImage's `multiple` mode): the first becomes this block's own
@@ -194,6 +248,11 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
               <div style={{ marginTop: 'var(--space-6)' }}>
                 <AddBlockButton onAdd={handleAdd} />
               </div>
+              {selectedBlock && (
+                <p style={{ marginTop: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+                  Selected: press <kbd>Delete</kbd> to remove, <kbd>{modKeyLabel}D</kbd> to duplicate, <kbd>Esc</kbd> to deselect.
+                </p>
+              )}
             </div>
             <div style={{ position: 'sticky', top: 'var(--space-6)' }}>
               <BlockConfigPanel block={selectedBlock} onChange={handleConfigChange} />

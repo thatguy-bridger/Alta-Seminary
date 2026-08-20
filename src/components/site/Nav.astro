@@ -57,6 +57,13 @@ const currentPath = Astro.url.pathname;
     color: var(--text-primary);
     border-bottom-color: var(--brand-secondary);
   }
+  .site-nav__item > a:focus-visible,
+  .site-nav__dropdown summary:focus-visible,
+  .site-nav__dropdown ul a:focus-visible {
+    outline: 2px solid var(--brand-secondary);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm);
+  }
   .site-nav__dropdown {
     position: relative;
     font-family: var(--font-sans);
