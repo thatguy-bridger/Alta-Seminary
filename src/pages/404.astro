@@ -29,7 +29,14 @@ import Footer from '../components/site/Footer.astro';
   const BASE = import.meta.env.BASE_URL;
 
   function stripBase(pathname: string): string {
-    if (BASE !== '/' && pathname.startsWith(BASE)) return '/' + pathname.slice(BASE.length);
+    // BASE_URL doesn't reliably carry a trailing slash (observed '/Alta-Seminary'
+    // with none) -- blindly prepending '/' after slicing it off doubled up into
+    // '//directory/staff/...', which never matched anything in routes.json and
+    // silently fell all the way back to the homepage every time.
+    if (BASE !== '/' && pathname.startsWith(BASE)) {
+      const rest = pathname.slice(BASE.length);
+      return rest.startsWith('/') ? rest : '/' + rest;
+    }
     return pathname;
   }
   function withBase(path: string): string {
