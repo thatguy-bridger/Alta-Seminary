@@ -8,7 +8,16 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (both auto-provided by Supabase)
 //   GITHUB_PAT -- same one trigger-deploy already uses
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+
+// Inlined rather than imported from ../_shared/cors.ts -- this function is
+// deployed by pasting index.ts alone into the Supabase Dashboard's editor,
+// which can't see a sibling file the way the CLI's full-folder deploy can
+// ("Module not found ... _shared/cors.ts" otherwise).
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 const GITHUB_OWNER = 'thatguy-bridger';
 const GITHUB_REPO = 'Alta-Seminary';
