@@ -1,6 +1,8 @@
 import React from 'react';
-import { uploadImageBlob, uploadImageFile } from '../imageUpload.js';
+import { uploadImageBlob, uploadImageFile, fetchImageFromUrl } from '../imageUpload.js';
 import { CropEditor } from '../CropEditor.jsx';
+import { ImageSourceMenu } from '../ImageSourceMenu.jsx';
+import { useAlert } from '../ConfirmProvider.jsx';
 
 // Wraps an <img> (or empty-state placeholder) with a click-to-replace overlay,
 // used inline on the edit canvas -- as opposed to ImageUploadField, the small
@@ -21,6 +23,7 @@ import { CropEditor } from '../CropEditor.jsx';
 // ImageBlock (duplicates itself per extra photo) and CarouselBlock's media
 // slide (adds one new slide per extra photo).
 export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLabel = 'Click to add image', aspect, multiple = false, onExtraImages }) {
+  const alertUser = useAlert();
   const inputRef = React.useRef(null);
   const [uploading, setUploading] = React.useState(false);
   const [uploadStatus, setUploadStatus] = React.useState('');
@@ -47,7 +50,21 @@ export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLa
       onChange(urls[0]);
       if (urls.length > 1) onExtraImages?.(urls.slice(1));
     } catch (err) {
-      alert(err.message || 'Upload failed.'); // eslint-disable-line no-alert -- rare path, fine as a simple admin-only notice
+      await alertUser(err.message || 'Upload failed.', { title: 'Upload failed' });
+    } finally {
+      setUploading(false);
+      setUploadStatus('');
+    }
+  }
+
+  async function handleUrl(url) {
+    setUploading(true);
+    setUploadStatus('Fetching…');
+    try {
+      const file = await fetchImageFromUrl(url);
+      setCropSrc(URL.createObjectURL(file));
+    } catch (err) {
+      await alertUser(err.message || 'Could not load that URL.', { title: 'Could not load image' });
     } finally {
       setUploading(false);
       setUploadStatus('');
@@ -60,7 +77,7 @@ export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLa
       const url = await uploadImageBlob(blob, pathPrefix);
       onChange(url);
     } catch (err) {
-      alert(err.message || 'Upload failed.'); // eslint-disable-line no-alert -- rare path, fine as a simple admin-only notice
+      await alertUser(err.message || 'Upload failed.', { title: 'Upload failed' });
     } finally {
       setUploading(false);
       closeCropper();
@@ -94,6 +111,14 @@ export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLa
         </div>
       )}
       <input ref={inputRef} type="file" accept="image/*" multiple={multiple} style={{ display: 'none' }} onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} />
+
+      {/* Clicking the image itself is always "upload from computer" (the
+          common case, zero extra clicks); this small corner control is the
+          only way to reach the other two sources, so it stops the parent
+          image click from also firing when it's used. */}
+      <div style={{ position: 'absolute', bottom: 6, right: 6, zIndex: 1 }} onClick={(e) => e.stopPropagation()}>
+        <ImageSourceMenu hideFileOption label="⋯" disabled={uploading} onUrl={handleUrl} onExisting={(url) => onChange(url)} />
+      </div>
 
       {cropSrc && (
         <div onClick={(e) => e.stopPropagation()}>

@@ -1,13 +1,13 @@
 import React from 'react';
-import { uploadImageBlob } from './imageUpload.js';
+import { uploadImageBlob, fetchImageFromUrl } from './imageUpload.js';
 import { CropEditor } from './CropEditor.jsx';
+import { ImageSourceMenu } from './ImageSourceMenu.jsx';
 
 // Side-panel version -- a compact thumbnail + button. See EditableImage.jsx
 // for the click-directly-on-canvas version used inline in Image/Image+Text blocks.
 // `aspect` (width/height) sets the crop frame's shape -- 1 (square) fits a
 // person's photo, a wider ratio suits something like a post's cover image.
 export function ImageUploadField({ label, value, onChange, pathPrefix = 'misc', aspect = 1 }) {
-  const inputRef = React.useRef(null);
   const [uploading, setUploading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [cropSrc, setCropSrc] = React.useState(null);
@@ -19,6 +19,19 @@ export function ImageUploadField({ label, value, onChange, pathPrefix = 'misc', 
     }
     setError('');
     setCropSrc(URL.createObjectURL(file));
+  }
+
+  async function handleUrl(url) {
+    setError('');
+    setUploading(true);
+    try {
+      const file = await fetchImageFromUrl(url);
+      setCropSrc(URL.createObjectURL(file));
+    } catch (err) {
+      setError(err.message || 'Could not load that URL.');
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleCropConfirm(blob) {
@@ -50,20 +63,12 @@ export function ImageUploadField({ label, value, onChange, pathPrefix = 'misc', 
             None
           </div>
         )}
-        <button
-          type="button"
-          className="btn btn-outline btn-sm"
-          onClick={() => inputRef.current?.click()}
+        <ImageSourceMenu
+          label={value ? 'Replace image' : 'Upload image'}
           disabled={uploading}
-        >
-          {uploading ? 'Uploading…' : value ? 'Replace image' : 'Upload image'}
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ''; }}
+          onFile={handleFile}
+          onUrl={handleUrl}
+          onExisting={(url) => onChange(url)}
         />
       </div>
       {error && <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--color-error)' }}>{error}</span>}

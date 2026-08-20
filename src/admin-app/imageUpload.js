@@ -49,5 +49,31 @@ export async function uploadImageBlob(blob, pathPrefix = 'misc') {
   });
   if (uploadError) throw uploadError;
   const { data } = supabaseBrowser.storage.from('images').getPublicUrl(path);
+
+  // Best-effort tracking for the "choose an existing image" picker -- a
+  // failure here shouldn't fail the upload itself, the image is already live.
+  const { data: userData } = await supabaseBrowser.auth.getUser();
+  supabaseBrowser.from('media_library').insert({
+    url: data.publicUrl, storage_path: path, uploaded_by: userData?.user?.id,
+  }).then(({ error }) => { if (error) console.error('media_library tracking failed:', error.message); });
+
   return data.publicUrl;
+}
+
+// Fetches an external image URL as a File -- NOT uploaded yet -- so a
+// pasted URL can flow through the exact same crop step as a normal file
+// pick (see ImageSourceMenu.jsx) before uploadImageFile eventually
+// re-hosts it, rather than hotlinking an external host that could change
+// or go away.
+export async function fetchImageFromUrl(url) {
+  let res;
+  try {
+    res = await fetch(url, { mode: 'cors' });
+  } catch {
+    throw new Error("Couldn't fetch that URL -- the site may block cross-origin requests.");
+  }
+  if (!res.ok) throw new Error(`Couldn't fetch that URL (${res.status}).`);
+  const blob = await res.blob();
+  if (!blob.type.startsWith('image/')) throw new Error("That URL doesn't look like an image.");
+  return new File([blob], 'pasted-image', { type: blob.type });
 }

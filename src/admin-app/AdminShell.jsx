@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/admin/contact', label: 'Contact' },
   { href: '/admin/team', label: 'Team' },
   { href: '/admin/history', label: 'History' },
+  { href: '/admin/diagnostics', label: 'Diagnostics' },
 ];
 
 const DISMISSED_KEY = 'alta-dismissed-deploy-error';
