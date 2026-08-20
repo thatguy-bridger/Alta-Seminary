@@ -1,0 +1,34 @@
+---
+// Catch-all for custom pages an admin creates via "+ New Page" beyond the
+// fixed set below (each of which already has its own dedicated file and
+// so is excluded here -- Astro errors on two routes generating the same
+// path). Before this existed, a custom page like "/ptc" got a row in the
+// `pages` table and a working nav link, but no actual route to render it --
+// a real 404. Worse, routes.json still listed it as "known" (it's a valid
+// row in `pages`), so 404.astro's fallback immediately redirected right
+// back to it, looping forever instead of landing anywhere.
+import BuilderPage from '../components/site/BuilderPage.astro';
+import { supabaseBuild } from '../lib/supabase/build-client';
+
+const RESERVED_PATHS = new Set([
+  'about', 'enrollment', 'schedule', 'events', 'gallery', 'contact', 'makeup-work',
+  'announcements', 'directory', 'directory/council', 'directory/missionaries', 'directory/staff',
+]);
+
+export async function getStaticPaths() {
+  const { data } = await supabaseBuild
+    .from('public_pages')
+    .select('slug, route_path')
+    .eq('page_kind', 'builder')
+    .not('route_path', 'is', null);
+
+  return (data || [])
+    .map((row) => ({ slug: row.slug, clean: row.route_path.replace(/^\/+|\/+$/g, '') }))
+    .filter((row) => row.clean && !RESERVED_PATHS.has(row.clean))
+    .map((row) => ({ params: { path: row.clean }, props: { slug: row.slug } }));
+}
+
+const { slug } = Astro.props;
+---
+
+<BuilderPage slug={slug} fallbackTitle="Page" />
