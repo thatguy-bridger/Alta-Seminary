@@ -26,6 +26,36 @@ export async function fetchDirectoryTeaserItems(client, sourceType, count) {
   return data || [];
 }
 
+// Used by DirectoryPersonDialog.jsx (the "larger preview" opened when a
+// visitor clicks a person card) -- fetched on demand rather than bundled
+// into the teaser list above, since most visitors never open it.
+export async function fetchDirectoryEntry(client, id) {
+  const { data, error } = await client
+    .from('directory_entries')
+    .select('id, name, photo_url, bio, extra_fields')
+    .eq('id', id)
+    .eq('status', 'published')
+    .maybeSingle();
+  if (error) {
+    console.error('directory entry fetch failed:', error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function fetchDirectoryFieldDefinitions(client, sourceType) {
+  const { data, error } = await client
+    .from('directory_field_definitions')
+    .select('field_key, label')
+    .or(`directory_kind.eq.${sourceType},directory_kind.is.null`)
+    .order('sort_order');
+  if (error) {
+    console.error('directory field definitions fetch failed:', error.message);
+    return [];
+  }
+  return data || [];
+}
+
 export async function fetchEventsTeaserItems(client, count, timeframe = 'upcoming') {
   let query = client
     .from('calendar_events')
