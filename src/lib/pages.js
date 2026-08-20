@@ -78,3 +78,25 @@ export async function getAllRoutes() {
   const postRoutes = (postsResult.data || []).map((row) => `/announcements/${row.slug}`);
   return [...new Set([...pageRoutes, ...postRoutes])];
 }
+
+function normalizePath(path) {
+  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+}
+
+// Walks a broken path up one segment at a time -- /directory/staff/john ->
+// /directory/staff -> /directory -- until it finds a real published route,
+// falling back to the homepage if nothing along the way matches. Used by
+// [...path].astro and announcements/[slug].astro's own not-found cases, now
+// that server rendering means this can happen as a real redirect instead of
+// 404.astro's old client-side-only version (still there as a rarely-hit
+// backup for genuinely unrouted requests).
+export async function findClosestRoute(requestedPath) {
+  const routes = await getAllRoutes();
+  const known = new Set(routes.map(normalizePath));
+  known.add('/');
+  let candidate = normalizePath(requestedPath);
+  while (candidate !== '/' && !known.has(candidate)) {
+    candidate = normalizePath(candidate.slice(0, candidate.lastIndexOf('/')) || '/');
+  }
+  return candidate;
+}

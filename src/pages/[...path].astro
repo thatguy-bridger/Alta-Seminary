@@ -7,6 +7,7 @@
 // getStaticPaths at all; it only ever runs for a path nothing else claimed.
 import BuilderPage from '../components/site/BuilderPage.astro';
 import { supabaseBuild } from '../lib/supabase/build-client';
+import { findClosestRoute } from '../lib/pages.js';
 
 const requestedPath = '/' + (Astro.params.path || '');
 const { data } = await supabaseBuild
@@ -15,7 +16,10 @@ const { data } = await supabaseBuild
   .eq('route_path', requestedPath)
   .maybeSingle();
 
-if (!data) Astro.response.status = 404;
+if (!data) {
+  const closest = await findClosestRoute(requestedPath);
+  return Astro.redirect(`${closest}?notfound=1`, 302);
+}
 ---
 
-<BuilderPage slug={data?.slug} fallbackTitle="Page" />
+<BuilderPage slug={data.slug} fallbackTitle="Page" />

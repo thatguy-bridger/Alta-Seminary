@@ -11,11 +11,8 @@ import vercel from '@astrojs/vercel';
 // per-request by default; `site`/`base` no longer need the GitHub Pages
 // repo-subpath dance since Vercel serves from the deployment's own root.
 export default defineConfig({
-  // Vercel auto-names the project from the repo, so this is a best guess --
-  // check the actual URL Vercel assigns after the first deploy and fix this
-  // if it's different (wrong canonical URLs/sitemap entries otherwise).
   // Swap to the real altaseminary.com once the custom domain is pointed.
-  site: 'https://alta-seminary.vercel.app',
+  site: 'https://alta-seminary-omega.vercel.app',
   output: 'server',
   adapter: vercel(),
   integrations: [
