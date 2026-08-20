@@ -43,3 +43,19 @@ export async function getNavTree() {
   });
   return (byParent.get('root') || []).map(attachChildren);
 }
+
+// Every real published path on the site (route_path from pages, plus each
+// published announcement's own /announcements/<slug>) -- consumed by
+// routes.json.ts and, from there, by 404.astro's "closest real page" fallback.
+// Raw paths, no `base` prefix -- see withBase() usage in 404.astro.
+export async function getAllRoutes() {
+  const [pagesResult, postsResult] = await Promise.all([
+    supabaseBuild.from('public_pages').select('route_path'),
+    supabaseBuild.from('public_blog_posts').select('slug'),
+  ]);
+  const pageRoutes = (pagesResult.data || [])
+    .map((row) => row.route_path)
+    .filter(Boolean);
+  const postRoutes = (postsResult.data || []).map((row) => `/announcements/${row.slug}`);
+  return [...new Set([...pageRoutes, ...postRoutes])];
+}

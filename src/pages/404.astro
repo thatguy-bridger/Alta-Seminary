@@ -1,0 +1,63 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/site/Header.astro';
+import Footer from '../components/site/Footer.astro';
+---
+
+<BaseLayout title="Page not found" noindex>
+  <Header />
+  <main style="max-width: var(--content-max); margin: 0 auto; padding: var(--space-16) var(--space-6); text-align: center;">
+    <p id="redirect-message" style="font-family: var(--font-sans); color: var(--text-secondary);">
+      That page doesn't exist &mdash; taking you somewhere close.
+    </p>
+    <p style="font-family: var(--font-sans);">
+      <a id="fallback-link" href="/" style="color: var(--text-link);">Go to the homepage</a>
+    </p>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<script>
+  // GitHub Pages serves this file for any path that isn't a real static
+  // file, with the visitor's original (broken) URL still in the address
+  // bar. Rather than a dead-end 404, this walks up the path one segment at
+  // a time -- /directory/staff/john-smith -> /directory/staff -> /directory
+  // -- redirecting to the first one that's a real published page, falling
+  // back to the homepage if nothing along the way matches. See
+  // routes.json.ts (build-time manifest of every real path) and
+  // src/lib/pages.js's getAllRoutes().
+  const BASE = import.meta.env.BASE_URL;
+
+  function stripBase(pathname) {
+    if (BASE !== '/' && pathname.startsWith(BASE)) return '/' + pathname.slice(BASE.length);
+    return pathname;
+  }
+  function withBase(path) {
+    const cleanBase = BASE.endsWith('/') ? BASE.slice(0, -1) : BASE;
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${cleanBase}${cleanPath}`;
+  }
+  function normalize(path) {
+    return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+  }
+
+  const brokenPath = normalize(stripBase(window.location.pathname));
+  const fallbackLink = document.getElementById('fallback-link');
+  if (fallbackLink) fallbackLink.href = withBase('/');
+
+  fetch(withBase('/routes.json'))
+    .then((res) => (res.ok ? res.json() : []))
+    .then((routes) => {
+      const known = new Set(routes.map(normalize));
+      known.add('/');
+
+      let candidate = brokenPath;
+      while (candidate !== '/' && !known.has(candidate)) {
+        candidate = normalize(candidate.slice(0, candidate.lastIndexOf('/')) || '/');
+      }
+      window.location.replace(withBase(candidate));
+    })
+    .catch(() => {
+      window.location.replace(withBase('/'));
+    });
+</script>

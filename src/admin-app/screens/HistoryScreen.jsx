@@ -20,6 +20,7 @@ const FILTERS = {
   Events: ['calendar_events'],
   Team: ['admin_profiles'],
   Settings: ['site_settings'],
+  Errors: ['deploy'],
 };
 
 const TABLE_LABELS = {
@@ -33,10 +34,11 @@ const TABLE_LABELS = {
   calendar_events: 'Event',
   site_settings: 'Site settings',
   admin_profiles: 'Admin',
+  deploy: 'Site deploy',
 };
 
-const ACTION_LABELS = { insert: 'Created', update: 'Updated', delete: 'Deleted', undo: 'Undone' };
-const ACTION_TONES = { insert: 'success', update: 'info', delete: 'error', undo: 'warning' };
+const ACTION_LABELS = { insert: 'Created', update: 'Updated', delete: 'Deleted', undo: 'Undone', error: 'Failed' };
+const ACTION_TONES = { insert: 'success', update: 'info', delete: 'error', undo: 'warning', error: 'error' };
 
 function formatWhen(iso) {
   const date = new Date(iso);
@@ -150,7 +152,7 @@ export function HistoryScreen() {
                     </div>
                   )}
                 </div>
-                {row.action !== 'undo' && !row.reverted_by_change_id && (
+                {row.action !== 'undo' && row.action !== 'error' && !row.reverted_by_change_id && (
                   <Button variant="ghost" size="sm" disabled={undoingId === row.id} onClick={() => handleUndo(row)}>
                     {undoingId === row.id ? 'Undoing…' : 'Undo'}
                   </Button>

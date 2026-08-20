@@ -15,10 +15,37 @@ const NAV_ITEMS = [
   { href: '/admin/history', label: 'History' },
 ];
 
+const DISMISSED_KEY = 'alta-dismissed-deploy-error';
+
 export function AdminShell({ children, activePath }) {
+  const [deployError, setDeployError] = React.useState(null);
+
   async function signOut() {
     await supabaseBrowser.auth.signOut();
     window.location.href = withBase('/admin/login');
+  }
+
+  React.useEffect(() => {
+    let active = true;
+    supabaseBrowser
+      .from('change_log')
+      .select('id, created_at, after_data')
+      .eq('table_name', 'deploy')
+      .eq('action', 'error')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!active || !data) return;
+        if (localStorage.getItem(DISMISSED_KEY) === data.id) return;
+        setDeployError(data);
+      });
+    return () => { active = false; };
+  }, []);
+
+  function dismissDeployError() {
+    if (deployError) localStorage.setItem(DISMISSED_KEY, deployError.id);
+    setDeployError(null);
   }
 
   return (
@@ -93,6 +120,26 @@ export function AdminShell({ children, activePath }) {
           </button>
         </div>
       </header>
+      {deployError && (
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)',
+            padding: 'var(--space-3) var(--space-6)', background: 'var(--tint-error-bg)', color: 'var(--color-error)',
+            fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', flexWrap: 'wrap',
+          }}
+        >
+          <span>
+            The site failed to deploy after your last publish.{' '}
+            <a href={withBase('/admin/history')} style={{ color: 'inherit', textDecoration: 'underline' }}>See details in History</a>.
+          </span>
+          <button
+            onClick={dismissDeployError}
+            style={{ border: 'none', background: 'transparent', color: 'inherit', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', padding: 0 }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       <main style={{ flex: 1, padding: 'var(--space-6)', background: 'var(--surface-page)' }}>{children}</main>
     </div>
   );
