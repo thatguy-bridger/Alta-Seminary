@@ -20,7 +20,14 @@ export function ImageTextBlock({
   const image = (
     <div className="it-image" style={{ order: desktopImageOrder }}>
       {editable ? (
-        <EditableImage value={imageUrl} alt={alt} onChange={(url) => onFieldChange('imageUrl', url)} pathPrefix={pathPrefix} style={{ boxShadow: 'var(--shadow-sm)' }} />
+        <>
+          <EditableImage value={imageUrl} alt={alt} onChange={(url) => onFieldChange('imageUrl', url)} pathPrefix={pathPrefix} style={{ boxShadow: 'var(--shadow-sm)' }} />
+          {imageUrl && !alt.trim() && (
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--color-warning)', margin: 'var(--space-2) 0 0' }}>
+              No alt text yet — add it in the panel on the right.
+            </p>
+          )}
+        </>
       ) : imageUrl ? (
         <img src={imageUrl} alt={alt} loading="lazy" style={{ width: '100%', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', display: 'block' }} />
       ) : null}

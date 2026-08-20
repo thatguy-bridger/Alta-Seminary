@@ -17,6 +17,7 @@ import { ImageUploadField } from '../ImageUploadField.jsx';
 import { withBase } from '../../lib/url.js';
 
 const AUTOSAVE_DELAY_MS = 1000;
+const DEVICE_WIDTHS = { Desktop: null, Tablet: 768, Mobile: 390 };
 
 // Shared by the Pages editor (table="pages") and the Announcements editor
 // (table="blog_posts") -- both rows have the same draft_blocks/published_blocks
@@ -32,6 +33,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const [publishing, setPublishing] = React.useState(false);
   const [toast, setToast] = React.useState(null);
   const [modKeyLabel, setModKeyLabel] = React.useState('Ctrl');
+  const [previewDevice, setPreviewDevice] = React.useState('Desktop');
   const saveTimer = React.useRef(null);
   const isPost = table === 'blog_posts';
 
@@ -41,6 +43,20 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   React.useEffect(() => {
     if (typeof navigator !== 'undefined' && navigator.platform.includes('Mac')) setModKeyLabel('⌘');
   }, []);
+
+  // Warn on navigating away mid-autosave -- the whole app has no client-side
+  // router (every nav, including the Back link, is a real page load), so
+  // beforeunload alone covers every path. saveState is exactly "is there an
+  // edit not yet written to the database" -- no separate dirty flag needed.
+  React.useEffect(() => {
+    function onBeforeUnload(e) {
+      if (saveState !== 'saving') return;
+      e.preventDefault();
+      e.returnValue = '';
+    }
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [saveState]);
 
   React.useEffect(() => {
     let active = true;
@@ -198,6 +214,12 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     return <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>;
   }
 
+  // Only meaningful once published -- the live site only ever renders
+  // published_blocks, so a draft-only page has no real public URL yet.
+  const liveHref = row.status === 'published'
+    ? withBase(isPost ? `/announcements/${row.slug}` : (row.route_path || `/${row.slug}`))
+    : null;
+
   return (
     <div>
       <a href={withBase(backHref)} style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-link)', textDecoration: 'none' }}>← Back</a>
@@ -210,7 +232,12 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
             {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Draft saved' : ''}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+          {liveHref && (
+            <a href={liveHref} target="_blank" rel="noopener noreferrer" style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-link)', textDecoration: 'none' }}>
+              View live ↗
+            </a>
+          )}
           {row.published_blocks && <Button variant="ghost" size="sm" onClick={handleResetToPublished}>Reset to current setup - unedited</Button>}
           <Button variant="primary" onClick={() => setPublishOpen(true)}>Publish</Button>
         </div>
@@ -259,8 +286,36 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
             </div>
           </div>
         ) : (
-          <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-8)', background: 'var(--surface-page)' }}>
-            <BlockRenderer blocks={blocks} />
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+              {Object.keys(DEVICE_WIDTHS).map((device) => (
+                <Button key={device} variant={previewDevice === device ? 'primary' : 'outline'} size="sm" onClick={() => setPreviewDevice(device)}>
+                  {device}
+                </Button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div
+                style={{
+                  width: DEVICE_WIDTHS[previewDevice] || '100%',
+                  maxWidth: '100%',
+                  border: previewDevice === 'Desktop' ? '1px solid var(--border-subtle)' : '8px solid var(--text-primary)',
+                  borderRadius: previewDevice === 'Desktop' ? 'var(--radius-lg)' : 'var(--radius-xl, 32px)',
+                  background: 'var(--surface-page)',
+                  overflow: 'hidden',
+                  transition: 'width var(--duration-standard)',
+                }}
+              >
+                {previewDevice === 'Mobile' && (
+                  <div style={{ height: 18, background: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 60, height: 5, borderRadius: 3, background: 'var(--surface-page)' }} />
+                  </div>
+                )}
+                <div style={{ padding: 'var(--space-8)', maxHeight: '80vh', overflowY: 'auto' }}>
+                  <BlockRenderer blocks={blocks} />
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

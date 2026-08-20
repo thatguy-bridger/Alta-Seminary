@@ -38,6 +38,11 @@ export function ImageBlock({
   return (
     <figure style={{ margin: 0, maxWidth: width === 'contained' ? 640 : undefined, marginLeft: width === 'contained' ? 'auto' : undefined, marginRight: width === 'contained' ? 'auto' : undefined }}>
       {!editable && link ? <a href={link}>{img}</a> : img}
+      {editable && imageUrl && !alt.trim() && (
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--color-warning)', margin: 'var(--space-2) 0 0' }}>
+          No alt text yet — screen readers can't describe this image to visitors who can't see it. Add it in the panel on the right.
+        </p>
+      )}
       {(editable || caption) && (
         <figcaption style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', marginTop: 'var(--space-2)', textAlign: 'center' }}>
           {editable ? (

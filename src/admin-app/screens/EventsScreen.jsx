@@ -35,6 +35,8 @@ export function EventsScreen() {
   const [events, setEvents] = React.useState(null);
   const [editing, setEditing] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const [selected, setSelected] = React.useState(() => new Set());
 
   async function load() {
     const { data } = await supabaseBrowser.from('calendar_events').select('*').order('start_at', { ascending: false });
@@ -42,6 +44,23 @@ export function EventsScreen() {
   }
 
   React.useEffect(() => { load(); }, []);
+
+  const filtered = React.useMemo(() => {
+    if (!events) return events;
+    const q = query.trim().toLowerCase();
+    return q ? events.filter((e) => e.title.toLowerCase().includes(q) || (e.location || '').toLowerCase().includes(q)) : events;
+  }, [events, query]);
+
+  function toggleSelected(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function toggleSelectAll() {
+    setSelected((prev) => (prev.size === filtered.length ? new Set() : new Set(filtered.map((e) => e.id))));
+  }
 
   async function toggleStatus(row) {
     await supabaseBrowser.from('calendar_events').update({ status: row.status === 'published' ? 'draft' : 'published' }).eq('id', row.id);
@@ -51,6 +70,18 @@ export function EventsScreen() {
   async function handleDelete(row) {
     if (!window.confirm(`Delete "${row.title}"? This can't be undone.`)) return;
     await supabaseBrowser.from('calendar_events').delete().eq('id', row.id);
+    load();
+  }
+
+  async function handleBulkDelete() {
+    if (!window.confirm(`Delete ${selected.size} event${selected.size > 1 ? 's' : ''}? This can't be undone.`)) return;
+    await supabaseBrowser.from('calendar_events').delete().in('id', [...selected]);
+    setSelected(new Set());
+    load();
+  }
+  async function handleBulkStatus(status) {
+    await supabaseBrowser.from('calendar_events').update({ status }).in('id', [...selected]);
+    setSelected(new Set());
     load();
   }
 
@@ -84,14 +115,36 @@ export function EventsScreen() {
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
         Events shown on the public Events page. Add an "Events Teaser" block to any page to display upcoming events there too.
       </p>
-      <div style={{ marginBottom: 'var(--space-4)' }}>
+      <div style={{ marginBottom: 'var(--space-4)', display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
         <Button variant="outline" onClick={() => setEditing(emptyEvent())}>+ New Event</Button>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by title or location…" aria-label="Filter events" />
+        </div>
       </div>
+
+      {selected.size > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)', padding: 'var(--space-3)', background: 'var(--surface-sunken)', borderRadius: 'var(--radius-md)' }}>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', fontWeight: 'var(--fw-bold)' }}>{selected.size} selected</span>
+          <Button variant="ghost" size="sm" onClick={() => handleBulkStatus('published')}>Publish</Button>
+          <Button variant="ghost" size="sm" onClick={() => handleBulkStatus('draft')}>Unpublish</Button>
+          <Button variant="ghost" size="sm" onClick={handleBulkDelete}>Delete</Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Clear</Button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-        {events.length === 0 && (
-          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>No events yet.</p>
+        {filtered.length === 0 && (
+          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>
+            {events.length === 0 ? 'No events yet.' : 'No events match that filter.'}
+          </p>
         )}
-        {events.map((row) => (
+        {filtered.length > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', padding: '0 var(--space-3)' }}>
+            <input type="checkbox" checked={selected.size === filtered.length} onChange={toggleSelectAll} />
+            Select all
+          </label>
+        )}
+        {filtered.map((row) => (
           <div
             key={row.id}
             style={{
@@ -99,6 +152,7 @@ export function EventsScreen() {
               padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
             }}
           >
+            <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleSelected(row.id)} aria-label={`Select ${row.title}`} />
             <div style={{ flex: 1 }}>
               <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{row.title}</span>
               <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
