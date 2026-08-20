@@ -151,7 +151,11 @@ export function PostsListScreen() {
                 </span>
               )}
             </div>
-            <Badge tone={row.status === 'published' ? 'success' : 'neutral'}>{row.status}</Badge>
+            <Badge tone={row.status === 'published' ? 'success' : row.status === 'scheduled' ? 'warning' : 'neutral'}>
+              {row.status === 'scheduled' && row.publish_at
+                ? `scheduled · ${new Date(row.publish_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+                : row.status}
+            </Badge>
             <a href={withBase(`/admin/posts/edit?slug=${row.slug}`)} style={{ textDecoration: 'none' }}>
               <Button variant="primary" size="sm">Edit</Button>
             </a>

@@ -22,6 +22,7 @@ const FILTERS = {
   Team: ['admin_profiles'],
   Settings: ['site_settings'],
   Errors: ['deploy'],
+  Trash: 'trash', // special-cased in load() below -- not a table_name filter
 };
 
 const TABLE_LABELS = {
@@ -83,7 +84,14 @@ export function HistoryScreen() {
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
     const tables = FILTERS[filter];
-    if (tables) query = query.in('table_name', tables);
+    if (filter === 'Trash') {
+      // Deleted items not yet restored -- everything needed to bring one
+      // back (before_data) is already on the row; undo_change() does the
+      // actual restore, same RPC the Undo button anywhere else uses.
+      query = query.eq('action', 'delete').is('reverted_by_change_id', null);
+    } else if (tables) {
+      query = query.in('table_name', tables);
+    }
 
     const { data, error } = await query;
     if (error) {
@@ -135,7 +143,9 @@ export function HistoryScreen() {
         {rows === null ? (
           <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>
         ) : rows.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>No changes recorded yet.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>
+            {filter === 'Trash' ? 'Nothing in the trash right now.' : 'No changes recorded yet.'}
+          </p>
         ) : (
           rows.map((row) => (
             <Card key={row.id}>
@@ -166,7 +176,7 @@ export function HistoryScreen() {
                 </div>
                 {row.action !== 'undo' && row.action !== 'error' && !row.reverted_by_change_id && (
                   <Button variant="outline" size="sm" disabled={undoingId === row.id} onClick={() => setUndoTarget(row)}>
-                    {undoingId === row.id ? 'Undoing…' : '↺ Undo this change'}
+                    {undoingId === row.id ? (row.action === 'delete' ? 'Restoring…' : 'Undoing…') : row.action === 'delete' ? '↺ Restore' : '↺ Undo this change'}
                   </Button>
                 )}
               </div>

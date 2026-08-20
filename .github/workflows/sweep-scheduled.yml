@@ -1,0 +1,16 @@
+name: Sweep scheduled content
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish/unpublish anything due
+        run: |
+          curl -sf -X POST "https://huabopvggyiuljmgzhlq.supabase.co/functions/v1/sweep-scheduled-content" \
+            -H "Content-Type: application/json" \
+            -H "x-webhook-secret: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}"

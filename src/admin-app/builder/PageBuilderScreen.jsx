@@ -19,6 +19,23 @@ import { withBase } from '../../lib/url.js';
 const AUTOSAVE_DELAY_MS = 1000;
 const DEVICE_WIDTHS = { Desktop: null, Tablet: 768, Mobile: 390 };
 
+// datetime-local inputs need "YYYY-MM-DDTHH:mm" with no timezone suffix;
+// Postgres timestamptz values round-trip as ISO strings with one.
+function toLocalInputValue(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function fromLocalInputValue(value) {
+  return value ? new Date(value).toISOString() : null;
+}
+
+const linkButtonStyle = {
+  border: 'none', background: 'none', padding: 0, cursor: 'pointer',
+  color: 'inherit', textDecoration: 'underline', fontFamily: 'inherit', fontSize: 'inherit',
+};
+
 // Shared by the Pages editor (table="pages") and the Announcements editor
 // (table="blog_posts") -- both rows have the same draft_blocks/published_blocks
 // shape (see 0001_init.sql), so one screen drives both rather than duplicating
@@ -34,6 +51,9 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const [toast, setToast] = React.useState(null);
   const [modKeyLabel, setModKeyLabel] = React.useState('Ctrl');
   const [previewDevice, setPreviewDevice] = React.useState('Desktop');
+  const [publishMode, setPublishMode] = React.useState('now');
+  const [scheduleAt, setScheduleAt] = React.useState('');
+  const [unpublishAt, setUnpublishAt] = React.useState('');
   const saveTimer = React.useRef(null);
   const isPost = table === 'blog_posts';
 
@@ -64,6 +84,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
       if (!active || !data) return;
       setRow(data);
       setBlocks(Array.isArray(data.draft_blocks) ? data.draft_blocks : []);
+      setUnpublishAt(toLocalInputValue(data.unpublish_at));
     });
     return () => { active = false; };
   }, [slug, table]);
@@ -192,7 +213,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     setPublishing(true);
     const { error } = await supabaseBrowser
       .from(table)
-      .update({ published_blocks: blocks, status: 'published', published_at: new Date().toISOString() })
+      .update({ published_blocks: blocks, status: 'published', published_at: new Date().toISOString(), publish_at: null })
       .eq('id', row.id);
     setPublishing(false);
     setPublishOpen(false);
@@ -200,7 +221,30 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
       setToast({ tone: 'error', text: 'Could not publish: ' + error.message });
     } else {
       setToast({ tone: 'success', text: 'Published — live in about a minute.' });
-      setRow((r) => ({ ...r, status: 'published' }));
+      setRow((r) => ({ ...r, status: 'published', publish_at: null }));
+    }
+    setTimeout(() => setToast(null), 4000);
+  }
+
+  // Scheduled publish doesn't touch published_blocks yet -- sweep-scheduled-
+  // content (runs every 15min via GitHub Actions cron) does the real publish
+  // once publish_at passes, using whatever draft_blocks looks like at that
+  // moment. Optional unpublish_at is independent of scheduling a publish --
+  // editable any time the row is published or scheduled, via updateMeta like
+  // any other field, not its own save flow.
+  async function handleSchedule(publishAtISO) {
+    setPublishing(true);
+    const { error } = await supabaseBrowser
+      .from(table)
+      .update({ status: 'scheduled', publish_at: publishAtISO })
+      .eq('id', row.id);
+    setPublishing(false);
+    setPublishOpen(false);
+    if (error) {
+      setToast({ tone: 'error', text: 'Could not schedule: ' + error.message });
+    } else {
+      setToast({ tone: 'success', text: `Scheduled — will publish ${new Date(publishAtISO).toLocaleString()}.` });
+      setRow((r) => ({ ...r, status: 'scheduled', publish_at: publishAtISO }));
     }
     setTimeout(() => setToast(null), 4000);
   }
@@ -224,13 +268,27 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     <div>
       <a href={withBase(backHref)} style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-link)', textDecoration: 'none' }}>← Back</a>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 'var(--space-3) 0 var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <h2 style={{ fontFamily: 'var(--font-display)', margin: 0 }}>{row.title}</h2>
-          <Badge tone={row.status === 'published' ? 'success' : 'neutral'}>{row.status}</Badge>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
-            {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Draft saved' : ''}
-          </span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', margin: 'var(--space-3) 0 var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', margin: 0 }}>{row.title}</h2>
+            <Badge tone={row.status === 'published' ? 'success' : row.status === 'scheduled' ? 'warning' : 'neutral'}>{row.status}</Badge>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+              {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Draft saved' : ''}
+            </span>
+          </div>
+          {row.status === 'scheduled' && row.publish_at && (
+            <div style={{ marginTop: 'var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--color-warning)' }}>
+              📅 Publishes automatically {new Date(row.publish_at).toLocaleString()} —{' '}
+              <button onClick={() => updateMeta({ status: 'draft', publish_at: null })} style={linkButtonStyle}>cancel schedule</button>
+            </div>
+          )}
+          {row.unpublish_at && (
+            <div style={{ marginTop: 'var(--space-1)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-muted)' }}>
+              ⏳ Automatically unpublishes {new Date(row.unpublish_at).toLocaleString()} —{' '}
+              <button onClick={() => updateMeta({ unpublish_at: null })} style={linkButtonStyle}>remove</button>
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
           {liveHref && (
@@ -239,7 +297,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
             </a>
           )}
           {row.published_blocks && <Button variant="ghost" size="sm" onClick={handleResetToPublished}>Reset to current setup - unedited</Button>}
-          <Button variant="primary" onClick={() => setPublishOpen(true)}>Publish</Button>
+          <Button variant="primary" onClick={() => { setPublishMode('now'); setScheduleAt(''); setPublishOpen(true); }}>Publish</Button>
         </div>
       </div>
 
@@ -320,16 +378,54 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
         )}
       </div>
 
-      <Dialog open={publishOpen} title="Publish this page?" onClose={() => setPublishOpen(false)}>
-        <p style={{ color: 'var(--text-secondary)', marginTop: 0 }}>
-          This replaces the live version of "{row.title}" with your current draft. It'll be visible on the public
-          site within about a minute.
-        </p>
+      <Dialog open={publishOpen} title={isPost ? 'Publish this announcement?' : 'Publish this page?'} onClose={() => setPublishOpen(false)}>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+          <Button variant={publishMode === 'now' ? 'primary' : 'outline'} size="sm" onClick={() => setPublishMode('now')}>Publish now</Button>
+          <Button variant={publishMode === 'schedule' ? 'primary' : 'outline'} size="sm" onClick={() => setPublishMode('schedule')}>Schedule for later</Button>
+        </div>
+
+        {publishMode === 'now' ? (
+          <p style={{ color: 'var(--text-secondary)', marginTop: 0 }}>
+            This replaces the live version of "{row.title}" with your current draft. It'll be visible on the public
+            site within about a minute.
+          </p>
+        ) : (
+          <div style={{ marginBottom: 'var(--space-4)' }}>
+            <Input
+              label="Publish at"
+              type="datetime-local"
+              value={scheduleAt}
+              onChange={(e) => setScheduleAt(e.target.value)}
+            />
+            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-caption)', marginTop: 'var(--space-2)' }}>
+              Goes live automatically at this time, using whatever your draft looks like when it fires — checked every 15 minutes.
+            </p>
+          </div>
+        )}
+
+        <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+          <Input
+            label="Unpublish automatically (optional)"
+            type="datetime-local"
+            value={unpublishAt}
+            onChange={(e) => { setUnpublishAt(e.target.value); updateMeta({ unpublish_at: e.target.value ? fromLocalInputValue(e.target.value) : null }); }}
+          />
+          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-caption)', marginTop: 'var(--space-2)' }}>
+            Reverts to draft at this time — content stays saved, so republishing later needs no rework.
+          </p>
+        </div>
+
         <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
           <Button variant="ghost" onClick={() => setPublishOpen(false)}>Cancel</Button>
-          <Button variant="primary" disabled={publishing} onClick={handlePublish}>
-            {publishing ? 'Publishing…' : 'Publish'}
-          </Button>
+          {publishMode === 'now' ? (
+            <Button variant="primary" disabled={publishing} onClick={handlePublish}>
+              {publishing ? 'Publishing…' : 'Publish'}
+            </Button>
+          ) : (
+            <Button variant="primary" disabled={publishing || !scheduleAt} onClick={() => handleSchedule(fromLocalInputValue(scheduleAt))}>
+              {publishing ? 'Scheduling…' : 'Schedule'}
+            </Button>
+          )}
         </div>
       </Dialog>
 

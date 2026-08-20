@@ -172,8 +172,10 @@ function PageRow({ row, siblings, onToggle, onMove, onCopy, onDelete, depth }) {
           )}
         </div>
 
-        <Badge tone={isBuilder ? (row.status === 'published' ? 'success' : 'neutral') : 'info'}>
-          {isBuilder ? row.status : 'section'}
+        <Badge tone={!isBuilder ? 'info' : row.status === 'published' ? 'success' : row.status === 'scheduled' ? 'warning' : 'neutral'}>
+          {!isBuilder ? 'section' : row.status === 'scheduled' && row.publish_at
+            ? `scheduled · ${new Date(row.publish_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+            : row.status}
         </Badge>
 
         {isBuilder && (
