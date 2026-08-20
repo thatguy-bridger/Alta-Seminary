@@ -48,6 +48,25 @@ export async function getNavTree() {
 // published announcement's own /announcements/<slug>) -- consumed by
 // routes.json.ts and, from there, by 404.astro's "closest real page" fallback.
 // Raw paths, no `base` prefix -- see withBase() usage in 404.astro.
+// Build-time search index -- title + short description + path for every
+// published page and announcement, consumed by search-index.json.ts and, from
+// there, by SiteSearch.jsx's client-side filter. No server/DB round-trip at
+// search time -- the whole index is small enough to fetch once and filter
+// in the browser.
+export async function getSearchIndex() {
+  const [pagesResult, postsResult] = await Promise.all([
+    supabaseBuild.from('public_pages').select('title, meta_description, route_path'),
+    supabaseBuild.from('public_blog_posts').select('title, excerpt, slug'),
+  ]);
+  const pages = (pagesResult.data || [])
+    .filter((row) => row.route_path)
+    .map((row) => ({ title: row.title, description: row.meta_description || '', path: row.route_path }));
+  const posts = (postsResult.data || []).map((row) => ({
+    title: row.title, description: row.excerpt || '', path: `/announcements/${row.slug}`,
+  }));
+  return [...pages, ...posts];
+}
+
 export async function getAllRoutes() {
   const [pagesResult, postsResult] = await Promise.all([
     supabaseBuild.from('public_pages').select('route_path'),

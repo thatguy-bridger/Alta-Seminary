@@ -2,6 +2,7 @@
 import { Image } from 'astro:assets';
 import Nav from './Nav.astro';
 import { ThemeToggle } from '../../design-system/components/core/ThemeToggle.jsx';
+import { SiteSearch } from './SiteSearch.jsx';
 import logo from '../../assets/alta-seminary-logo.png';
 import { withBase } from '../../lib/url.js';
 ---
@@ -11,7 +12,10 @@ import { withBase } from '../../lib/url.js';
     <Image src={logo} alt="Alta Seminary" height={40} />
   </a>
   <Nav />
-  <ThemeToggle client:idle />
+  <div style="display: flex; align-items: center; gap: var(--space-3);">
+    <SiteSearch client:idle />
+    <ThemeToggle client:idle />
+  </div>
 </header>
 
 <style>

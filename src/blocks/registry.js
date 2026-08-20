@@ -286,6 +286,18 @@ export const BLOCK_REGISTRY = {
       { key: 'successMessage', kind: 'text', label: 'Message shown after a successful submission', inline: false },
     ],
   },
+  faq: {
+    label: 'FAQ',
+    icon: 'help-circle',
+    description: 'A list of expandable questions and answers.',
+    defaultProps: {
+      heading: 'Frequently Asked Questions',
+      items: [{ id: 'faq-1', question: '', answer: '' }],
+    },
+    fields: [
+      { key: 'heading', kind: 'text', label: 'Heading' },
+    ],
+  },
 };
 
 export const BLOCK_TYPES = Object.keys(BLOCK_REGISTRY);

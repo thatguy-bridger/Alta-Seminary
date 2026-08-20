@@ -17,6 +17,7 @@ import { EventsTeaserBlock } from './EventsTeaserBlock.jsx';
 import { PostsTeaserBlock } from './PostsTeaserBlock.jsx';
 import { GalleryBlock } from './GalleryBlock.jsx';
 import { ContactFormBlock } from './ContactFormBlock.jsx';
+import { FaqBlock } from './FaqBlock.jsx';
 import { BlockWrapper } from './BlockWrapper.jsx';
 
 // The one component-per-type map used both by Astro's build (server-rendered,
@@ -43,6 +44,7 @@ export const BLOCK_COMPONENTS = {
   'posts-teaser': PostsTeaserBlock,
   gallery: GalleryBlock,
   'contact-form': ContactFormBlock,
+  faq: FaqBlock,
 };
 
 // teaserData: optional {[blockId]: items[]} map -- pre-fetched server-side by

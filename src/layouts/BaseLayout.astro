@@ -1,6 +1,7 @@
 ---
 import '../design-system/styles.css';
 import { withBase } from '../lib/url.js';
+import { DEFAULT_LOCALE } from '../lib/i18n.js';
 
 interface Props {
   title: string;
@@ -33,7 +34,7 @@ const organizationSchema = {
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={DEFAULT_LOCALE}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
