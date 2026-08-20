@@ -55,7 +55,13 @@ import Footer from '../components/site/Footer.astro';
       while (candidate !== '/' && !known.has(candidate)) {
         candidate = normalize(candidate.slice(0, candidate.lastIndexOf('/')) || '/');
       }
-      window.location.replace(withBase(candidate));
+      // ?notfound=1 tells the landing page (see the toast script in
+      // PublicLayout.astro) to show a "that page doesn't exist" notice --
+      // otherwise a visitor bounced to the homepage has no idea why they're
+      // not looking at what they clicked.
+      const destination = new URL(withBase(candidate), window.location.origin);
+      destination.searchParams.set('notfound', '1');
+      window.location.replace(destination.toString());
     })
     .catch(() => {
       window.location.replace(withBase('/'));

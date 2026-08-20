@@ -22,7 +22,31 @@ const { title, description, ogImage, ogType, publishedTime, structuredData } = A
     <slot />
   </main>
   <Footer />
+  <div id="not-found-toast" class="toast not-found-toast" role="status" hidden>
+    <span>That page doesn't exist — it may still be a work in progress. We brought you here instead.</span>
+    <button type="button" aria-label="Dismiss">&times;</button>
+  </div>
 </BaseLayout>
+
+<script>
+  // Shown when 404.astro's "closest real page" fallback lands here -- see
+  // the ?notfound=1 flag it sets before redirecting. Without this, a
+  // visitor bounced to some other page has no idea why they're not looking
+  // at what they actually clicked.
+  const url = new URL(window.location.href);
+  if (url.searchParams.get('notfound') === '1') {
+    url.searchParams.delete('notfound');
+    window.history.replaceState({}, '', url);
+
+    const toast = document.getElementById('not-found-toast');
+    if (toast) {
+      toast.hidden = false;
+      const dismiss = () => { toast.hidden = true; };
+      toast.querySelector('button')?.addEventListener('click', dismiss);
+      setTimeout(dismiss, 8000);
+    }
+  }
+</script>
 
 <style>
   .site-main {
@@ -48,5 +72,26 @@ const { title, description, ogImage, ogType, publishedTime, structuredData } = A
   }
   .skip-link:focus {
     top: var(--space-4);
+  }
+  .not-found-toast {
+    position: fixed;
+    bottom: var(--space-6);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    max-width: min(90vw, 480px);
+  }
+  .not-found-toast button {
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font-size: 1.1em;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.7;
+  }
+  .not-found-toast button:hover {
+    opacity: 1;
   }
 </style>
