@@ -51,8 +51,9 @@ Standard primitive set (no component source was provided, so a conventional inve
 - `guidelines/` — foundation specimen cards (colors, type, spacing, radii/shadows, wordmark, iconography)
 - `src/design-system/components/forms/` — Button, IconButton, Input, Select, Checkbox, Radio, Switch
 - `src/design-system/components/core/` — Card, Badge, Tag, Tabs, Dialog, Tooltip, Toast
-- `thumbnail.html` — project homepage tile
-- `SKILL.md` — portable skill definition for use in Claude Code
+- `docs/thumbnail.html` — project homepage tile
+- `docs/SKILL.md` — portable skill definition for use in Claude Code
+- `docs/PLANNING_QUESTIONS.md` — planning-phase notes from before the build started
 
 ---
 
