@@ -236,11 +236,12 @@ export const BLOCK_REGISTRY = {
     label: 'Directory Teaser',
     icon: 'users',
     description: 'A grid of people pulled live from one of your directories.',
-    defaultProps: { heading: 'Meet the Team', sourceType: 'staff', count: '3' },
+    defaultProps: { heading: 'Meet the Team', sourceType: 'staff', count: '3', uniformCardSize: false },
     fields: [
       { key: 'heading', kind: 'text', label: 'Heading' },
       { key: 'sourceType', kind: 'directory-select', label: 'Pull from' },
       { key: 'count', kind: 'select', label: 'How many to show', options: [{value:'3',label:'3'},{value:'4',label:'4'},{value:'6',label:'6'},{value:'8',label:'8'},{value:'12',label:'12'},{value:'all',label:'All (full directory on this page)'}] },
+      { key: 'uniformCardSize', kind: 'toggle', label: 'Make every card the same size (matches the tallest)' },
     ],
   },
   'events-teaser': {
