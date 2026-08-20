@@ -9,6 +9,7 @@ import { Input } from '../../design-system/components/forms/Input.jsx';
 import { Select } from '../../design-system/components/forms/Select.jsx';
 import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
+import { useConfirm, useAlert } from '../ConfirmProvider.jsx';
 
 // Photos with no album (e.g. left behind after their album was deleted --
 // gallery_photos.album_id is ON DELETE SET NULL) live under this pseudo-tab.
@@ -16,6 +17,8 @@ import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
 const UNSORTED = { id: null, name: 'Unsorted' };
 
 export function GalleryScreen() {
+  const confirm = useConfirm();
+  const alertUser = useAlert();
   const [albums, setAlbums] = React.useState(null);
   const [activeAlbumId, setActiveAlbumId] = React.useState(undefined); // undefined = not yet chosen
   const [addAlbumOpen, setAddAlbumOpen] = React.useState(false);
@@ -64,10 +67,10 @@ export function GalleryScreen() {
       .select('id', { count: 'exact', head: true })
       .eq('album_id', album.id);
     if (count > 0) {
-      window.alert(`"${album.name}" still has ${count} photo${count === 1 ? '' : 's'}. Move or delete those first.`);
+      await alertUser(`"${album.name}" still has ${count} photo${count === 1 ? '' : 's'}. Move or delete those first.`, { title: 'Album not empty' });
       return;
     }
-    if (!window.confirm(`Delete the "${album.name}" album? This can't be undone.`)) return;
+    if (!(await confirm(`Delete the "${album.name}" album? This can't be undone.`, { title: 'Delete album?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('gallery_albums').delete().eq('id', album.id);
     if (activeAlbumId === album.id) setActiveAlbumId(undefined);
     loadAlbums();
@@ -142,7 +145,7 @@ export function GalleryScreen() {
   }
 
   async function handleDelete(row) {
-    if (!window.confirm('Delete this photo? This can\'t be undone.')) return;
+    if (!(await confirm("Delete this photo? This can't be undone.", { title: 'Delete photo?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('gallery_photos').delete().eq('id', row.id);
     loadPhotos();
   }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { supabaseBrowser } from '../lib/supabase/browser-client';
 import { ThemeToggle } from '../design-system/components/core/ThemeToggle.jsx';
+import { ConfirmProvider } from './ConfirmProvider.jsx';
 import { withBase } from '../lib/url.js';
 import logo from '../assets/alta-seminary-logo.png';
 
@@ -140,7 +141,9 @@ export function AdminShell({ children, activePath }) {
           </button>
         </div>
       )}
-      <main style={{ flex: 1, padding: 'var(--space-6)', background: 'var(--surface-page)' }}>{children}</main>
+      <main style={{ flex: 1, padding: 'var(--space-6)', background: 'var(--surface-page)' }}>
+        <ConfirmProvider>{children}</ConfirmProvider>
+      </main>
     </div>
   );
 }

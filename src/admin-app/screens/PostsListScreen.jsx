@@ -8,8 +8,13 @@ import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { CopyIcon, TrashIcon } from '../icons.jsx';
 import { slugify, uniqueSlug } from '../slug.js';
 import { withBase } from '../../lib/url.js';
+import { useConfirm } from '../ConfirmProvider.jsx';
+import { useBulkListShortcuts } from '../useBulkListShortcuts.js';
+import { useModKeyLabel } from '../useModKeyLabel.js';
 
 export function PostsListScreen() {
+  const confirm = useConfirm();
+  const modKeyLabel = useModKeyLabel();
   const [posts, setPosts] = React.useState(null);
   const [createOpen, setCreateOpen] = React.useState(false);
   const [newTitle, setNewTitle] = React.useState('');
@@ -41,8 +46,14 @@ export function PostsListScreen() {
     setSelected((prev) => (prev.size === filtered.length ? new Set() : new Set(filtered.map((p) => p.id))));
   }
 
+  useBulkListShortcuts({
+    selected, setSelected,
+    allIds: filtered ? filtered.map((p) => p.id) : [],
+    onDeleteSelected: handleBulkDelete,
+  });
+
   async function handleBulkDelete() {
-    if (!window.confirm(`Delete ${selected.size} announcement${selected.size > 1 ? 's' : ''}? This can't be undone.`)) return;
+    if (!(await confirm(`Delete ${selected.size} announcement${selected.size > 1 ? 's' : ''}? This can't be undone.`, { title: 'Delete announcements?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('blog_posts').delete().in('id', [...selected]);
     setSelected(new Set());
     load();
@@ -91,7 +102,7 @@ export function PostsListScreen() {
   }
 
   async function handleDelete(row) {
-    if (!window.confirm(`Delete "${row.title}"? This can't be undone.`)) return;
+    if (!(await confirm(`Delete "${row.title}"? This can't be undone.`, { title: 'Delete announcement?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('blog_posts').delete().eq('id', row.id);
     load();
   }
@@ -129,10 +140,15 @@ export function PostsListScreen() {
           </p>
         )}
         {filtered.length > 0 && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', padding: '0 var(--space-3)' }}>
-            <input type="checkbox" checked={selected.size === filtered.length} onChange={toggleSelectAll} />
-            Select all
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)', padding: '0 var(--space-3)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+              <input type="checkbox" checked={selected.size === filtered.length} onChange={toggleSelectAll} />
+              Select all
+            </label>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+              <kbd>{modKeyLabel}A</kbd> select all · <kbd>Delete</kbd> remove selected · <kbd>Esc</kbd> clear
+            </span>
+          </div>
         )}
         {filtered.map((row) => (
           <div

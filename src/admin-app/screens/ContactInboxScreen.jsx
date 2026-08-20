@@ -4,11 +4,13 @@ import { Card } from '../../design-system/components/core/Card.jsx';
 import { Badge } from '../../design-system/components/core/Badge.jsx';
 import { Tabs } from '../../design-system/components/core/Tabs.jsx';
 import { TrashIcon } from '../icons.jsx';
+import { useConfirm } from '../ConfirmProvider.jsx';
 
 const FILTERS = { New: 'new', Read: 'read', Archived: 'archived' };
 const STATUS_TONE = { new: 'info', read: 'neutral', archived: 'neutral' };
 
 export function ContactInboxScreen() {
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = React.useState('New');
   const [rows, setRows] = React.useState(null);
 
@@ -29,7 +31,7 @@ export function ContactInboxScreen() {
   }
 
   async function handleDelete(row) {
-    if (!window.confirm(`Delete this message from "${row.name}"? This can't be undone.`)) return;
+    if (!(await confirm(`Delete this message from "${row.name}"? This can't be undone.`, { title: 'Delete message?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('contact_submissions').delete().eq('id', row.id);
     load();
   }

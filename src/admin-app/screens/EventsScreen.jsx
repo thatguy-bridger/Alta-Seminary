@@ -9,6 +9,9 @@ import { Select } from '../../design-system/components/forms/Select.jsx';
 import { Switch } from '../../design-system/components/forms/Switch.jsx';
 import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
+import { useConfirm } from '../ConfirmProvider.jsx';
+import { useBulkListShortcuts } from '../useBulkListShortcuts.js';
+import { useModKeyLabel } from '../useModKeyLabel.js';
 
 const emptyEvent = () => ({
   title: '', description: '', location: '', start_at: '', end_at: '', all_day: false, status: 'draft',
@@ -32,6 +35,8 @@ function fromLocalInputValue(value, allDay) {
 }
 
 export function EventsScreen() {
+  const confirm = useConfirm();
+  const modKeyLabel = useModKeyLabel();
   const [events, setEvents] = React.useState(null);
   const [editing, setEditing] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
@@ -62,19 +67,25 @@ export function EventsScreen() {
     setSelected((prev) => (prev.size === filtered.length ? new Set() : new Set(filtered.map((e) => e.id))));
   }
 
+  useBulkListShortcuts({
+    selected, setSelected,
+    allIds: filtered ? filtered.map((e) => e.id) : [],
+    onDeleteSelected: handleBulkDelete,
+  });
+
   async function toggleStatus(row) {
     await supabaseBrowser.from('calendar_events').update({ status: row.status === 'published' ? 'draft' : 'published' }).eq('id', row.id);
     load();
   }
 
   async function handleDelete(row) {
-    if (!window.confirm(`Delete "${row.title}"? This can't be undone.`)) return;
+    if (!(await confirm(`Delete "${row.title}"? This can't be undone.`, { title: 'Delete event?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('calendar_events').delete().eq('id', row.id);
     load();
   }
 
   async function handleBulkDelete() {
-    if (!window.confirm(`Delete ${selected.size} event${selected.size > 1 ? 's' : ''}? This can't be undone.`)) return;
+    if (!(await confirm(`Delete ${selected.size} event${selected.size > 1 ? 's' : ''}? This can't be undone.`, { title: 'Delete events?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('calendar_events').delete().in('id', [...selected]);
     setSelected(new Set());
     load();
@@ -139,10 +150,15 @@ export function EventsScreen() {
           </p>
         )}
         {filtered.length > 0 && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', padding: '0 var(--space-3)' }}>
-            <input type="checkbox" checked={selected.size === filtered.length} onChange={toggleSelectAll} />
-            Select all
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)', padding: '0 var(--space-3)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+              <input type="checkbox" checked={selected.size === filtered.length} onChange={toggleSelectAll} />
+              Select all
+            </label>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+              <kbd>{modKeyLabel}A</kbd> select all · <kbd>Delete</kbd> remove selected · <kbd>Esc</kbd> clear
+            </span>
+          </div>
         )}
         {filtered.map((row) => (
           <div

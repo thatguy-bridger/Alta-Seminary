@@ -10,12 +10,15 @@ import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { ImageUploadField } from '../ImageUploadField.jsx';
 import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
 import { slugify, uniqueSlug } from '../slug.js';
+import { useConfirm, useAlert } from '../ConfirmProvider.jsx';
 
 const emptyEntry = (kind) => ({
   directory_kind: kind, name: '', photo_url: '', bio: '', extra_fields: {}, status: 'draft',
 });
 
 export function DirectoryScreen() {
+  const confirm = useConfirm();
+  const alertUser = useAlert();
   const [directories, setDirectories] = React.useState(null);
   const [activeDirId, setActiveDirId] = React.useState(null);
   const [addDirOpen, setAddDirOpen] = React.useState(false);
@@ -53,10 +56,10 @@ export function DirectoryScreen() {
       .select('id', { count: 'exact', head: true })
       .eq('directory_kind', dir.slug);
     if (count > 0) {
-      window.alert(`"${dir.name}" still has ${count} entr${count === 1 ? 'y' : 'ies'}. Delete or move those first.`);
+      await alertUser(`"${dir.name}" still has ${count} entr${count === 1 ? 'y' : 'ies'}. Delete or move those first.`, { title: 'Directory not empty' });
       return;
     }
-    if (!window.confirm(`Delete the "${dir.name}" directory? This can't be undone.`)) return;
+    if (!(await confirm(`Delete the "${dir.name}" directory? This can't be undone.`, { title: 'Delete directory?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('directories').delete().eq('id', dir.id);
     const remaining = directories.filter((d) => d.id !== dir.id);
     if (activeDirId === dir.id) setActiveDirId(remaining[0]?.id ?? null);
@@ -93,7 +96,7 @@ export function DirectoryScreen() {
   }
 
   async function handleDelete(row) {
-    if (!window.confirm(`Delete "${row.name}"? This can't be undone.`)) return;
+    if (!(await confirm(`Delete "${row.name}"? This can't be undone.`, { title: 'Delete entry?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('directory_entries').delete().eq('id', row.id);
     load();
   }
@@ -227,6 +230,7 @@ function NewDirectoryDialog({ onCancel, onCreate }) {
 }
 
 function EntryDialog({ entry, fieldDefs, saving, onCancel, onSave }) {
+  const confirm = useConfirm();
   const [draft, setDraft] = React.useState(entry);
   const [addingKey, setAddingKey] = React.useState('');
 
@@ -251,16 +255,16 @@ function EntryDialog({ entry, fieldDefs, saving, onCancel, onSave }) {
   // Photo/name/bio are strongly suggested, not hard-required -- an admin can
   // save a partial entry (e.g. just a photo) to come back to later. To avoid
   // an accidental one-click save of a near-empty entry, saving with any of
-  // these missing requires a second confirming click (window.confirm), same
-  // pattern as the delete confirmations elsewhere in this screen.
+  // these missing requires a second confirming click, same pattern as the
+  // delete confirmations elsewhere in this screen.
   const missing = [
     !draft.photo_url && 'a photo',
     !draft.name.trim() && 'a name',
     !draft.bio.trim() && 'a bio',
   ].filter(Boolean);
 
-  function handleSaveClick() {
-    if (missing.length > 0 && !window.confirm(`This entry is missing ${missing.join(', ')}. Save it anyway?`)) return;
+  async function handleSaveClick() {
+    if (missing.length > 0 && !(await confirm(`This entry is missing ${missing.join(', ')}. Save it anyway?`, { title: 'Missing information', confirmLabel: 'Save anyway' }))) return;
     onSave(draft);
   }
 

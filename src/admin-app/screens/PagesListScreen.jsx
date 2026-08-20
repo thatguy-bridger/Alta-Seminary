@@ -9,6 +9,7 @@ import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { EyeIcon, EyeOffIcon, CopyIcon, TrashIcon } from '../icons.jsx';
 import { slugify, uniqueSlug } from '../slug.js';
 import { withBase } from '../../lib/url.js';
+import { useConfirm } from '../ConfirmProvider.jsx';
 
 // The block-builder pages this phase seeds if missing. Every other nav entry
 // (Schedule/Announcements/Directory+subpages/Gallery/Events/Contact/Makeup
@@ -33,6 +34,7 @@ function buildTree(rows) {
 }
 
 export function PagesListScreen() {
+  const confirm = useConfirm();
   const [pages, setPages] = React.useState(null);
   const [createOpen, setCreateOpen] = React.useState(false);
   const [newTitle, setNewTitle] = React.useState('');
@@ -105,7 +107,7 @@ export function PagesListScreen() {
     const warning = childCount > 0
       ? `Delete "${row.title}"? This will also delete its ${childCount} sub-page${childCount > 1 ? 's' : ''}. This can't be undone.`
       : `Delete "${row.title}"? This can't be undone.`;
-    if (!window.confirm(warning)) return;
+    if (!(await confirm(warning, { title: 'Delete page?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('pages').delete().eq('id', row.id);
     load();
   }

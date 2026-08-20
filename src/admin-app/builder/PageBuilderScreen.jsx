@@ -15,6 +15,7 @@ import { Toast } from '../../design-system/components/core/Toast.jsx';
 import { Card } from '../../design-system/components/core/Card.jsx';
 import { ImageUploadField } from '../ImageUploadField.jsx';
 import { withBase } from '../../lib/url.js';
+import { useModKeyLabel } from '../useModKeyLabel.js';
 
 const AUTOSAVE_DELAY_MS = 1000;
 const DEVICE_WIDTHS = { Desktop: null, Tablet: 768, Mobile: 390 };
@@ -49,20 +50,13 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const [publishOpen, setPublishOpen] = React.useState(false);
   const [publishing, setPublishing] = React.useState(false);
   const [toast, setToast] = React.useState(null);
-  const [modKeyLabel, setModKeyLabel] = React.useState('Ctrl');
+  const modKeyLabel = useModKeyLabel();
   const [previewDevice, setPreviewDevice] = React.useState('Desktop');
   const [publishMode, setPublishMode] = React.useState('now');
   const [scheduleAt, setScheduleAt] = React.useState('');
   const [unpublishAt, setUnpublishAt] = React.useState('');
   const saveTimer = React.useRef(null);
   const isPost = table === 'blog_posts';
-
-  // `navigator` doesn't exist during Astro's build-time server render of this
-  // client:load component -- read it in an effect (client-only), not inline
-  // in the render, or `astro build` fails with "navigator is not defined".
-  React.useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.platform.includes('Mac')) setModKeyLabel('⌘');
-  }, []);
 
   // Warn on navigating away mid-autosave -- the whole app has no client-side
   // router (every nav, including the Back link, is a real page load), so
