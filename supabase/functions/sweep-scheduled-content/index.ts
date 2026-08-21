@@ -12,7 +12,7 @@
 //
 // Required secrets (set via `supabase secrets set`):
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (both auto-provided by Supabase)
-//   DEPLOY_WEBHOOK_SECRET -- same shared secret trigger-deploy/report-deploy-status use
+//   DEPLOY_WEBHOOK_SECRET -- shared secret, verifies the caller is really the GitHub Actions cron
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const TABLES = ['pages', 'blog_posts'];

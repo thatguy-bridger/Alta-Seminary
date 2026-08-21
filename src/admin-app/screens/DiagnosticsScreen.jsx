@@ -5,11 +5,9 @@ import { Badge } from '../../design-system/components/core/Badge.jsx';
 import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Toast } from '../../design-system/components/core/Toast.jsx';
 import { withBase } from '../../lib/url.js';
-import { useConfirm } from '../ConfirmProvider.jsx';
 
 const GITHUB_OWNER = 'thatguy-bridger';
 const GITHUB_REPO = 'Alta-Seminary';
-const SUPABASE_PROJECT_URL = 'https://huabopvggyiuljmgzhlq.supabase.co';
 
 const STATUS_TONE = { ok: 'success', warn: 'warning', error: 'error', info: 'info', checking: 'neutral' };
 const STATUS_LABEL = { ok: 'Healthy', warn: 'Needs attention', error: 'Broken', info: 'Info', checking: 'Checking…' };
@@ -17,17 +15,19 @@ const STATUS_LABEL = { ok: 'Healthy', warn: 'Needs attention', error: 'Broken', 
 // This is a developer-facing panel (checks reach into GitHub's API and raw
 // Supabase tables that don't matter for day-to-day publishing), but any
 // admin can end up here -- every DiagnosticItem below explains itself in
-// plain language via its own "What is this?" toggle, and force-redeploy
-// (the one thing here that actually changes anything) goes through the same
-// confirm dialog as every destructive action elsewhere in the admin.
+// plain language via its own "What is this?" toggle.
+//
+// No "deploy pipeline"/"force redeploy" check here anymore -- the site
+// moved from GitHub Pages (needed a rebuild-and-redeploy step on every
+// publish) to Vercel server rendering (reads straight from the database on
+// each request, so there's nothing to trigger or wait on). Vercel itself
+// auto-deploys on every git push; check its own dashboard for that history.
 export function DiagnosticsScreen() {
-  const confirm = useConfirm();
   const [checks, setChecks] = React.useState({});
   const [toast, setToast] = React.useState(null);
   const [scanResult, setScanResult] = React.useState(null);
   const [scanning, setScanning] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
-  const [redeploying, setRedeploying] = React.useState(false);
 
   function setCheck(id, patch) {
     setChecks((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -45,7 +45,6 @@ export function DiagnosticsScreen() {
   }
 
   async function runAllChecks() {
-    setCheck('deploy', { status: 'checking' });
     setCheck('sweep', { status: 'checking' });
     setCheck('env', { status: 'checking' });
     setCheck('db', { status: 'checking' });
@@ -53,17 +52,6 @@ export function DiagnosticsScreen() {
     setCheck('publishSignal', { status: 'checking' });
     setCheck('media', { status: 'checking' });
     setCheck('site', { status: 'checking' });
-
-    // Deploy pipeline (GitHub's public API -- no auth needed for a public repo)
-    ghRuns('deploy.yml').then((runs) => {
-      const latest = runs[0];
-      if (!latest) return setCheck('deploy', { status: 'warn', detail: 'No deploy runs found yet.', runs: [] });
-      const status = latest.conclusion === 'success' ? 'ok' : latest.status !== 'completed' ? 'warn' : 'error';
-      setCheck('deploy', {
-        status, runs,
-        detail: `Latest: ${latest.conclusion || latest.status} · ${new Date(latest.created_at).toLocaleString()}`,
-      });
-    }).catch((err) => setCheck('deploy', { status: 'error', detail: `Couldn't reach GitHub: ${err.message}` }));
 
     // Scheduled-content sweep cron
     ghRuns('sweep-scheduled.yml').then((runs) => {
@@ -121,28 +109,6 @@ export function DiagnosticsScreen() {
     fetch(withBase('/'), { method: 'HEAD', cache: 'no-store' }).then((res) => {
       setCheck('site', { status: res.ok ? 'ok' : 'error', detail: `Homepage responded ${res.status}.` });
     }).catch((err) => setCheck('site', { status: 'error', detail: `Couldn't reach the site: ${err.message}` }));
-  }
-
-  async function handleForceRedeploy() {
-    if (!(await confirm(
-      'This triggers a real rebuild of the live site right now, using whatever is currently published. Use this if the site seems out of date and you don\'t want to wait for the next automatic trigger.',
-      { title: 'Force a redeploy?', confirmLabel: 'Redeploy now' }
-    ))) return;
-    setRedeploying(true);
-    try {
-      const { data: sessionData } = await supabaseBrowser.auth.getSession();
-      const res = await fetch(`${SUPABASE_PROJECT_URL}/functions/v1/admin-trigger-deploy`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${sessionData?.session?.access_token}` },
-      });
-      if (!res.ok) throw new Error(`Server returned ${res.status}`);
-      setToast({ tone: 'success', text: 'Redeploy triggered -- check the Actions tab or this screen in a minute.' });
-    } catch (err) {
-      setToast({ tone: 'error', text: 'Could not trigger redeploy: ' + err.message });
-    } finally {
-      setRedeploying(false);
-      setTimeout(() => setToast(null), 5000);
-    }
   }
 
   async function handleScan() {
@@ -248,13 +214,6 @@ export function DiagnosticsScreen() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <DiagnosticItem
-          id="deploy" check={checks.deploy} title="Deploy pipeline"
-          explanation="When you publish something, the site is supposed to automatically rebuild and go live within about a minute, via a GitHub Actions workflow. This shows whether that workflow's most recent runs actually succeeded. A red or stuck status here means publishing may not be reaching the live site."
-        >
-          {checks.deploy?.runs?.length > 0 && <RunList runs={checks.deploy.runs} />}
-        </DiagnosticItem>
-
-        <DiagnosticItem
           id="sweep" check={checks.sweep} title="Scheduled-publish sweep"
           explanation="A separate automatic job that runs every 15 minutes, checking for anything scheduled to publish or unpublish and doing it. If this is broken, scheduled publishing silently won't happen -- content will just stay in draft past its scheduled time. This requires a one-time setup (a database migration and an Edge Function) that's easy to miss."
         >
@@ -263,7 +222,7 @@ export function DiagnosticsScreen() {
 
         <DiagnosticItem
           id="env" check={checks.env} title="Site configuration"
-          explanation="The site needs to know which Supabase project to talk to. These two values get baked into the site at build time. If either is missing, the entire site breaks -- pages would show no content at all."
+          explanation="The site needs to know which Supabase project to talk to. These two values get baked in whenever Vercel builds the site (on every push). If either is missing, the entire site breaks -- pages would show no content at all."
         />
 
         <DiagnosticItem
@@ -294,18 +253,6 @@ export function DiagnosticsScreen() {
 
       <h3 style={{ fontFamily: 'var(--font-display)', margin: 'var(--space-8) 0 var(--space-3)' }}>Tools</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-        <Card>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
-            <div>
-              <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)' }}>Force a redeploy</div>
-              <InfoToggle text="Triggers a real, immediate rebuild of the live site, exactly like an automatic one -- use this if the site seems out of date and you don't want to wait. This actually changes something (a live deploy runs), which is why it asks you to confirm first." />
-            </div>
-            <Button variant="outline" size="sm" disabled={redeploying} onClick={handleForceRedeploy}>
-              {redeploying ? 'Triggering…' : 'Redeploy now'}
-            </Button>
-          </div>
-        </Card>
-
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
             <div>
