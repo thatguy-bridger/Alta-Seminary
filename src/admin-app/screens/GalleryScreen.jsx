@@ -10,6 +10,7 @@ import { Select } from '../../design-system/components/forms/Select.jsx';
 import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
 import { useConfirm, useAlert } from '../ConfirmProvider.jsx';
+import { AllSiteImagesPanel } from './AllSiteImagesPanel.jsx';
 
 // Photos with no album (e.g. left behind after their album was deleted --
 // gallery_photos.album_id is ON DELETE SET NULL) live under this pseudo-tab.
@@ -29,6 +30,7 @@ export function GalleryScreen() {
   const [pendingFiles, setPendingFiles] = React.useState(null); // File[] awaiting crop, one dialog at a time
   const [pendingIndex, setPendingIndex] = React.useState(0);
   const [cropSrc, setCropSrc] = React.useState(null);
+  const [view, setView] = React.useState('albums'); // 'albums' | 'all-images'
   const fileInputRef = React.useRef(null);
   const nextSortRef = React.useRef(0);
 
@@ -163,100 +165,116 @@ export function GalleryScreen() {
         Organize photos into albums, then add a "Photo Gallery" block to any page to display one publicly.
       </p>
 
-      {albums === null ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>
-      ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
-          {albums.map((album) => (
-            <div key={album.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
-              <button
-                onClick={() => setActiveAlbumId(album.id)}
-                className={'tab' + (album.id === activeAlbumId ? ' active' : '')}
-              >
-                {album.name}
-              </button>
-              <button onClick={() => handleDeleteAlbum(album)} title={`Delete "${album.name}" album`} style={{ ...iconButtonStyle, color: 'var(--text-muted)' }}>
-                <TrashIcon />
-              </button>
-            </div>
-          ))}
-          <button className={'tab' + (activeAlbumId === null ? ' active' : '')} onClick={() => setActiveAlbumId(null)}>
-            {UNSORTED.name}
-          </button>
-          <button className="tab" onClick={() => setAddAlbumOpen(true)} style={{ color: 'var(--brand-secondary)' }}>+ New album</button>
-        </div>
-      )}
+      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+        <button className={'tab' + (view === 'albums' ? ' active' : '')} onClick={() => setView('albums')}>Albums</button>
+        <button className={'tab' + (view === 'all-images' ? ' active' : '')} onClick={() => setView('all-images')}>All site images</button>
+      </div>
 
-      {activeAlbum && (
-        <div style={{ margin: '0 0 var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <Button variant="outline" disabled={uploading || !!pendingFiles} onClick={() => fileInputRef.current?.click()}>
-            {uploading ? 'Uploading…' : '+ Add Photos'}
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            style={{ display: 'none' }}
-            onChange={(e) => { startUpload(e.target.files); e.target.value = ''; }}
-          />
-          {uploadError && <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--color-error)' }}>{uploadError}</span>}
-        </div>
-      )}
-
-      {photos === null ? (
-        <p style={{ color: 'var(--text-secondary)' }}>{activeAlbum ? 'Loading…' : 'Create an album to get started.'}</p>
-      ) : photos.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>No photos in "{activeAlbum.name}" yet.</p>
+      {view === 'all-images' ? (
+        <>
+          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>
+            Every image currently in use anywhere on the site, grouped by where it's used -- no album to maintain. Replace one directly here (e.g. an outdated staff photo) without opening its directory/page/post.
+          </p>
+          <AllSiteImagesPanel />
+        </>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 'var(--space-3)' }}>
-          {photos.map((photo, idx) => (
-            <div key={photo.id} style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-              <img src={photo.image_url} alt={photo.alt_text || ''} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }} />
-              <div style={{ padding: 'var(--space-2)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Badge tone={photo.status === 'published' ? 'success' : 'neutral'}>{photo.status}</Badge>
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    <button onClick={() => move(photo, -1)} disabled={idx === 0} title="Move earlier" style={arrowStyle}>◀</button>
-                    <button onClick={() => move(photo, 1)} disabled={idx === photos.length - 1} title="Move later" style={arrowStyle}>▶</button>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'space-between' }}>
-                  <button onClick={() => setEditing(photo)} style={{ ...iconButtonStyle, fontSize: 'var(--fs-caption)', fontFamily: 'var(--font-sans)' }}>Edit</button>
-                  <button onClick={() => toggleStatus(photo)} title={photo.status === 'published' ? 'Published — click to unpublish' : 'Draft — click to publish'} style={iconButtonStyle}>
-                    {photo.status === 'published' ? <EyeIcon /> : <EyeOffIcon />}
+        <>
+          {albums === null ? (
+            <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+              {albums.map((album) => (
+                <div key={album.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
+                  <button
+                    onClick={() => setActiveAlbumId(album.id)}
+                    className={'tab' + (album.id === activeAlbumId ? ' active' : '')}
+                  >
+                    {album.name}
                   </button>
-                  <button onClick={() => handleDelete(photo)} title="Delete" style={{ ...iconButtonStyle, color: 'var(--color-error)' }}>
+                  <button onClick={() => handleDeleteAlbum(album)} title={`Delete "${album.name}" album`} style={{ ...iconButtonStyle, color: 'var(--text-muted)' }}>
                     <TrashIcon />
                   </button>
                 </div>
-              </div>
+              ))}
+              <button className={'tab' + (activeAlbumId === null ? ' active' : '')} onClick={() => setActiveAlbumId(null)}>
+                {UNSORTED.name}
+              </button>
+              <button className="tab" onClick={() => setAddAlbumOpen(true)} style={{ color: 'var(--brand-secondary)' }}>+ New album</button>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {editing && (
-        <PhotoDialog
-          photo={editing}
-          albums={albums}
-          onCancel={() => setEditing(null)}
-          onSave={handleSave}
-        />
-      )}
+          {activeAlbum && (
+            <div style={{ margin: '0 0 var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <Button variant="outline" disabled={uploading || !!pendingFiles} onClick={() => fileInputRef.current?.click()}>
+                {uploading ? 'Uploading…' : '+ Add Photos'}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: 'none' }}
+                onChange={(e) => { startUpload(e.target.files); e.target.value = ''; }}
+              />
+              {uploadError && <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--color-error)' }}>{uploadError}</span>}
+            </div>
+          )}
 
-      {addAlbumOpen && (
-        <NewAlbumDialog onCancel={() => setAddAlbumOpen(false)} onCreate={handleCreateAlbum} />
-      )}
+          {photos === null ? (
+            <p style={{ color: 'var(--text-secondary)' }}>{activeAlbum ? 'Loading…' : 'Create an album to get started.'}</p>
+          ) : photos.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>No photos in "{activeAlbum.name}" yet.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 'var(--space-3)' }}>
+              {photos.map((photo, idx) => (
+                <div key={photo.id} style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                  <img src={photo.image_url} alt={photo.alt_text || ''} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }} />
+                  <div style={{ padding: 'var(--space-2)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Badge tone={photo.status === 'published' ? 'success' : 'neutral'}>{photo.status}</Badge>
+                      <div style={{ display: 'flex', gap: 2 }}>
+                        <button onClick={() => move(photo, -1)} disabled={idx === 0} title="Move earlier" style={arrowStyle}>◀</button>
+                        <button onClick={() => move(photo, 1)} disabled={idx === photos.length - 1} title="Move later" style={arrowStyle}>▶</button>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'space-between' }}>
+                      <button onClick={() => setEditing(photo)} style={{ ...iconButtonStyle, fontSize: 'var(--fs-caption)', fontFamily: 'var(--font-sans)' }}>Edit</button>
+                      <button onClick={() => toggleStatus(photo)} title={photo.status === 'published' ? 'Published — click to unpublish' : 'Draft — click to publish'} style={iconButtonStyle}>
+                        {photo.status === 'published' ? <EyeIcon /> : <EyeOffIcon />}
+                      </button>
+                      <button onClick={() => handleDelete(photo)} title="Delete" style={{ ...iconButtonStyle, color: 'var(--color-error)' }}>
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
-      {cropSrc && pendingFiles && (
-        <CropEditor
-          src={cropSrc}
-          aspect={1}
-          title={pendingFiles.length > 1 ? `Crop photo (${pendingIndex + 1} of ${pendingFiles.length})` : 'Crop photo'}
-          onCancel={cancelUploadQueue}
-          onConfirm={handleCropConfirm}
-        />
+          {editing && (
+            <PhotoDialog
+              photo={editing}
+              albums={albums}
+              onCancel={() => setEditing(null)}
+              onSave={handleSave}
+            />
+          )}
+
+          {addAlbumOpen && (
+            <NewAlbumDialog onCancel={() => setAddAlbumOpen(false)} onCreate={handleCreateAlbum} />
+          )}
+
+          {cropSrc && pendingFiles && (
+            <CropEditor
+              src={cropSrc}
+              aspect={1}
+              title={pendingFiles.length > 1 ? `Crop photo (${pendingIndex + 1} of ${pendingFiles.length})` : 'Crop photo'}
+              onCancel={cancelUploadQueue}
+              onConfirm={handleCropConfirm}
+            />
+          )}
+        </>
       )}
     </Card>
   );
