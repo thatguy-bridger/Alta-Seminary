@@ -51,7 +51,14 @@ export function AdminShell({ children, activePath }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    // minWidth: 0 on this flex chain (here and <main> below) -- a flex
+    // container's default min-width is `auto`, not 0, so any wide content
+    // deep inside (a long unbroken row, a wide grid) would otherwise force
+    // this whole column wider than the viewport instead of being allowed to
+    // shrink/wrap, which is what actually causes a page-wide horizontal
+    // scrollbar (not fixable by clipping overflow at this level -- that
+    // breaks position:sticky, see the Style panel sidebar).
+    <div style={{ minHeight: '100vh', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
       <header
         style={{
           display: 'flex',
@@ -142,7 +149,7 @@ export function AdminShell({ children, activePath }) {
           </button>
         </div>
       )}
-      <main style={{ flex: 1, padding: 'var(--space-6)', background: 'var(--surface-page)' }}>
+      <main style={{ flex: 1, minWidth: 0, padding: 'var(--space-6)', background: 'var(--surface-page)' }}>
         <ConfirmProvider>{children}</ConfirmProvider>
       </main>
     </div>

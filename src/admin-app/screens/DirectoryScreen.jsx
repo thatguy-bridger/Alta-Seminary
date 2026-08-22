@@ -10,7 +10,7 @@ import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { ImageUploadField } from '../ImageUploadField.jsx';
 import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
 import { slugify, uniqueSlug } from '../slug.js';
-import { useConfirm, useAlert } from '../ConfirmProvider.jsx';
+import { useConfirm } from '../ConfirmProvider.jsx';
 
 const emptyEntry = (kind) => ({
   directory_kind: kind, name: '', photo_url: '', bio: '', extra_fields: {}, status: 'draft',
@@ -18,7 +18,6 @@ const emptyEntry = (kind) => ({
 
 export function DirectoryScreen() {
   const confirm = useConfirm();
-  const alertUser = useAlert();
   const [directories, setDirectories] = React.useState(null);
   const [activeDirId, setActiveDirId] = React.useState(null);
   const [addDirOpen, setAddDirOpen] = React.useState(false);
@@ -26,6 +25,7 @@ export function DirectoryScreen() {
   const [fieldDefs, setFieldDefs] = React.useState([]);
   const [editing, setEditing] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
+  const [deleteTarget, setDeleteTarget] = React.useState(null); // { dir, count } | null
 
   const activeDir = directories?.find((d) => d.id === activeDirId) || null;
   const kind = activeDir?.slug;
@@ -50,16 +50,29 @@ export function DirectoryScreen() {
     await loadDirectories(data?.id);
   }
 
+  // Directories aren't actually foreign-keyed to their entries at the DB
+  // level (directory_entries.directory_kind is just a matching slug, no
+  // constraint) -- so a directory with entries used to just be blocked from
+  // deletion outright. Now it's allowed, but everything in it goes too: a
+  // plain yes/no confirm is too easy to click through for "permanently
+  // delete N people," so this instead requires literally typing the
+  // directory's name before the delete button will even enable (see
+  // DeleteDirectoryDialog below).
   async function handleDeleteDirectory(dir) {
     const { count } = await supabaseBrowser
       .from('directory_entries')
       .select('id', { count: 'exact', head: true })
       .eq('directory_kind', dir.slug);
-    if (count > 0) {
-      await alertUser(`"${dir.name}" still has ${count} entr${count === 1 ? 'y' : 'ies'}. Delete or move those first.`, { title: 'Directory not empty' });
+    if (!count) {
+      if (!(await confirm(`Delete the "${dir.name}" directory? This can't be undone.`, { title: 'Delete directory?', confirmLabel: 'Delete', danger: true }))) return;
+      await finishDeleteDirectory(dir);
       return;
     }
-    if (!(await confirm(`Delete the "${dir.name}" directory? This can't be undone.`, { title: 'Delete directory?', confirmLabel: 'Delete', danger: true }))) return;
+    setDeleteTarget({ dir, count });
+  }
+
+  async function finishDeleteDirectory(dir) {
+    await supabaseBrowser.from('directory_entries').delete().eq('directory_kind', dir.slug);
     await supabaseBrowser.from('directories').delete().eq('id', dir.id);
     const remaining = directories.filter((d) => d.id !== dir.id);
     if (activeDirId === dir.id) setActiveDirId(remaining[0]?.id ?? null);
@@ -200,7 +213,58 @@ export function DirectoryScreen() {
       {addDirOpen && (
         <NewDirectoryDialog onCancel={() => setAddDirOpen(false)} onCreate={handleCreateDirectory} />
       )}
+
+      {deleteTarget && (
+        <DeleteDirectoryDialog
+          dir={deleteTarget.dir}
+          count={deleteTarget.count}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={async () => {
+            await finishDeleteDirectory(deleteTarget.dir);
+            setDeleteTarget(null);
+          }}
+        />
+      )}
     </Card>
+  );
+}
+
+// A plain yes/no confirm is too easy to click through for something this
+// destructive (the directory AND every person in it) -- requires typing the
+// directory's exact name before the button enables, same "sincere intent"
+// pattern real destructive-action dialogs use elsewhere (e.g. deleting a
+// GitHub repo).
+function DeleteDirectoryDialog({ dir, count, onCancel, onConfirm }) {
+  const [typed, setTyped] = React.useState('');
+  const [deleting, setDeleting] = React.useState(false);
+  const matches = typed === dir.name;
+
+  async function handleConfirm() {
+    setDeleting(true);
+    await onConfirm();
+    setDeleting(false);
+  }
+
+  return (
+    <Dialog open title="Delete directory and everyone in it?" onClose={onCancel}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 360 }}>
+        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+          "{dir.name}" still has {count} {count === 1 ? 'entry' : 'entries'}. Deleting it permanently deletes the directory <strong>and every one of those entries</strong> -- this can't be undone.
+        </p>
+        <Input
+          label={`Type "${dir.name}" to confirm`}
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          placeholder={dir.name}
+        />
+        <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button variant="primary" disabled={!matches || deleting} onClick={handleConfirm}>
+            {deleting ? 'Deleting…' : `Delete directory & ${count} ${count === 1 ? 'entry' : 'entries'}`}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

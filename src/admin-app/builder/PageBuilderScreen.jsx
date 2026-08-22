@@ -398,8 +398,13 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
 
       <div style={{ marginTop: 'var(--space-6)' }}>
         {view === 'Edit' ? (
-          <div style={{ display: 'grid', gridTemplateColumns: sidebarOpen ? '1.6fr 1fr' : '1fr', gap: 'var(--space-6)', alignItems: 'start' }}>
-            <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', background: 'var(--surface-page)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: sidebarOpen ? '1.6fr 1fr' : '1fr', gap: 'var(--space-6)', alignItems: 'start', minWidth: 0 }}>
+            {/* minWidth: 0 -- a grid item's default min-width is `auto`
+                just like a flex item's, so wide content inside (a Carousel's
+                row of slides, a long unbreakable value) could otherwise
+                force this whole column -- and the grid, and the page --
+                wider than the viewport instead of letting it shrink. */}
+            <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', background: 'var(--surface-page)', minWidth: 0 }}>
               <EditableCanvas
                 blocks={blocks}
                 selectedId={selectedId}

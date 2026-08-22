@@ -164,8 +164,23 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
           // pressed -- standard rich-editor technique so Bold/color/etc.
           // still apply to whatever was actually selected.
           onMouseDown={(e) => e.preventDefault()}
+          // stopPropagation (a separate concern from the preventDefault
+          // above -- dnd-kit listens for pointerdown, not mousedown): this
+          // toolbar is rendered via a portal straight onto document.body,
+          // but React still delivers its events through the component tree,
+          // not the DOM tree -- so without this, clicking any button/select
+          // here (this field's own richtext block sits inside a draggable
+          // canvas block) still bubbles up to dnd-kit's listeners and starts
+          // a reorder drag right after the click, exactly like a plain
+          // <select> would without Select.jsx's own equivalent guard.
+          onPointerDown={(e) => e.stopPropagation()}
           style={{
-            position: 'fixed', top: anchorRect.top, left: anchorRect.left,
+            // Clamped so the toolbar never sits partly off the right edge
+            // of the viewport -- a fixed-position element extending past
+            // the viewport boundary still widens the page's own scrollable
+            // area in most browsers, which would show up as a (very
+            // situational) sideways scrollbar while editing near the edge.
+            position: 'fixed', top: anchorRect.top, left: Math.min(anchorRect.left, window.innerWidth - 520 - 8),
             transform: 'translateY(calc(-100% - 8px))',
             display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', maxWidth: 520,
             padding: '6px 8px', borderRadius: 'var(--radius-md)',

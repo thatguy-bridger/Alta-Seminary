@@ -37,7 +37,12 @@ export function ImageSourceMenu({ onFile, onUrl, onExisting, disabled, label = '
   }
 
   return (
-    <div ref={menuRef} style={{ position: 'relative', display: 'inline-block' }}>
+    // stopPropagation: this can render inside a draggable canvas block (any
+    // Image field, or the autofill/replace controls elsewhere) whose
+    // wrapper carries dnd-kit's drag listeners -- without it, opening this
+    // menu or picking an option bubbles a pointerdown up to the wrapper and
+    // starts a reorder drag right after the click, same as a plain <select> would.
+    <div ref={menuRef} onPointerDown={(e) => e.stopPropagation()} style={{ position: 'relative', display: 'inline-block' }}>
       <button type="button" className="btn btn-outline btn-sm" onClick={() => setOpen((o) => !o)} disabled={disabled}>
         {disabled ? 'Uploading…' : label}
       </button>
