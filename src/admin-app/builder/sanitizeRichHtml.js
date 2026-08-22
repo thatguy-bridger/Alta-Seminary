@@ -7,12 +7,26 @@
 // bypassed) -- every node is real, already-parsed DOM, and anything not in
 // the switch below is either re-escaped as plain text or has its wrapper
 // silently dropped (never trusted verbatim).
-// #hex is allowed alongside var(--token) so a pre-existing per-field color
-// override (set by the old TextStyleToolbar, a literal hex value) still
-// carries over visually when its content is first converted into this
-// editor's HTML -- see RichTextEditor.jsx's `legacyStyleOverride`. Every new
-// edit made through THIS editor's own color swatches always uses var(--token).
-const ALLOWED_STYLE_DECL = /^(color|background-color|font-size|font-family):\s*(var\(--[a-zA-Z0-9-]+\)|#[0-9a-fA-F]{3,8}|[\d.]+(px|vw)|[a-zA-Z0-9 ,."'-]+)$|^text-align:\s*(left|center|right)$/;
+// #hex is allowed alongside var(--token) for color/background-color so a
+// pre-existing whole-field color override (set by the old TextStyleToolbar
+// before this editor existed, a literal hex value -- see RichTextBlock.jsx's
+// contentStyle) still displays correctly; this editor's own color swatches
+// always write var(--token) instead. The clamp(...) alternative is
+// fluidClamp()'s output (textStyle.js) -- the same fluid min/max font-size
+// formula used by the design system's own --fs-* tokens (typography.css),
+// applied here to a custom per-selection font size too.
+// Number sub-pattern is deliberately loose on precision/sign (-?[\d.]+) --
+// this value round-trips through the browser's own CSSOM (set via
+// span.style.fontSize = fluidClamp(px), read back later via
+// getAttribute('style')), which can re-serialize the decimals slightly
+// differently than fluidClamp()'s own .toFixed() output.
+const NUM = '-?[\\d.]+';
+const ALLOWED_STYLE_DECL = new RegExp(
+  `^(color|background-color):\\s*(var\\(--[a-zA-Z0-9-]+\\)|#[0-9a-fA-F]{3,8})$` +
+  `|^font-size:\\s*(var\\(--[a-zA-Z0-9-]+\\)|${NUM}px|clamp\\(\\s*${NUM}px\\s*,\\s*${NUM}px\\s*\\+\\s*${NUM}vw\\s*,\\s*${NUM}px\\s*\\))$` +
+  `|^font-family:\\s*(var\\(--[a-zA-Z0-9-]+\\)|[a-zA-Z0-9 ,."'-]+)$` +
+  `|^text-align:\\s*(left|center|right)$`
+);
 
 function escapeText(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

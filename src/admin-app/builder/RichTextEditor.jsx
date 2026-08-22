@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { legacyToHtml, looksLikeHtml } from '../../lib/richTextHtml.js';
 import { sanitizeRichHtml } from './sanitizeRichHtml.js';
 import { TEXT_COLOR_TOKENS, BG_COLOR_TOKENS, FONT_SIZE_OPTIONS } from '../../lib/richTextTokens.js';
-import { FONT_OPTIONS, fontSizeToVw } from './textStyle.js';
+import { FONT_OPTIONS, fluidClamp } from './textStyle.js';
 
 // Wraps the current selection in a <span style="prop:value">, used for
 // text color / text box color / font size / font family -- the four marks
@@ -130,7 +130,7 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
     if (applyInlineStyle('backgroundColor', `var(${tokenVar})`)) commit();
   }
   function handleFontSize(px) {
-    if (applyInlineStyle('fontSize', `${fontSizeToVw(px)}vw`)) commit();
+    if (applyInlineStyle('fontSize', fluidClamp(px))) commit();
   }
   function handleFontFamily(family) {
     if (family && applyInlineStyle('fontFamily', family)) commit();
