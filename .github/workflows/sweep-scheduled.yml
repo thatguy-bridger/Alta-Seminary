@@ -10,7 +10,13 @@ name: Sweep scheduled content
 # If this keeps failing: the usual cause is that sweep-scheduled-content
 # was never actually deployed as an Edge Function in the Supabase dashboard
 # (the code existing in this repo isn't enough -- it has to be pasted in
-# and deployed there separately).
+# and deployed there separately). A second, easy-to-miss cause: every
+# Supabase Edge Function requires an `Authorization: Bearer <key>` header
+# just to get past its own gateway, on top of (and before) this function's
+# own x-webhook-secret check -- confirmed live, curl got
+# {"code":"UNAUTHORIZED_NO_AUTH_HEADER"} until that header was added below.
+# The publishable/anon key is fine to use here (and to keep in this repo --
+# see .env.example) -- it's meant to be public, this isn't the service-role key.
 
 on:
   schedule:
@@ -28,6 +34,7 @@ jobs:
         run: |
           response=$(curl -s -w '\n%{http_code}' -X POST "https://huabopvggyiuljmgzhlq.supabase.co/functions/v1/sweep-scheduled-content" \
             -H "Content-Type: application/json" \
+            -H "Authorization: Bearer sb_publishable_Kd3vj4E8zzBkoqKlFJUcow_rgHqI8dA" \
             -H "x-webhook-secret: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}")
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | sed '$d')
