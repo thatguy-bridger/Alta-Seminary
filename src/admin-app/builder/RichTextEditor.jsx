@@ -2,20 +2,22 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { legacyToHtml, looksLikeHtml } from '../../lib/richTextHtml.js';
 import { sanitizeRichHtml } from './sanitizeRichHtml.js';
-import { TEXT_COLOR_TOKENS, BG_COLOR_TOKENS, FONT_SIZE_OPTIONS } from '../../lib/richTextTokens.js';
+import { TEXT_COLOR_TOKENS, BG_COLOR_TOKENS } from '../../lib/richTextTokens.js';
 import { FONT_OPTIONS, fluidClamp } from './textStyle.js';
 
-// Wraps the current selection in a <span style="prop:value">, used for
-// text color / text box color / font size / font family -- the four marks
-// that need a specific value rather than a simple on/off toggle, so they
-// can't go through document.execCommand('foreColor'/'fontSize'/...) the way
-// bold/italic/lists do (execCommand only accepts literal colors/sizes, not
-// the `var(--token)` values this editor deliberately uses -- see
-// richTextTokens.js on why literal colors aren't used here).
-function applyInlineStyle(prop, value) {
-  const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return false;
-  const range = sel.getRangeAt(0);
+const DEFAULT_FONT_SIZE_PX = 16;
+const MIN_FONT_SIZE_PX = 8;
+const MAX_FONT_SIZE_PX = 96;
+
+// Wraps a given Range in a <span style="prop:value">, used for text color /
+// text box color / font size / font family -- the four marks that need a
+// specific value rather than a simple on/off toggle, so they can't go
+// through document.execCommand('foreColor'/'fontSize'/...) the way bold/
+// italic/lists do (execCommand only accepts literal colors/sizes, not the
+// `var(--token)` values this editor deliberately uses -- see
+// richTextTokens.js on why literal colors aren't used here). Returns the
+// span so callers can read/report the applied value back.
+function wrapRangeInStyledSpan(range, prop, value) {
   const span = document.createElement('span');
   span.style[prop] = value;
   try {
@@ -28,11 +30,20 @@ function applyInlineStyle(prop, value) {
     span.appendChild(frag);
     range.insertNode(span);
   }
+  const sel = window.getSelection();
   sel.removeAllRanges();
   const newRange = document.createRange();
   newRange.selectNodeContents(span);
   sel.addRange(newRange);
-  return true;
+  return span;
+}
+
+// fluidClamp(px) always ends in `, Npx)` -- pulls the plain design size back
+// out of that so the toolbar can show "this selection is currently 24px"
+// instead of a fixed/blank control that doesn't reflect the selection.
+function designPxFromFontSize(fontSizeValue) {
+  const match = /,\s*([\d.]+)px\s*\)\s*$/.exec(fontSizeValue || '');
+  return match ? Math.round(parseFloat(match[1])) : null;
 }
 
 // Google-Docs-style rich text editing for `richtext`-kind fields (Rich Text
@@ -56,7 +67,19 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
   const [anchorRect, setAnchorRect] = React.useState(null);
   const [linkOpen, setLinkOpen] = React.useState(false);
   const [linkValue, setLinkValue] = React.useState('');
+  const [currentFontSize, setCurrentFontSize] = React.useState(null); // null = no explicit size on the selection
   const convertedOnce = React.useRef(false);
+  // The last HTML string *we* committed -- lets the value-sync effect below
+  // tell "the parent re-rendered because of my own edit" (DOM is already
+  // correct, don't touch it) apart from "the value changed for some other
+  // reason" (e.g. undo, or a totally fresh value -- DOM needs resyncing).
+  const lastCommittedRef = React.useRef(null);
+  // Selection inside the contentEditable, kept alive across a click into a
+  // toolbar text input (font size). Moving focus to an <input> so the user
+  // can type into it also moves the browser's Selection off the
+  // contentEditable, which would otherwise make every mark-applying handler
+  // below find "no selection" the moment a text input is involved.
+  const savedRangeRef = React.useRef(null);
 
   // Consistent <p>-per-line behavior across browsers on Enter (some default
   // to bare <div>s otherwise, which the sanitizer still accepts but this
@@ -68,14 +91,22 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
   // Legacy **bold**/*italic*/[link](url) plain text (everything written
   // before this editor existed) is converted to real HTML the moment the
   // field is opened, and immediately persisted -- see richTextHtml.js.
+  //
+  // Skips touching the live DOM entirely when this `value` is the exact
+  // thing we ourselves just committed: overwriting innerHTML resets the
+  // browser's Selection even when the resulting markup is unchanged, which
+  // was silently breaking every "apply one mark, then immediately apply
+  // another" sequence (e.g. set a color, then try to bold the same text --
+  // the color's commit already destroyed the selection bold needed).
   React.useEffect(() => {
     if (!ref.current) return;
+    if (value === lastCommittedRef.current) return;
     const isHtml = looksLikeHtml(value);
     const html = isHtml ? (value || '') : legacyToHtml(value);
     if (ref.current.innerHTML !== html) ref.current.innerHTML = html;
     if (!isHtml && value && !convertedOnce.current) {
       convertedOnce.current = true;
-      onCommit(html);
+      commitHtml(html);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-sync when the stored value actually changes, not on every render
   }, [value]);
@@ -91,10 +122,40 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [toolbarOpen]);
 
+  // Tracks the live selection while it's actually inside the editor (saving
+  // a clone so it survives focus moving elsewhere -- see savedRangeRef
+  // above) and reads the nearest explicit font-size for the toolbar's size
+  // control, so it reflects what's really selected instead of a blank/fixed value.
+  React.useEffect(() => {
+    if (!toolbarOpen) return;
+    function handleSelectionChange() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || !ref.current?.contains(sel.anchorNode)) return;
+      if (!sel.isCollapsed) savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+      let node = sel.anchorNode;
+      if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+      while (node && node !== ref.current) {
+        if (node.style?.fontSize) {
+          setCurrentFontSize(designPxFromFontSize(node.style.fontSize));
+          return;
+        }
+        node = node.parentElement;
+      }
+      setCurrentFontSize(null);
+    }
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, [toolbarOpen]);
+
+  function commitHtml(html) {
+    lastCommittedRef.current = html;
+    onCommit(html);
+  }
+
   function commit() {
     if (!ref.current) return;
     const html = sanitizeRichHtml(ref.current);
-    if (html !== value) onCommit(html);
+    if (html !== value) commitHtml(html);
   }
 
   function handleFocus() {
@@ -123,20 +184,44 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
     commit();
   }
 
+  // Restores the last known selection inside the editor onto
+  // window.getSelection() -- needed before any mark-applying action that
+  // might run after focus moved to a toolbar text input (font size),
+  // since typing there moves the browser's Selection off the contentEditable.
+  function restoreSelection() {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed && ref.current?.contains(sel.anchorNode)) return true;
+    if (!savedRangeRef.current || !ref.current?.contains(savedRangeRef.current.commonAncestorContainer)) return false;
+    sel.removeAllRanges();
+    sel.addRange(savedRangeRef.current);
+    return true;
+  }
+
+  function applyMark(prop, value) {
+    if (!restoreSelection()) return false;
+    const sel = window.getSelection();
+    const span = wrapRangeInStyledSpan(sel.getRangeAt(0), prop, value);
+    savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    commit();
+    return !!span;
+  }
+
   function handleColor(tokenVar) {
-    if (applyInlineStyle('color', `var(${tokenVar})`)) commit();
+    applyMark('color', `var(${tokenVar})`);
   }
   function handleBg(tokenVar) {
-    if (applyInlineStyle('backgroundColor', `var(${tokenVar})`)) commit();
+    applyMark('backgroundColor', `var(${tokenVar})`);
   }
-  function handleFontSize(px) {
-    if (applyInlineStyle('fontSize', fluidClamp(px))) commit();
+  function setFontSize(px) {
+    const clamped = Math.min(MAX_FONT_SIZE_PX, Math.max(MIN_FONT_SIZE_PX, Math.round(px)));
+    if (applyMark('fontSize', fluidClamp(clamped))) setCurrentFontSize(clamped);
   }
   function handleFontFamily(family) {
-    if (family && applyInlineStyle('fontFamily', family)) commit();
+    if (family) applyMark('fontFamily', family);
   }
   function handleApplyLink() {
     if (!linkValue.trim()) return;
+    if (!restoreSelection()) return;
     exec('createLink', linkValue.trim());
     setLinkOpen(false);
     setLinkValue('');
@@ -169,8 +254,11 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
           // Prevents the browser from shifting focus off the editor (which
           // would collapse the selection) the instant a toolbar button is
           // pressed -- standard rich-editor technique so Bold/color/etc.
-          // still apply to whatever was actually selected.
-          onMouseDown={(e) => e.preventDefault()}
+          // still apply to whatever was actually selected. Text inputs
+          // (the font-size box, the link URL box) are excluded -- they need
+          // real focus to be typeable, which is exactly what restoreSelection()
+          // above compensates for.
+          onMouseDown={(e) => { if (e.target.tagName !== 'INPUT') e.preventDefault(); }}
           // stopPropagation (a separate concern from the preventDefault
           // above -- dnd-kit listens for pointerdown, not mousedown): this
           // toolbar is rendered via a portal straight onto document.body,
@@ -226,10 +314,7 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
           <ColorSwatchMenu label="A" title="Text color" tokens={TEXT_COLOR_TOKENS} onPick={handleColor} />
           <ColorSwatchMenu label="▧" title="Text box color" tokens={BG_COLOR_TOKENS} onPick={handleBg} />
           <Divider />
-          <select onChange={(e) => e.target.value && handleFontSize(Number(e.target.value))} defaultValue="" title="Font size" style={selectStyle}>
-            <option value="" disabled>Size</option>
-            {FONT_SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}px</option>)}
-          </select>
+          <FontSizeStepper value={currentFontSize} onChange={setFontSize} />
           <select onChange={(e) => handleFontFamily(e.target.value)} defaultValue="" title="Font" style={selectStyle}>
             {FONT_OPTIONS.map((f) => <option key={f.label} value={f.value}>{f.label}</option>)}
           </select>
@@ -240,11 +325,42 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
   );
 }
 
+// Shows the selection's actual current size (blank if the selection spans
+// mixed sizes or has no explicit override yet) instead of a fixed dropdown
+// -- with +/- steppers for a quick nudge, or type an exact value directly.
+function FontSizeStepper({ value, onChange }) {
+  const [typed, setTyped] = React.useState('');
+  const displayValue = typed !== '' ? typed : (value ?? '');
+
+  function commitTyped() {
+    const n = Number(typed);
+    if (typed !== '' && !Number.isNaN(n)) onChange(n);
+    setTyped('');
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }} title="Font size">
+      <button type="button" onClick={() => onChange((value ?? DEFAULT_FONT_SIZE_PX) - 1)} style={stepperBtnStyle}>−</button>
+      <input
+        type="number"
+        value={displayValue}
+        placeholder={String(DEFAULT_FONT_SIZE_PX)}
+        onChange={(e) => setTyped(e.target.value)}
+        onBlur={commitTyped}
+        onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); commitTyped(); } }}
+        style={{ width: 40, textAlign: 'center', fontSize: 12, padding: '3px 2px', borderRadius: 4, border: '1px solid var(--border-default)', background: 'var(--surface-page)', color: 'var(--text-primary)' }}
+      />
+      <button type="button" onClick={() => onChange((value ?? DEFAULT_FONT_SIZE_PX) + 1)} style={stepperBtnStyle}>+</button>
+    </div>
+  );
+}
+
 function Divider() {
   return <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border-subtle)' }} />;
 }
 
 const toolbarBtnStyle = { border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, padding: '4px 6px', borderRadius: 4, color: 'var(--text-primary)' };
+const stepperBtnStyle = { ...toolbarBtnStyle, padding: '2px 5px', border: '1px solid var(--border-default)' };
 const selectStyle = { fontSize: 12, padding: '3px 5px', borderRadius: 4, border: '1px solid var(--border-default)', background: 'var(--surface-page)', color: 'var(--text-primary)' };
 
 function ToolbarButton({ label, title, onClick, bold, italic, underline }) {
