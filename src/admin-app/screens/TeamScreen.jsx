@@ -14,9 +14,14 @@ export function TeamScreen() {
   const [message, setMessage] = React.useState(null); // { tone, text }
 
   async function loadAdmins() {
+    // admin_directory (not admin_profiles directly) -- a view joining in the
+    // handful of auth.users columns Supabase's own Users table shows
+    // (created date, last sign-in, confirmed status, sign-in method) that
+    // otherwise aren't reachable from the browser client at all. See
+    // 0021_admin_directory_view.sql.
     const { data, error } = await supabaseBrowser
-      .from('admin_profiles')
-      .select('id, email, display_name, invited_at')
+      .from('admin_directory')
+      .select('id, email, display_name, invited_at, created_at, last_sign_in_at, confirmed, provider')
       .order('invited_at', { ascending: true });
     if (!error) setAdmins(data);
   }
@@ -75,24 +80,46 @@ export function TeamScreen() {
         ) : admins.length === 0 ? (
           <p style={{ color: 'var(--text-secondary)' }}>No admins yet.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            {admins.map((a) => (
-              <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-2) 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                <span style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-primary)' }}>
-                  {a.display_name ? (
-                    <>
-                      {a.display_name} <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>({a.email})</span>
-                    </>
-                  ) : (
-                    a.email
-                  )}
-                </span>
-                <Badge>{new Date(a.invited_at).toLocaleDateString()}</Badge>
-              </div>
-            ))}
+          // overflow-x here, not the page -- this table is genuinely wider
+          // than it needs to wrap, and nothing sticky lives inside it, so a
+          // local scrollbar on just this box is the right call rather than
+          // squeezing every column down to illegibility.
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', whiteSpace: 'nowrap' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 'var(--fs-caption)', textTransform: 'uppercase', letterSpacing: 'var(--ls-caption)' }}>
+                  <th style={thStyle}>Admin</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Sign-in method</th>
+                  <th style={thStyle}>Created</th>
+                  <th style={thStyle}>Last sign-in</th>
+                  <th style={thStyle}>Invited</th>
+                </tr>
+              </thead>
+              <tbody>
+                {admins.map((a) => (
+                  <tr key={a.id} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    <td style={tdStyle}>
+                      <div style={{ color: 'var(--text-primary)', fontWeight: 'var(--fw-bold)' }}>{a.display_name || '—'}</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-caption)' }}>{a.email}</div>
+                    </td>
+                    <td style={tdStyle}>
+                      <Badge tone={a.confirmed ? 'success' : 'warning'}>{a.confirmed ? 'Confirmed' : 'Invite pending'}</Badge>
+                    </td>
+                    <td style={tdStyle}>{a.provider}</td>
+                    <td style={tdStyle}>{a.created_at ? new Date(a.created_at).toLocaleDateString() : '—'}</td>
+                    <td style={tdStyle}>{a.last_sign_in_at ? new Date(a.last_sign_in_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Never'}</td>
+                    <td style={tdStyle}>{a.invited_at ? new Date(a.invited_at).toLocaleDateString() : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>
     </div>
   );
 }
+
+const thStyle = { padding: 'var(--space-2) var(--space-3)', fontWeight: 'var(--fw-bold)' };
+const tdStyle = { padding: 'var(--space-3)', verticalAlign: 'top' };
