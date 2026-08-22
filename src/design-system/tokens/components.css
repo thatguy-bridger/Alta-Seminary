@@ -4,8 +4,14 @@
    instead of overflowing (and forcing a sideways scrollbar) on a narrow
    screen or inside the admin's device-width Preview frame. Most blocks
    already set their own width:100% explicitly, but this is the backstop for
-   anything that doesn't (e.g. a page's or post's plain content-embedded image). */
-img,video,iframe{max-width:100%;height:auto}
+   anything that doesn't (e.g. a page's or post's plain content-embedded image).
+   No height:auto here -- that would override anything sized by a fixed
+   HTML height attribute or its own CSS height (e.g. the admin header's
+   logo, height={32}), forcing it back up to the image file's full native
+   pixel size instead. Modern browsers already preserve a replaced
+   element's own intrinsic aspect ratio when only its width is constrained,
+   so max-width alone doesn't distort anything that has no explicit height. */
+img,video,iframe{max-width:100%}
 /* Deliberately not overflow-x:hidden on body/html -- that clips at the
    viewport level, which also breaks position:sticky ANYWHERE on the page
    (the admin's Style panel sidebar included): sticky stops tracking the
