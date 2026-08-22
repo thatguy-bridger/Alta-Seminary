@@ -71,6 +71,14 @@ a:hover{color:var(--text-link-hover)}
 /* Page-builder blocks (src/blocks/*) */
 .block-image-text{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-8);align-items:center}
 .block-columns{display:grid;gap:var(--space-6)}
+/* A grid item's default min-width is `auto` (computed from its content's
+   own min-content size), not 0 -- so a column holding something wide (a
+   Carousel's slide strip) could force that column, the whole grid, and the
+   page around it wider than intended instead of being allowed to shrink to
+   its fair share. This is the same class of bug as the flex min-width
+   quirk elsewhere in this file, just one nesting level deeper (a column
+   isn't itself a flex/grid container, so it needed its own fix). */
+.block-columns>div{min-width:0}
 .block-columns[data-count="2"]{grid-template-columns:repeat(2,1fr)}
 .block-columns[data-count="3"]{grid-template-columns:repeat(3,1fr)}
 .block-columns[data-divider="true"]>div:not(:last-child){border-right:1px solid var(--border-subtle);padding-right:var(--space-6)}
@@ -117,3 +125,27 @@ a:hover{color:var(--text-link-hover)}
 .rich-text-content p:last-child{margin-bottom:0}
 .rich-text-content ul,.rich-text-content ol{margin:0 0 var(--space-3);padding-left:1.4em}
 .rich-text-content ul:last-child,.rich-text-content ol:last-child{margin-bottom:0}
+
+/* Admin page editor (src/admin-app/builder/PageBuilderScreen.jsx): below this
+   width the Style/Settings panel has too little room to sit as a second grid
+   column without squeezing the canvas down too far, so it becomes a fixed
+   overlay covering the canvas instead -- @media, not @container, since this
+   is genuinely about the admin's own browser window, not a simulated device
+   frame (that's the separate Preview tab, which already uses @container). */
+.page-builder-sidebar-backdrop{display:none}
+@media (max-width: 900px){
+  .page-builder-grid{grid-template-columns:1fr !important}
+  .page-builder-sidebar-backdrop{
+    display:block;position:fixed;inset:0;background:rgba(20,20,22,0.4);z-index:499;
+  }
+  /* position and top both need !important -- this div also has an inline
+     style={{position:'sticky', top:'var(--space-6)'}} for its normal
+     (wide-screen) placement, and a non-important stylesheet rule can't
+     override an inline style property-by-property. */
+  .page-builder-sidebar{
+    position:fixed !important;top:0 !important;right:0;bottom:0;left:auto;
+    width:min(90vw,400px);max-width:90vw;z-index:500;
+    margin:0;padding:var(--space-6);overflow-y:auto;
+    background:var(--surface-page);box-shadow:var(--shadow-lg);
+  }
+}

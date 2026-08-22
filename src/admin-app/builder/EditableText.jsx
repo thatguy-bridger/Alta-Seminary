@@ -76,6 +76,13 @@ export function EditableText({ value, onCommit, as: Tag = 'span', multiline = fa
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         onClick={(e) => e.stopPropagation()}
+        // stopPropagation on pointerdown (a separate concern from onClick
+        // above): without it, click-dragging across text to select it
+        // bubbles a pointerdown up to the canvas block's draggable wrapper,
+        // and dnd-kit's activation distance (a few px of movement) is
+        // exactly what a text-selection drag looks like -- it was hijacking
+        // the gesture into a block reorder instead of selecting text.
+        onPointerDown={(e) => e.stopPropagation()}
         data-placeholder={placeholder}
         className={`editable-text${className ? ' ' + className : ''}`}
         style={{ outline: 'none', cursor: 'text', whiteSpace: multiline ? 'pre-wrap' : 'nowrap', ...textStyleToCss(styleValue), ...style }}

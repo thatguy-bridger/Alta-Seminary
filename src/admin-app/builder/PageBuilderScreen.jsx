@@ -398,7 +398,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
 
       <div style={{ marginTop: 'var(--space-6)' }}>
         {view === 'Edit' ? (
-          <div style={{ display: 'grid', gridTemplateColumns: sidebarOpen ? '1.6fr 1fr' : '1fr', gap: 'var(--space-6)', alignItems: 'start', minWidth: 0 }}>
+          <div className="page-builder-grid" style={{ display: 'grid', gridTemplateColumns: sidebarOpen ? '1.6fr 1fr' : '1fr', gap: 'var(--space-6)', alignItems: 'start', minWidth: 0 }}>
             {/* minWidth: 0 -- a grid item's default min-width is `auto`
                 just like a flex item's, so wide content inside (a Carousel's
                 row of slides, a long unbreakable value) could otherwise
@@ -428,23 +428,31 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
               )}
             </div>
             {sidebarOpen ? (
-              <div style={{ position: 'sticky', top: 'var(--space-6)' }}>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-2)' }}>
-                  <button
-                    onClick={() => setSidebarOpen(false)}
-                    title="Hide the settings panel to give the canvas more room"
-                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)' }}
-                  >
-                    Hide panel »
-                  </button>
+              <>
+                {/* Only actually visible below the page-builder-sidebar
+                    breakpoint (see components.css) -- on a narrow screen the
+                    panel becomes a fixed overlay instead of a second grid
+                    column, so this dims the canvas behind it and gives an
+                    easy way to dismiss by clicking outside the panel. */}
+                <div className="page-builder-sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+                <div className="page-builder-sidebar" style={{ position: 'sticky', top: 'var(--space-6)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-2)' }}>
+                    <button
+                      onClick={() => setSidebarOpen(false)}
+                      title="Hide the settings panel to give the canvas more room"
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)' }}
+                    >
+                      Hide panel »
+                    </button>
+                  </div>
+                  <BlockConfigPanel
+                    block={resolveSettingsBlock()}
+                    onChange={handleConfigChange}
+                    showLayout={!settingsTarget?.nestedKey}
+                    contextLabel={settingsTarget?.nestedKey ? nestedContextLabel(blocks, settingsTarget) : undefined}
+                  />
                 </div>
-                <BlockConfigPanel
-                  block={resolveSettingsBlock()}
-                  onChange={handleConfigChange}
-                  showLayout={!settingsTarget?.nestedKey}
-                  contextLabel={settingsTarget?.nestedKey ? nestedContextLabel(blocks, settingsTarget) : undefined}
-                />
-              </div>
+              </>
             ) : (
               <button
                 onClick={() => setSidebarOpen(true)}

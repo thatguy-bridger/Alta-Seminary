@@ -153,6 +153,13 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         onClick={(e) => e.stopPropagation()}
+        // stopPropagation on pointerdown: without it, click-dragging across
+        // text to select it bubbles a pointerdown up to the canvas block's
+        // draggable wrapper, and dnd-kit's activation distance (a few px of
+        // movement) is exactly what a text-selection drag looks like -- it
+        // was hijacking the gesture into a block reorder instead of
+        // selecting text. Same fix as EditableText.jsx's plain-text fields.
+        onPointerDown={(e) => e.stopPropagation()}
         data-placeholder={placeholder}
         className="rich-text-editor"
       />
