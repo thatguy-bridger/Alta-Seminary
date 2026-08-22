@@ -9,7 +9,17 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (both auto-provided by Supabase),
 //   SITE_URL (e.g. https://altaseminary.com or the interim github.io URL)
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+
+// Inlined rather than imported from ../_shared/cors.ts -- the Supabase
+// dashboard's single-file paste deploy can't see sibling files the way the
+// CLI's full-folder deploy can, so that import fails to bundle with
+// "Module not found ... _shared/cors.ts" when deployed that way (the same
+// issue the now-deleted admin-trigger-deploy function hit earlier).
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
