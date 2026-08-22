@@ -16,6 +16,7 @@
 export const BLOCK_REGISTRY = {
   hero: {
     label: 'Hero / Heading',
+    category: 'Informational',
     icon: 'type',
     description: 'A big heading with an optional subheading and background — great for the top of a page.',
     defaultProps: {
@@ -37,6 +38,7 @@ export const BLOCK_REGISTRY = {
   },
   'rich-text': {
     label: 'Rich Text',
+    category: 'Informational',
     icon: 'align-left',
     description: 'A block of formatted text — headings, bold, links, and lists.',
     defaultProps: { content: '', width: 'normal', textAlign: 'left', textTone: 'default', fontSize: 'normal', firstLineHeading: false, twoColumn: false },
@@ -52,6 +54,7 @@ export const BLOCK_REGISTRY = {
   },
   image: {
     label: 'Image',
+    category: 'Media',
     icon: 'image',
     description: 'A single photo, optionally with a caption and a link.',
     defaultProps: { imageUrl: '', alt: '', caption: '', width: 'full', aspectRatio: 'auto', corners: 'rounded', border: false, shadow: true, lightbox: false, link: '' },
@@ -75,6 +78,7 @@ export const BLOCK_REGISTRY = {
   },
   'image-text': {
     label: 'Image + Text',
+    category: 'Media',
     icon: 'columns-2',
     description: 'A photo next to a block of text, side by side.',
     defaultProps: { imageUrl: '', alt: '', heading: '', body: '', imagePosition: 'left', verticalAlign: 'center', gap: 'lg', mobileImageFirst: true },
@@ -93,6 +97,7 @@ export const BLOCK_REGISTRY = {
   },
   button: {
     label: 'Button / CTA',
+    category: 'Interactive',
     icon: 'mouse-pointer-click',
     description: 'A clickable button linking to another page or an external URL.',
     defaultProps: { label: '', href: '', variant: 'primary', size: 'md', align: 'left', icon: 'none', fullWidth: false, newTab: false },
@@ -109,6 +114,7 @@ export const BLOCK_REGISTRY = {
   },
   columns: {
     label: 'Columns',
+    category: 'Layout',
     icon: 'columns-3',
     description: 'Two or three side-by-side columns, each its own image + text or any other block type.',
     // `columns` is an array of exactly 3 slots (only the first `columnCount`
@@ -133,6 +139,7 @@ export const BLOCK_REGISTRY = {
   },
   quote: {
     label: 'Quote / Scripture',
+    category: 'Informational',
     icon: 'quote',
     description: 'A pulled quote or scripture verse, with an optional citation and photo.',
     defaultProps: { quoteText: '', citation: '', style: 'plain', align: 'center', avatarImage: '', size: 'normal', tintBackground: false },
@@ -148,6 +155,7 @@ export const BLOCK_REGISTRY = {
   },
   divider: {
     label: 'Divider / Spacer',
+    category: 'Layout',
     icon: 'minus',
     description: 'A simple line or blank space to separate sections.',
     defaultProps: { style: 'line', size: 'md' },
@@ -158,6 +166,7 @@ export const BLOCK_REGISTRY = {
   },
   embed: {
     label: 'Embed (Map / Video / Music)',
+    category: 'Media',
     icon: 'map',
     description: 'Embed a YouTube video, Google Map, Spotify track, or other external content.',
     defaultProps: { embedType: 'youtube', url: '', caption: '', aspectRatio: '16:9', clickToLoad: true },
@@ -171,6 +180,7 @@ export const BLOCK_REGISTRY = {
   },
   carousel: {
     label: 'Carousel / Slider',
+    category: 'Media',
     icon: 'gallery-horizontal',
     description: 'A sliding set of images visitors can click or swipe through.',
     // `items` is a plain array (unlimited length, add/duplicate/delete managed
@@ -203,6 +213,7 @@ export const BLOCK_REGISTRY = {
   },
   'social-links': {
     label: 'Social Links',
+    category: 'Interactive',
     icon: 'share-2',
     description: 'A row of icon links to your social media profiles.',
     defaultProps: { facebookUrl: '', instagramUrl: '', youtubeUrl: '', xUrl: '', tiktokUrl: '', align: 'center' },
@@ -217,6 +228,7 @@ export const BLOCK_REGISTRY = {
   },
   download: {
     label: 'Download Button',
+    category: 'Interactive',
     icon: 'download',
     description: 'A button that lets visitors download a file you upload.',
     defaultProps: { label: '', fileUrl: '', fileName: '', align: 'left' },
@@ -229,6 +241,7 @@ export const BLOCK_REGISTRY = {
   },
   'announcement-banner': {
     label: 'Announcement Banner',
+    category: 'Informational',
     icon: 'megaphone',
     description: 'A dismissible banner for time-sensitive announcements.',
     defaultProps: { message: '', tone: 'info', link: '', linkLabel: '', dismissible: true },
@@ -242,6 +255,7 @@ export const BLOCK_REGISTRY = {
   },
   'directory-teaser': {
     label: 'Directory Teaser',
+    category: 'Live Content',
     icon: 'users',
     description: 'A grid of people pulled live from one of your directories.',
     defaultProps: { heading: 'Meet the Team', sourceType: 'staff', count: '3', uniformCardSize: false },
@@ -254,6 +268,7 @@ export const BLOCK_REGISTRY = {
   },
   'events-teaser': {
     label: 'Events Teaser',
+    category: 'Live Content',
     icon: 'calendar',
     description: 'A list of events pulled live from the calendar.',
     defaultProps: { heading: 'Upcoming Events', count: '3', timeframe: 'upcoming' },
@@ -265,6 +280,7 @@ export const BLOCK_REGISTRY = {
   },
   gallery: {
     label: 'Photo Gallery',
+    category: 'Media',
     icon: 'image',
     description: 'A grid of photos pulled live from your photo gallery.',
     defaultProps: { heading: '', albumFilter: 'all', columns: '3', count: '24' },
@@ -277,6 +293,7 @@ export const BLOCK_REGISTRY = {
   },
   'posts-teaser': {
     label: 'Announcements List',
+    category: 'Live Content',
     icon: 'newspaper',
     description: 'A list of your most recent announcements, linking to each one.',
     defaultProps: { heading: 'Announcements', count: '6' },
@@ -287,6 +304,7 @@ export const BLOCK_REGISTRY = {
   },
   'contact-form': {
     label: 'Contact Form',
+    category: 'Interactive',
     icon: 'mail',
     description: "A working contact form visitors can submit — replies land in your inbox.",
     defaultProps: { heading: 'Get in Touch', successMessage: "Thanks — we'll be in touch soon." },
@@ -297,6 +315,7 @@ export const BLOCK_REGISTRY = {
   },
   faq: {
     label: 'FAQ',
+    category: 'Informational',
     icon: 'help-circle',
     description: 'A list of expandable questions and answers.',
     defaultProps: {
@@ -310,6 +329,9 @@ export const BLOCK_REGISTRY = {
 };
 
 export const BLOCK_TYPES = Object.keys(BLOCK_REGISTRY);
+
+// Display order for the "Add block" picker's category sections (AddBlockButton.jsx).
+export const BLOCK_CATEGORIES = ['Layout', 'Media', 'Informational', 'Interactive', 'Live Content'];
 
 // Universal per-block layout -- every block gets these regardless of type,
 // applied by BlockWrapper.jsx. Kept separate from type-specific `props` so

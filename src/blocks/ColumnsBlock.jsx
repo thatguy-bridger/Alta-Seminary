@@ -4,6 +4,7 @@ import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { EditableImage } from '../admin-app/builder/EditableImage.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { AddBlockButton } from '../admin-app/builder/AddBlockButton.jsx';
+import { Input } from '../design-system/components/forms/Input.jsx';
 import { BLOCK_REGISTRY, isInlineField } from './registry.js';
 // BlockRenderer.jsx imports ColumnsBlock (it's one of the types in
 // BLOCK_COMPONENTS), so this is a circular import -- safe here for the same
@@ -20,9 +21,17 @@ import { BLOCK_COMPONENTS } from './BlockRenderer.jsx';
 // below) since that has no sensible UI.
 
 function columnPropsForType(type) {
-  if (type === 'content') return { image: '', heading: '', body: '' };
+  if (type === 'content') return { image: '', heading: '', body: '', link: '' };
   const def = BLOCK_REGISTRY[type];
   return def ? structuredClone(def.defaultProps) : {};
+}
+
+// A "content" column with a Link set (see the input added below) becomes a
+// real <a> on the live site; without one it's a plain <div> -- same content
+// either way, so the column's own render doesn't need two near-duplicate paths.
+function ColumnContentLink({ link, children }) {
+  if (!link) return <div>{children}</div>;
+  return <a href={link} style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>{children}</a>;
 }
 
 function newColumn() {
@@ -130,7 +139,7 @@ export function ColumnsBlock({
             </div>
           )}
           {col.type === 'content' ? (
-            <>
+            <ColumnContentLink link={editable ? '' : col.props.link}>
               {(editable || col.props.image) && (
                 <div style={{ marginBottom: 'var(--space-3)' }}>
                   {editable ? (
@@ -154,7 +163,17 @@ export function ColumnsBlock({
                   <RichText text={col.props.body} />
                 )}
               </div>
-            </>
+              {editable && (
+                <div style={{ marginTop: 'var(--space-2)' }} onPointerDown={(e) => e.stopPropagation()}>
+                  <Input
+                    label={`Column ${i + 1} link (optional — makes it clickable)`}
+                    value={col.props.link || ''}
+                    onChange={(e) => updateColumnProps(i, { link: e.target.value })}
+                    placeholder="/announcements/... or https://…"
+                  />
+                </div>
+              )}
+            </ColumnContentLink>
           ) : editable ? (
             <ColumnBlockEditor
               type={col.type}

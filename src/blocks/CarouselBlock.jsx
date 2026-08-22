@@ -5,6 +5,8 @@ import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { AddBlockButton } from '../admin-app/builder/AddBlockButton.jsx';
 import { BlockIcon } from '../admin-app/builder/blockIcons.jsx';
 import { Select } from '../design-system/components/forms/Select.jsx';
+import { Input } from '../design-system/components/forms/Input.jsx';
+import { withBase } from '../lib/url.js';
 import { BLOCK_REGISTRY, BLOCK_TYPES, isInlineField } from './registry.js';
 // BlockRenderer.jsx imports CarouselBlock (it's one of the types in
 // BLOCK_COMPONENTS), so this is a circular import -- safe here because
@@ -13,6 +15,11 @@ import { BLOCK_REGISTRY, BLOCK_TYPES, isInlineField } from './registry.js';
 import { BLOCK_COMPONENTS } from './BlockRenderer.jsx';
 
 const SPEED_MS = { slow: 5000, normal: 3000, fast: 1500 };
+
+// Mirrors DirectoryTeaserBlock.jsx's own KIND_PATH -- used by the "Fill
+// slides from" autofill (AutofillControls, below) to link an auto-filled
+// directory slide back to that person's real page.
+const AUTOFILL_DIRECTORY_PATH = { staff: 'staff', council: 'council', missionary: 'missionaries' };
 
 // Carousel slides all share one fixed shape (picked in the Style panel) so
 // the slider has a consistent height regardless of which slide is showing.
@@ -48,7 +55,7 @@ const ChevronRight = () => (
 );
 
 function slidePropsForType(type) {
-  if (type === 'media') return { image: '', heading: '', caption: '' };
+  if (type === 'media') return { image: '', heading: '', caption: '', link: '' };
   const def = BLOCK_REGISTRY[type];
   return def ? structuredClone(def.defaultProps) : {};
 }
@@ -306,6 +313,14 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, a
                   onStyleChange={(s) => updateSlideProps(index, { captionStyle: s })}
                 />
               </div>
+              <div style={{ marginTop: 'var(--space-2)' }} onPointerDown={(e) => e.stopPropagation()}>
+                <Input
+                  label="Link (optional — makes this slide clickable)"
+                  value={current.props.link || ''}
+                  onChange={(e) => updateSlideProps(index, { link: e.target.value })}
+                  placeholder="/directory/staff or https://…"
+                />
+              </div>
             </>
           ) : (
             <SlideBlockEditor
@@ -379,27 +394,31 @@ function AutofillControls({ onGenerate }) {
       let newSlides = [];
       if (category === 'directory' && directorySlug) {
         const people = await fetchDirectoryTeaserItems(supabaseBrowser, directorySlug, count);
+        // Only the 3 original directories (see DirectoryTeaserBlock.jsx's
+        // own KIND_PATH) have a real public page to link a slide to -- a
+        // custom directory an admin creates has no single "view all" page.
+        const path = AUTOFILL_DIRECTORY_PATH[directorySlug];
         newSlides = people.map((p) => ({
           id: crypto.randomUUID(), type: 'media',
-          props: { image: p.photo_url || '', heading: p.name, caption: truncateText(p.bio) },
+          props: { image: p.photo_url || '', heading: p.name, caption: truncateText(p.bio), link: path ? withBase(`/directory/${path}?person=${p.id}`) : '' },
         }));
       } else if (category === 'gallery') {
         const photos = await fetchGalleryTeaserItems(supabaseBrowser, albumId, count);
         newSlides = photos.map((ph) => ({
           id: crypto.randomUUID(), type: 'media',
-          props: { image: ph.image_url, heading: '', caption: ph.caption || '' },
+          props: { image: ph.image_url, heading: '', caption: ph.caption || '', link: '' },
         }));
       } else if (category === 'events') {
         const events = await fetchEventsTeaserItems(supabaseBrowser, count, timeframe);
         newSlides = events.map((ev) => ({
           id: crypto.randomUUID(), type: 'media',
-          props: { image: '', heading: ev.title, caption: formatEventCaption(ev) },
+          props: { image: '', heading: ev.title, caption: formatEventCaption(ev), link: '' },
         }));
       } else if (category === 'posts') {
         const posts = await fetchPostsTeaserItems(supabaseBrowser, count);
         newSlides = posts.map((p) => ({
           id: crypto.randomUUID(), type: 'media',
-          props: { image: p.cover_image_url || '', heading: p.title, caption: truncateText(p.excerpt) },
+          props: { image: p.cover_image_url || '', heading: p.title, caption: truncateText(p.excerpt), link: withBase(`/announcements/${p.slug}`) },
         }));
       }
       onGenerate(newSlides);
@@ -691,21 +710,21 @@ function Slide({ item, eager }) {
 // correctly treats them as offscreen and defers them regardless of the
 // active index. See ImageBlock.jsx/DirectoryTeaserBlock.jsx etc. for the
 // same loading="lazy" treatment on other public-facing content images.
-function MediaSlide({ image, heading, caption, headingStyle, captionStyle, eager }) {
+function MediaSlide({ image, heading, caption, headingStyle, captionStyle, link, eager }) {
   // Auto-filled from a source with no photo of its own (e.g. a calendar
   // event) -- shown as centered text on a plain surface instead of the
   // usual image-with-bottom-overlay treatment.
   if (!image) {
     if (!heading && !caption) return null;
     return (
-      <div style={{ width: '100%', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 'var(--space-6)', background: 'var(--surface-sunken)' }}>
+      <MediaSlideLink link={link} style={{ width: '100%', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 'var(--space-6)', background: 'var(--surface-sunken)' }}>
         {heading && <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', color: 'var(--text-primary)', ...textStyleToCss(headingStyle) }}>{heading}</div>}
         {caption && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', marginTop: 'var(--space-2)', ...textStyleToCss(captionStyle) }}>{caption}</div>}
-      </div>
+      </MediaSlideLink>
     );
   }
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <MediaSlideLink link={link} style={{ position: 'relative', width: '100%', height: '100%' }}>
       <img src={image} alt={heading || ''} loading={eager ? 'eager' : 'lazy'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       {(heading || caption) && (
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 'var(--space-4)', background: 'linear-gradient(transparent, rgba(0,0,0,0.65))', color: '#fff' }}>
@@ -713,8 +732,16 @@ function MediaSlide({ image, heading, caption, headingStyle, captionStyle, eager
           {caption && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', opacity: 0.9, ...textStyleToCss(captionStyle) }}>{caption}</div>}
         </div>
       )}
-    </div>
+    </MediaSlideLink>
   );
+}
+
+// A slide with a Link set (see the editor's Link field above) becomes a real
+// <a> on the live site; without one it's a plain <div> -- same content shape
+// either way, so MediaSlide doesn't need two near-duplicate render paths.
+function MediaSlideLink({ link, style, children }) {
+  if (!link) return <div style={style}>{children}</div>;
+  return <a href={link} style={{ ...style, display: 'block', textDecoration: 'none', color: 'inherit' }}>{children}</a>;
 }
 
 function arrowStyle(side) {
