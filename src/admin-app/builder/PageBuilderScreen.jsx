@@ -203,6 +203,10 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     updateBlocks(blocks.map((b) => (b.id === blockId ? { ...b, props: { ...b.props, [key]: value } } : b)));
   }
 
+  function handleLayoutChange(blockId, key, value) {
+    updateBlocks(blocks.map((b) => (b.id === blockId ? { ...b, layout: { ...b.layout, [key]: value } } : b)));
+  }
+
   async function handlePublish() {
     setPublishing(true);
     const { error } = await supabaseBrowser
@@ -319,6 +323,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                 onSelect={setSelectedId}
                 onReorder={handleReorder}
                 onFieldChange={handleFieldChange}
+                onLayoutChange={handleLayoutChange}
                 onRemove={handleRemove}
                 onDuplicate={handleDuplicate}
                 onDuplicateWithImages={handleDuplicateWithImages}

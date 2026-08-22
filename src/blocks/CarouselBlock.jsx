@@ -464,8 +464,22 @@ function SlideBlockEditor({ type, blockId, props, pathPrefix, onFieldChange }) {
     <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', background: 'var(--surface-card)' }}>
       <Component {...props} editable onFieldChange={onFieldChange} pathPrefix={pathPrefix} blockId={blockId} />
       {settingsFields.length > 0 && (
-        <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          {settingsFields.map((field) => renderField(field, props[field.key], onFieldChange))}
+        // Collapsed by default -- these settings (a Button's href, an
+        // Embed's URL, ...) are the exception rather than the rule for most
+        // slides, so they shouldn't always take up space. stopPropagation:
+        // this whole slide editor sits inside the Carousel block, which
+        // itself sits inside the canvas's draggable wrapper -- without it,
+        // opening this or touching a field bubbles a pointerdown up and
+        // starts a reorder drag right after the click.
+        <div onPointerDown={(e) => e.stopPropagation()} style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
+          <details>
+            <summary style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', color: 'var(--text-secondary)', userSelect: 'none' }}>
+              More options
+            </summary>
+            <div style={{ marginTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              {settingsFields.map((field) => renderField(field, props[field.key], onFieldChange))}
+            </div>
+          </details>
         </div>
       )}
     </div>
