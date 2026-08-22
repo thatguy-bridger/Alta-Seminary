@@ -1,9 +1,11 @@
 import React from 'react';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { BLOCK_COMPONENTS } from '../../blocks/BlockRenderer.jsx';
 import { BlockWrapper } from '../../blocks/BlockWrapper.jsx';
+import { planDragMove } from './dragReorg.js';
+import { useConfirm } from '../ConfirmProvider.jsx';
 
 function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSettings, activeSettingsTarget, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
@@ -109,17 +111,28 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
 }
 
 export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFieldChange, onOpenSettings, activeSettingsTarget, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
+  const confirm = useConfirm();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  function handleDragEnd(event) {
+  // Handles four cases (see dragReorg.js's planDragMove): reordering the
+  // top-level list (unchanged from before), reordering slides within one
+  // Carousel or columns within one Columns block, moving a real page block
+  // INTO a Carousel slide / Columns column slot (replacing whatever was
+  // there, confirmed first if it wasn't blank), and pulling a slide/column
+  // back OUT to become a real top-level block again.
+  async function handleDragEnd(event) {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = blocks.findIndex((b) => b.id === active.id);
-    const newIndex = blocks.findIndex((b) => b.id === over.id);
-    onReorder(arrayMove(blocks, oldIndex, newIndex));
+    if (!over) return;
+    const plan = planDragMove(blocks, active.id, over.id);
+    if (plan.type === 'noop') return;
+    if (plan.needsConfirm) {
+      const ok = await confirm(plan.confirmMessage, { title: 'Replace this content?', confirmLabel: 'Replace', danger: true });
+      if (!ok) return;
+    }
+    onReorder(plan.apply(blocks));
   }
 
   if (!blocks.length) {

@@ -352,7 +352,17 @@ export function createBlock(type) {
   // array, and a shallow copy would let every new block instance share the
   // exact same array reference from BLOCK_REGISTRY, so editing one carousel's
   // slides could mutate every other carousel's defaults too.
-  return { id: crypto.randomUUID(), type, props: structuredClone(def.defaultProps), layout: { ...DEFAULT_LAYOUT } };
+  const props = structuredClone(def.defaultProps);
+  // The registry's own default slides/columns carry fixed literal ids
+  // ('slide-1', 'col-1', ...) as template placeholders. Two fresh Carousel
+  // (or Columns) blocks on the same page would otherwise both start out
+  // with the exact same slide/column ids -- harmless on their own, but
+  // EditableCanvas.jsx's drag-and-drop now puts every block's id (including
+  // nested slides/columns) into one shared dnd-kit context, which requires
+  // every id to be globally unique.
+  if (Array.isArray(props.items)) props.items = props.items.map((item) => ({ ...item, id: crypto.randomUUID() }));
+  if (Array.isArray(props.columns)) props.columns = props.columns.map((col) => ({ ...col, id: crypto.randomUUID() }));
+  return { id: crypto.randomUUID(), type, props, layout: { ...DEFAULT_LAYOUT } };
 }
 
 // Content fields (text/richtext/image/file) render as click-to-edit directly on

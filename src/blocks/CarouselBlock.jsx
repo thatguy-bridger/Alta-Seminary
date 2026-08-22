@@ -7,6 +7,8 @@ import { BlockIcon } from '../admin-app/builder/blockIcons.jsx';
 import { Select } from '../design-system/components/forms/Select.jsx';
 import { Input } from '../design-system/components/forms/Input.jsx';
 import { withBase } from '../lib/url.js';
+import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { BLOCK_REGISTRY, BLOCK_TYPES, isInlineField } from './registry.js';
 // BlockRenderer.jsx imports CarouselBlock (it's one of the types in
 // BLOCK_COMPONENTS), so this is a circular import -- safe here because
@@ -187,6 +189,11 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, a
   const [focusIndex, setFocusIndex] = React.useState(0);
   const index = Math.min(focusIndex, slides.length - 1);
   const current = slides[index];
+  // Unlike a peek (a single plain button, see PeekSlide), the current slide
+  // is full of its own clickable content (EditableImage/EditableText/etc),
+  // so the drag listeners go on a dedicated handle bar instead of the whole
+  // box -- see the "⠿ Drag" bar below.
+  const { attributes: currentDragAttrs, listeners: currentDragListeners, setNodeRef: setCurrentDragRef, transform: currentTransform, transition: currentTransition, isDragging: currentIsDragging } = useSortable({ id: current.id });
   // Split the not-shown peeks evenly across both sides of the current slide
   // (previous slides peek in on the left, upcoming ones on the right). An odd
   // total can't split evenly, so it rounds down to the nearest even number.
@@ -277,11 +284,23 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, a
           <button type="button" onClick={() => go(-1)} aria-label="Previous slide" style={peekNavStyle}><ChevronLeft /></button>
         )}
 
+        <SortableContext items={[...leftIndexes, index, ...rightIndexes].map((i) => slides[i].id)} strategy={horizontalListSortingStrategy}>
         {leftIndexes.map((peekIdx) => (
           <PeekSlide key={slides[peekIdx].id} slide={slides[peekIdx]} onClick={() => setFocusIndex(peekIdx)} slideNumber={peekIdx + 1} aspectRatio={aspectRatio} />
         ))}
 
-        <div style={{ flex: `${mainParts} 1 0%`, minWidth: 0 }}>
+        <div
+          ref={setCurrentDragRef}
+          style={{ flex: `${mainParts} 1 0%`, minWidth: 0, transform: CSS.Transform.toString(currentTransform), transition: currentTransition, opacity: currentIsDragging ? 0.4 : 1 }}
+        >
+          <div
+            {...currentDragAttrs}
+            {...currentDragListeners}
+            title="Drag to reorder this slide, or drag it onto the main page to pull it out"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 22, marginBottom: 'var(--space-2)', borderRadius: 'var(--radius-sm)', background: 'var(--surface-sunken)', color: 'var(--text-muted)', fontSize: 'var(--fs-caption)', cursor: 'grab', touchAction: 'none' }}
+          >
+            ⠿ Drag
+          </div>
           {current.type === 'media' ? (
             <>
               <EditableImage
@@ -338,6 +357,7 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, a
         {rightIndexes.map((peekIdx) => (
           <PeekSlide key={slides[peekIdx].id} slide={slides[peekIdx]} onClick={() => setFocusIndex(peekIdx)} slideNumber={peekIdx + 1} aspectRatio={aspectRatio} />
         ))}
+        </SortableContext>
 
         {slides.length > 1 && (
           <button type="button" onClick={() => go(1)} aria-label="Next slide" style={peekNavStyle}><ChevronRight /></button>
@@ -523,16 +543,32 @@ function slideThumbnailImage(slide) {
   return '';
 }
 
+// Draggable AND a drop target (useSortable does both) -- lets an admin drag
+// a real top-level page block onto this peek to put it in that slide (see
+// dragReorg.js), drag this slide onto another slide/peek to reorder, or drag
+// it out of the strip entirely onto the main page list to extract it back
+// into a real block. The whole button carries the drag listeners since,
+// unlike the "current" slide, a peek has no other clickable content to
+// conflict with (dnd-kit's activation distance already keeps a plain click
+// from being mistaken for a drag).
 function PeekSlide({ slide, onClick, slideNumber, aspectRatio }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id });
   const thumb = slideThumbnailImage(slide);
   const def = BLOCK_REGISTRY[slide.type];
   const ratio = ratioToCss(aspectRatio);
   return (
     <button
+      ref={setNodeRef}
       type="button"
       onClick={onClick}
-      title={`Jump to slide ${slideNumber}`}
-      style={{ flex: '1 1 0%', minWidth: 0, border: 'none', background: 'none', cursor: 'pointer', padding: 0, opacity: 0.5, transition: 'opacity var(--duration-fast)' }}
+      title={`Jump to slide ${slideNumber} (drag to reorder, or drag a block here)`}
+      {...attributes}
+      {...listeners}
+      style={{
+        flex: '1 1 0%', minWidth: 0, border: 'none', background: 'none', cursor: 'grab', padding: 0,
+        opacity: isDragging ? 0.3 : 0.5,
+        transform: CSS.Transform.toString(transform), transition, touchAction: 'none',
+      }}
     >
       {thumb ? (
         <img src={thumb} alt="" style={{ width: '100%', aspectRatio: ratio, objectFit: 'cover', borderRadius: 'var(--radius-md)', display: 'block' }} />

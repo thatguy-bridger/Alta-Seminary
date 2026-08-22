@@ -5,6 +5,8 @@ import { EditableImage } from '../admin-app/builder/EditableImage.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { AddBlockButton } from '../admin-app/builder/AddBlockButton.jsx';
 import { Input } from '../design-system/components/forms/Input.jsx';
+import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { BLOCK_REGISTRY, isInlineField } from './registry.js';
 // BlockRenderer.jsx imports ColumnsBlock (it's one of the types in
 // BLOCK_COMPONENTS), so this is a circular import -- safe here for the same
@@ -124,71 +126,110 @@ export function ColumnsBlock({
     updateColumn(i, { type, props: columnPropsForType(type) });
   }
 
-  return (
-    <div className="block-columns" data-count={count} data-ratio={count === 2 ? widthRatio : 'equal'} data-divider={divider} style={{ textAlign }}>
-      {columns.map((col, i) => (
-        <div key={col.id}>
-          {editable && (
-            <div style={{ marginBottom: 'var(--space-3)' }}>
-              <AddBlockButton
-                label={`Column ${i + 1}: ${col.type === 'content' ? 'Image + text' : BLOCK_REGISTRY[col.type]?.label || col.type}`}
-                dialogTitle={`Choose column ${i + 1}'s content`}
-                excludeTypes={['columns']}
-                onAdd={(type) => setColumnType(i, type)}
-              />
-            </div>
-          )}
-          {col.type === 'content' ? (
-            <ColumnContentLink link={editable ? '' : col.props.link}>
-              {(editable || col.props.image) && (
-                <div style={{ marginBottom: 'var(--space-3)' }}>
-                  {editable ? (
-                    <EditableImage value={col.props.image} alt="" onChange={(url) => updateColumnProps(i, { image: url })} pathPrefix={pathPrefix} emptyLabel={`Column ${i + 1} image (optional)`} />
-                  ) : (
-                    <img src={col.props.image} alt="" loading="lazy" style={{ width: '100%', borderRadius: 'var(--radius-md)' }} />
-                  )}
-                </div>
-              )}
-              {(editable || col.props.heading) && (
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', margin: '0 0 var(--space-2)', color: 'var(--text-primary)', ...textStyleToCss(col.props.headingStyle) }}>
-                  {editable ? (
-                    <EditableText value={col.props.heading} onCommit={(v) => updateColumnProps(i, { heading: v })} placeholder={`Column ${i + 1} heading`} styleValue={col.props.headingStyle} onStyleChange={(s) => updateColumnProps(i, { headingStyle: s })} />
-                  ) : col.props.heading}
-                </h3>
-              )}
-              <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-body)', color: 'var(--text-secondary)', ...textStyleToCss(col.props.bodyStyle) }}>
+  const columnList = columns.map((col, i) => {
+    const inner = (
+      <>
+        {editable && (
+          <div style={{ marginBottom: 'var(--space-3)' }}>
+            <AddBlockButton
+              label={`Column ${i + 1}: ${col.type === 'content' ? 'Image + text' : BLOCK_REGISTRY[col.type]?.label || col.type}`}
+              dialogTitle={`Choose column ${i + 1}'s content`}
+              excludeTypes={['columns']}
+              onAdd={(type) => setColumnType(i, type)}
+            />
+          </div>
+        )}
+        {col.type === 'content' ? (
+          <ColumnContentLink link={editable ? '' : col.props.link}>
+            {(editable || col.props.image) && (
+              <div style={{ marginBottom: 'var(--space-3)' }}>
                 {editable ? (
-                  <EditableText value={col.props.body} onCommit={(v) => updateColumnProps(i, { body: v })} placeholder={`Column ${i + 1} body`} multiline as="div" styleValue={col.props.bodyStyle} onStyleChange={(s) => updateColumnProps(i, { bodyStyle: s })} />
+                  <EditableImage value={col.props.image} alt="" onChange={(url) => updateColumnProps(i, { image: url })} pathPrefix={pathPrefix} emptyLabel={`Column ${i + 1} image (optional)`} />
                 ) : (
-                  <RichText text={col.props.body} />
+                  <img src={col.props.image} alt="" loading="lazy" style={{ width: '100%', borderRadius: 'var(--radius-md)' }} />
                 )}
               </div>
-              {editable && (
-                <div style={{ marginTop: 'var(--space-2)' }} onPointerDown={(e) => e.stopPropagation()}>
-                  <Input
-                    label={`Column ${i + 1} link (optional — makes it clickable)`}
-                    value={col.props.link || ''}
-                    onChange={(e) => updateColumnProps(i, { link: e.target.value })}
-                    placeholder="/announcements/... or https://…"
-                  />
-                </div>
+            )}
+            {(editable || col.props.heading) && (
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', margin: '0 0 var(--space-2)', color: 'var(--text-primary)', ...textStyleToCss(col.props.headingStyle) }}>
+                {editable ? (
+                  <EditableText value={col.props.heading} onCommit={(v) => updateColumnProps(i, { heading: v })} placeholder={`Column ${i + 1} heading`} styleValue={col.props.headingStyle} onStyleChange={(s) => updateColumnProps(i, { headingStyle: s })} />
+                ) : col.props.heading}
+              </h3>
+            )}
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-body)', color: 'var(--text-secondary)', ...textStyleToCss(col.props.bodyStyle) }}>
+              {editable ? (
+                <EditableText value={col.props.body} onCommit={(v) => updateColumnProps(i, { body: v })} placeholder={`Column ${i + 1} body`} multiline as="div" styleValue={col.props.bodyStyle} onStyleChange={(s) => updateColumnProps(i, { bodyStyle: s })} />
+              ) : (
+                <RichText text={col.props.body} />
               )}
-            </ColumnContentLink>
-          ) : editable ? (
-            <ColumnBlockEditor
-              type={col.type}
-              blockId={col.id}
-              props={col.props}
-              pathPrefix={pathPrefix}
-              onFieldChange={(key, value) => updateColumnProps(i, { [key]: value })}
-              onOpenSettings={onOpenSettings ? () => onOpenSettings('columns', i) : undefined}
-              isSettingsActive={activeSettingsTarget?.nestedKey === 'columns' && activeSettingsTarget?.nestedIndex === i}
-            />
-          ) : (
-            <ColumnBlockLive type={col.type} id={col.id} props={col.props} />
-          )}
-        </div>
-      ))}
+            </div>
+            {editable && (
+              <div style={{ marginTop: 'var(--space-2)' }} onPointerDown={(e) => e.stopPropagation()}>
+                <Input
+                  label={`Column ${i + 1} link (optional — makes it clickable)`}
+                  value={col.props.link || ''}
+                  onChange={(e) => updateColumnProps(i, { link: e.target.value })}
+                  placeholder="/announcements/... or https://…"
+                />
+              </div>
+            )}
+          </ColumnContentLink>
+        ) : editable ? (
+          <ColumnBlockEditor
+            type={col.type}
+            blockId={col.id}
+            props={col.props}
+            pathPrefix={pathPrefix}
+            onFieldChange={(key, value) => updateColumnProps(i, { [key]: value })}
+            onOpenSettings={onOpenSettings ? () => onOpenSettings('columns', i) : undefined}
+            isSettingsActive={activeSettingsTarget?.nestedKey === 'columns' && activeSettingsTarget?.nestedIndex === i}
+          />
+        ) : (
+          <ColumnBlockLive type={col.type} id={col.id} props={col.props} />
+        )}
+      </>
+    );
+    // Drag-and-drop (SortableColumn, below) is an editor-only concept -- the
+    // live public site never mounts a DndContext at all, and useSortable
+    // called with no such ancestor is exactly the kind of thing not worth
+    // relying on being harmless on every dnd-kit version. Plain <div> there instead.
+    return editable
+      ? <SortableColumn key={col.id} id={col.id}>{inner}</SortableColumn>
+      : <div key={col.id}>{inner}</div>;
+  });
+
+  return (
+    <div className="block-columns" data-count={count} data-ratio={count === 2 ? widthRatio : 'equal'} data-divider={divider} style={{ textAlign }}>
+      {editable ? (
+        <SortableContext items={columns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
+          {columnList}
+        </SortableContext>
+      ) : columnList}
+    </div>
+  );
+}
+
+// Draggable AND a drop target (useSortable does both) -- lets an admin drag
+// a real top-level page block onto this column to put it there (see
+// dragReorg.js), drag this column onto another to reorder, or drag it out
+// to the main page list to extract it back into a real block. The handle
+// bar (not the whole column, which is full of its own clickable content
+// like EditableImage/EditableText) carries the actual drag listeners.
+// Only ever rendered when editable (see columnList above).
+function SortableColumn({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}>
+      <div
+        {...attributes}
+        {...listeners}
+        title="Drag to reorder this column, or drag it onto the main page to pull it out"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 22, marginBottom: 'var(--space-2)', borderRadius: 'var(--radius-sm)', background: 'var(--surface-sunken)', color: 'var(--text-muted)', fontSize: 'var(--fs-caption)', cursor: 'grab', touchAction: 'none' }}
+      >
+        ⠿ Drag
+      </div>
+      {children}
     </div>
   );
 }
