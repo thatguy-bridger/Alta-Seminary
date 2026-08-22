@@ -103,6 +103,7 @@ a:hover{color:var(--text-link-hover)}
 }
 
 /* Admin page-builder canvas: click-to-edit text (src/admin-app/builder/EditableText.jsx) */
+.editable-text:empty{display:inline-block;min-width:1ch}
 .editable-text:empty:before{content:attr(data-placeholder);color:var(--text-muted)}
 .editable-text:hover{background:var(--tint-info-bg);border-radius:var(--radius-sm);box-shadow:0 0 0 2px var(--tint-info-bg)}
 .editable-text:focus{background:var(--surface-card);border-radius:var(--radius-sm);box-shadow:0 0 0 2px var(--brand-secondary)}

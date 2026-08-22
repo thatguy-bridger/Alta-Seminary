@@ -117,7 +117,13 @@ export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLa
           only way to reach the other two sources, so it stops the parent
           image click from also firing when it's used. */}
       <div style={{ position: 'absolute', bottom: 6, right: 6, zIndex: 1 }} onClick={(e) => e.stopPropagation()}>
-        <ImageSourceMenu hideFileOption label="⋯" disabled={uploading} onUrl={handleUrl} onExisting={(url) => onChange(url)} />
+        {/* Every source picked from this menu -- pasted URL or an existing
+            library image alike -- routes through the same crop/replace
+            modal as a fresh upload (handleUrl fetches then opens CropEditor).
+            "Choose an existing image" used to call onChange directly,
+            skipping the crop step entirely -- inconsistent with the other
+            two options and with clicking the image itself. */}
+        <ImageSourceMenu hideFileOption label="⋯" disabled={uploading} onUrl={handleUrl} onExisting={handleUrl} />
       </div>
 
       {cropSrc && (

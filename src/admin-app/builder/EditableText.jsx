@@ -39,8 +39,20 @@ export function EditableText({ value, onCommit, as: Tag = 'span', multiline = fa
   }
 
   React.useEffect(() => {
-    if (ref.current && ref.current.innerText !== (value || '')) {
-      ref.current.innerText = value || '';
+    if (!ref.current) return;
+    // Backspacing a contentEditable to nothing doesn't necessarily leave it
+    // truly empty -- browsers commonly leave a stray <br> behind so the
+    // cursor still has a line to sit on. innerText already reads as '' in
+    // that case, so the plain !== check below silently skipped touching the
+    // DOM, leaving that <br> stuck forever: not :empty, so the CSS
+    // placeholder (:empty:before) never showed, and the field collapsed to
+    // that <br>'s zero-width line -- invisible and unclickable. Forcing a
+    // real, childless empty element here (instead of relying on innerText)
+    // is what lets :empty:before take back over.
+    if (!value) {
+      if (ref.current.childNodes.length > 0) ref.current.replaceChildren();
+    } else if (ref.current.innerText !== value) {
+      ref.current.innerText = value;
     }
   }, [value]);
 
@@ -78,7 +90,8 @@ export function EditableText({ value, onCommit, as: Tag = 'span', multiline = fa
     // this, pressing Escape while editing text closed nothing but this
     // field's own toolbar -- the block stayed visibly "selected."
     if (e.key === 'Escape') {
-      ref.current.innerText = value || '';
+      if (value) ref.current.innerText = value;
+      else ref.current.replaceChildren();
       ref.current.blur();
       setToolbarOpen(false);
       return;

@@ -234,6 +234,17 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   // the panel again (and its button reverts from filled back to outline --
   // see EditableCanvas.jsx/CarouselBlock.jsx/ColumnsBlock.jsx); clicking any
   // other block's settings button switches the panel to that target instead.
+  // Clicking a block on the canvas only ever updated `selectedId` (its
+  // border highlight) -- if the Settings sidebar was already open showing
+  // some OTHER block, it just kept showing that other block's fields until
+  // its own "⚙ Settings" button was clicked directly. With the sidebar
+  // already open, clicking any other top-level block should swap the panel
+  // over to it too, same as clicking that block's own Settings button would.
+  function handleSelect(id) {
+    setSelectedId(id);
+    if (id && sidebarOpen) setSettingsTarget({ blockId: id, nestedKey: undefined, nestedIndex: undefined });
+  }
+
   function handleOpenSettings(blockId, nestedKey, nestedIndex) {
     const isSameTarget = sidebarOpen && settingsTarget
       && settingsTarget.blockId === blockId
@@ -425,7 +436,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
               <EditableCanvas
                 blocks={blocks}
                 selectedId={selectedId}
-                onSelect={setSelectedId}
+                onSelect={handleSelect}
                 onReorder={handleReorder}
                 onFieldChange={handleFieldChange}
                 onOpenSettings={handleOpenSettings}

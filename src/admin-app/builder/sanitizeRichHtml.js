@@ -94,5 +94,14 @@ function serializeNode(node) {
 }
 
 export function sanitizeRichHtml(rootEl) {
+  // Backspacing all the way to nothing typically leaves a stray <p><br></p>
+  // behind (contentEditable's own doing, so the cursor still has a line to
+  // sit on) rather than a truly empty element. Serializing that as-is would
+  // commit "<p><br></p>" instead of "", which is never falsy to any caller
+  // checking `!value` -- the field would look blank but never show its
+  // placeholder again, and any "hide when empty" block-level check on the
+  // public site would keep rendering an empty paragraph. innerText strips
+  // that stray markup down to a true blank, so it's the right emptiness check.
+  if (!rootEl.innerText.trim()) return '';
   return serializeChildren(rootEl);
 }
