@@ -5,6 +5,7 @@ import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { AddBlockButton } from '../admin-app/builder/AddBlockButton.jsx';
 import { BlockIcon } from '../admin-app/builder/blockIcons.jsx';
 import { renderField } from '../admin-app/builder/BlockConfigPanel.jsx';
+import { Select } from '../design-system/components/forms/Select.jsx';
 import { BLOCK_REGISTRY, BLOCK_TYPES, isInlineField } from './registry.js';
 // BlockRenderer.jsx imports CarouselBlock (it's one of the types in
 // BLOCK_COMPONENTS), so this is a circular import -- safe here because
@@ -55,6 +56,17 @@ function slidePropsForType(type) {
 
 function newSlide() {
   return { id: crypto.randomUUID(), type: 'media', props: slidePropsForType('media') };
+}
+
+function truncateText(text, max = 140) {
+  if (!text || text.length <= max) return text;
+  return text.slice(0, max - 1).trimEnd() + '…';
+}
+
+function formatEventCaption(event) {
+  const start = event.start_at ? new Date(event.start_at) : null;
+  const dateStr = start ? start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  return [dateStr, event.location].filter(Boolean).join(' · ');
 }
 
 // Slides created before the {type, props} rewrite stored their image/heading/
@@ -221,10 +233,21 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, aspectRatio }) {
     setFocusIndex((index + delta + slides.length) % slides.length);
   }
 
+  // Replaces every slide with a fresh batch pulled live from one of the
+  // site's own data sources -- an admin building a "Meet the Staff" or
+  // "Recent Photos" carousel shouldn't have to hand-copy each image/name one
+  // slide at a time when that same data already lives in Directory/Gallery/
+  // Events/Announcements.
+  function generateSlides(newSlides) {
+    if (newSlides.length === 0) return;
+    commit(newSlides, 0);
+  }
+
   const mainParts = 3; // main slide gets 3 flex-grow parts, each peek gets 1
 
   return (
     <div>
+      <AutofillControls onGenerate={generateSlides} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
           Slide {index + 1} of {slides.length} &middot; {current.type === 'media' ? 'Image + caption' : BLOCK_REGISTRY[current.type]?.label || current.type}
@@ -303,6 +326,124 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, aspectRatio }) {
           <button type="button" onClick={() => go(1)} aria-label="Next slide" style={peekNavStyle}><ChevronRight /></button>
         )}
       </div>
+    </div>
+  );
+}
+
+const AUTOFILL_COUNT_OPTIONS = [
+  { value: '3', label: '3' }, { value: '6', label: '6' }, { value: '9', label: '9' },
+  { value: '12', label: '12' }, { value: 'all', label: 'All' },
+];
+
+// Lets an admin fill every slide at once from a live category of site
+// content -- Directory, Gallery, Events, Announcements -- instead of
+// hand-building each slide's image/heading/caption one at a time. Generating
+// replaces the whole slide list; that's a deliberate "pull from this
+// category" action, not an incremental append, and it's fully recoverable
+// through the page's own change-history/undo like any other edit.
+function AutofillControls({ onGenerate }) {
+  const [category, setCategory] = React.useState('directory');
+  const [directorySlug, setDirectorySlug] = React.useState('');
+  const [albumId, setAlbumId] = React.useState('all');
+  const [timeframe, setTimeframe] = React.useState('upcoming');
+  const [count, setCount] = React.useState('6');
+  const [directories, setDirectories] = React.useState(null);
+  const [albums, setAlbums] = React.useState(null);
+  const [generating, setGenerating] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    import('../lib/supabase/browser-client').then(({ supabaseBrowser }) => {
+      supabaseBrowser.from('directories').select('slug, name').order('sort_order').then(({ data }) => {
+        if (!active) return;
+        setDirectories(data || []);
+        setDirectorySlug((current) => current || data?.[0]?.slug || '');
+      });
+      supabaseBrowser.from('gallery_albums').select('id, name').order('sort_order').then(({ data }) => {
+        if (active) setAlbums(data || []);
+      });
+    });
+    return () => { active = false; };
+  }, []);
+
+  async function handleGenerate() {
+    setGenerating(true);
+    try {
+      const { supabaseBrowser } = await import('../lib/supabase/browser-client');
+      const {
+        fetchDirectoryTeaserItems, fetchGalleryTeaserItems, fetchEventsTeaserItems, fetchPostsTeaserItems,
+      } = await import('./teaserData.js');
+
+      let newSlides = [];
+      if (category === 'directory' && directorySlug) {
+        const people = await fetchDirectoryTeaserItems(supabaseBrowser, directorySlug, count);
+        newSlides = people.map((p) => ({
+          id: crypto.randomUUID(), type: 'media',
+          props: { image: p.photo_url || '', heading: p.name, caption: truncateText(p.bio) },
+        }));
+      } else if (category === 'gallery') {
+        const photos = await fetchGalleryTeaserItems(supabaseBrowser, albumId, count);
+        newSlides = photos.map((ph) => ({
+          id: crypto.randomUUID(), type: 'media',
+          props: { image: ph.image_url, heading: '', caption: ph.caption || '' },
+        }));
+      } else if (category === 'events') {
+        const events = await fetchEventsTeaserItems(supabaseBrowser, count, timeframe);
+        newSlides = events.map((ev) => ({
+          id: crypto.randomUUID(), type: 'media',
+          props: { image: '', heading: ev.title, caption: formatEventCaption(ev) },
+        }));
+      } else if (category === 'posts') {
+        const posts = await fetchPostsTeaserItems(supabaseBrowser, count);
+        newSlides = posts.map((p) => ({
+          id: crypto.randomUUID(), type: 'media',
+          props: { image: p.cover_image_url || '', heading: p.title, caption: truncateText(p.excerpt) },
+        }));
+      }
+      onGenerate(newSlides);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  const directoryOptions = directories === null
+    ? [{ value: '', label: 'Loading…' }]
+    : directories.map((d) => ({ value: d.slug, label: d.name }));
+  const albumOptions = albums === null
+    ? [{ value: 'all', label: 'Loading…' }]
+    : [{ value: 'all', label: 'All albums' }, ...albums.map((a) => ({ value: a.id, label: a.name }))];
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 'var(--space-3)', padding: 'var(--space-3)', marginBottom: 'var(--space-3)', background: 'var(--surface-sunken)', borderRadius: 'var(--radius-md)' }}>
+      <Select
+        label="Fill slides from"
+        value={category}
+        options={[
+          { value: 'directory', label: 'Directory' },
+          { value: 'gallery', label: 'Photo Gallery' },
+          { value: 'events', label: 'Events' },
+          { value: 'posts', label: 'Announcements' },
+        ]}
+        onChange={(e) => setCategory(e.target.value)}
+      />
+      {category === 'directory' && (
+        <Select label="Which directory" value={directorySlug} options={directoryOptions} onChange={(e) => setDirectorySlug(e.target.value)} />
+      )}
+      {category === 'gallery' && (
+        <Select label="Which album" value={albumId} options={albumOptions} onChange={(e) => setAlbumId(e.target.value)} />
+      )}
+      {category === 'events' && (
+        <Select
+          label="Which events"
+          value={timeframe}
+          options={[{ value: 'upcoming', label: 'Upcoming only' }, { value: 'all', label: 'All (including past)' }]}
+          onChange={(e) => setTimeframe(e.target.value)}
+        />
+      )}
+      <Select label="How many" value={count} options={AUTOFILL_COUNT_OPTIONS} onChange={(e) => setCount(e.target.value)} />
+      <button type="button" onClick={handleGenerate} disabled={generating || (category === 'directory' && !directorySlug)} className="btn btn-primary btn-sm">
+        {generating ? 'Filling…' : 'Fill slides'}
+      </button>
     </div>
   );
 }
@@ -505,7 +646,18 @@ function Slide({ item, eager }) {
 // active index. See ImageBlock.jsx/DirectoryTeaserBlock.jsx etc. for the
 // same loading="lazy" treatment on other public-facing content images.
 function MediaSlide({ image, heading, caption, headingStyle, captionStyle, eager }) {
-  if (!image) return null;
+  // Auto-filled from a source with no photo of its own (e.g. a calendar
+  // event) -- shown as centered text on a plain surface instead of the
+  // usual image-with-bottom-overlay treatment.
+  if (!image) {
+    if (!heading && !caption) return null;
+    return (
+      <div style={{ width: '100%', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 'var(--space-6)', background: 'var(--surface-sunken)' }}>
+        {heading && <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', color: 'var(--text-primary)', ...textStyleToCss(headingStyle) }}>{heading}</div>}
+        {caption && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', marginTop: 'var(--space-2)', ...textStyleToCss(captionStyle) }}>{caption}</div>}
+      </div>
+    );
+  }
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <img src={image} alt={heading || ''} loading={eager ? 'eager' : 'lazy'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
