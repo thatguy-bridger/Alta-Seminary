@@ -1,6 +1,8 @@
 import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { EditableImage } from '../admin-app/builder/EditableImage.jsx';
+import { RichTextEditor } from '../admin-app/builder/RichTextEditor.jsx';
+import { RichText } from './richText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 
 const SIZE_VAR = { normal: 'var(--fs-heading)', large: 'var(--fs-heading-lg)' };
@@ -23,11 +25,17 @@ export function QuoteBlock({
         textAlign: bordered ? 'left' : align,
       }}
     >
-      <p style={{ fontFamily: 'var(--font-serif)', fontSize: SIZE_VAR[size] || SIZE_VAR.normal, lineHeight: 'var(--lh-heading)', color: 'var(--text-primary)', margin: 0, fontStyle: 'italic', ...textStyleToCss(quoteTextStyle) }}>
-        “{editable ? (
-          <EditableText value={quoteText} onCommit={(v) => onFieldChange('quoteText', v)} placeholder="Quote" multiline as="span" styleValue={quoteTextStyle} onStyleChange={(s) => onFieldChange('quoteTextStyle', s)} />
-        ) : quoteText}”
-      </p>
+      {/* No more literal “ ” quote-mark text nodes -- quoteText can now be
+          real HTML with its own block-level <p>/<ul> tags (RichTextEditor/
+          RichText's HTML path), and a text node sitting next to a block
+          element ends up on its own line instead of hugging the quote. The
+          italic serif type + left border/tint accent already read as "this
+          is a quote" without needing literal quotation marks too. */}
+      <div style={{ fontFamily: 'var(--font-serif)', fontSize: SIZE_VAR[size] || SIZE_VAR.normal, lineHeight: 'var(--lh-heading)', color: 'var(--text-primary)', fontStyle: 'italic', ...textStyleToCss(quoteTextStyle) }}>
+        {editable ? (
+          <RichTextEditor value={quoteText} onCommit={(v) => onFieldChange('quoteText', v)} placeholder="Quote" />
+        ) : <RichText text={quoteText} />}
+      </div>
       {(editable || citation || avatarImage) && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: bordered ? 'flex-start' : align === 'center' ? 'center' : 'flex-start', gap: 'var(--space-3)', marginTop: 'var(--space-3)' }}>
           {(editable || avatarImage) && (

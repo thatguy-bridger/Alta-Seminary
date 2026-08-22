@@ -1,6 +1,8 @@
 import React from 'react';
+import { looksLikeHtml, applyFirstLineHeading } from '../lib/richTextHtml.js';
 
-// Deliberately tiny: plain-text input from the Textarea field, split into
+// Legacy path: plain-text input (everything written before the WYSIWYG
+// RichTextEditor existed, admin-app/builder/RichTextEditor.jsx), split into
 // paragraphs on blank lines, with **bold**, *italic*, and [text](url) support.
 // Never touches innerHTML -- everything below is React elements built from
 // parsed text, so there's no HTML-injection surface to sanitize in the first place.
@@ -27,6 +29,14 @@ function renderInline(text, keyPrefix) {
 }
 
 export function RichText({ text, style, firstLineHeading = false }) {
+  // Real HTML written by RichTextEditor.jsx -- already sanitized at commit
+  // time (see admin-app/builder/sanitizeRichHtml.js), so it's trusted here
+  // the same way the rest of this admin's authored content is trusted.
+  if (looksLikeHtml(text)) {
+    const html = firstLineHeading ? applyFirstLineHeading(text) : text;
+    return <div className="rich-text-content" style={style} dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+
   const paragraphs = (text || '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
   if (!paragraphs.length) return null;
   return (

@@ -2,6 +2,7 @@ import React from 'react';
 import { RichText } from './richText.jsx';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { EditableImage } from '../admin-app/builder/EditableImage.jsx';
+import { RichTextEditor } from '../admin-app/builder/RichTextEditor.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 
 const ALIGN_ITEMS = { top: 'flex-start', center: 'center', bottom: 'flex-end' };
@@ -45,7 +46,7 @@ export function ImageTextBlock({
       )}
       <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-body)', lineHeight: 'var(--lh-body)', color: 'var(--text-secondary)', ...textStyleToCss(bodyStyle) }}>
         {editable ? (
-          <EditableText value={body} onCommit={(v) => onFieldChange('body', v)} placeholder="Body text…" multiline as="div" styleValue={bodyStyle} onStyleChange={(s) => onFieldChange('bodyStyle', s)} />
+          <RichTextEditor value={body} onCommit={(v) => onFieldChange('body', v)} placeholder="Body text…" />
         ) : (
           <RichText text={body} />
         )}

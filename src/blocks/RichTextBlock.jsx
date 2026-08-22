@@ -1,6 +1,6 @@
 import React from 'react';
 import { RichText } from './richText.jsx';
-import { EditableText } from '../admin-app/builder/EditableText.jsx';
+import { RichTextEditor } from '../admin-app/builder/RichTextEditor.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 
 const TONE_VAR = { default: 'var(--text-primary)', muted: 'var(--text-secondary)' };
@@ -27,14 +27,10 @@ export function RichTextBlock({
       className={twoColumn ? 'rich-text-two-column' : undefined}
     >
       {editable ? (
-        <EditableText
+        <RichTextEditor
           value={content}
           onCommit={(v) => onFieldChange('content', v)}
-          placeholder="Write something… supports **bold**, *italic*, [link](https://…)"
-          multiline
-          as="div"
-          styleValue={contentStyle}
-          onStyleChange={(s) => onFieldChange('contentStyle', s)}
+          placeholder="Write something…"
         />
       ) : (
         <RichText text={content} firstLineHeading={firstLineHeading} />

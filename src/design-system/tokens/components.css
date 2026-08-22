@@ -79,3 +79,20 @@ a:hover{color:var(--text-link-hover)}
 .editable-text:focus{background:var(--surface-card);border-radius:var(--radius-sm);box-shadow:0 0 0 2px var(--brand-secondary)}
 .editable-image-overlay{opacity:0}
 .editable-image:hover .editable-image-overlay{opacity:1}
+
+/* Admin page-builder canvas: WYSIWYG rich text (src/admin-app/builder/RichTextEditor.jsx) */
+.rich-text-editor{outline:none;cursor:text;font-family:var(--font-sans);min-height:1.5em}
+.rich-text-editor:empty:before{content:attr(data-placeholder);color:var(--text-muted)}
+.rich-text-editor:hover{background:var(--tint-info-bg);border-radius:var(--radius-sm);box-shadow:0 0 0 2px var(--tint-info-bg)}
+.rich-text-editor:focus{background:var(--surface-card);border-radius:var(--radius-sm);box-shadow:0 0 0 2px var(--brand-secondary)}
+.rich-text-editor p{margin:0 0 var(--space-3)}
+.rich-text-editor p:last-child{margin-bottom:0}
+.rich-text-editor ul,.rich-text-editor ol{margin:0 0 var(--space-3);padding-left:1.4em}
+
+/* Public site: rendered rich-text HTML (src/blocks/richText.jsx) -- same
+   paragraph/list spacing as the editor above, for a match between what an
+   admin sees while editing and what a visitor actually sees. */
+.rich-text-content p{margin:0 0 var(--space-3)}
+.rich-text-content p:last-child{margin-bottom:0}
+.rich-text-content ul,.rich-text-content ol{margin:0 0 var(--space-3);padding-left:1.4em}
+.rich-text-content ul:last-child,.rich-text-content ol:last-child{margin-bottom:0}
