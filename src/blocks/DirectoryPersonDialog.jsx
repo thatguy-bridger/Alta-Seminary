@@ -1,5 +1,6 @@
 import React from 'react';
 import { Dialog } from '../design-system/components/core/Dialog.jsx';
+import { linkify } from '../lib/linkify.jsx';
 
 // The "larger preview" opened when a visitor clicks a person card, either
 // straight from a directory page or after being sent there from a teaser
@@ -48,7 +49,7 @@ export function DirectoryPersonDialog({ personId, sourceType, onClose }) {
             />
           )}
           {entry.bio && (
-            <p style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', margin: 0 }}>{entry.bio}</p>
+            <p style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', margin: 0 }}>{linkify(entry.bio)}</p>
           )}
           {extraEntries.length > 0 && (
             <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 'var(--space-2) var(--space-4)', margin: 0 }}>
@@ -57,7 +58,7 @@ export function DirectoryPersonDialog({ personId, sourceType, onClose }) {
                 return (
                   <React.Fragment key={key}>
                     <dt style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{label}</dt>
-                    <dd style={{ margin: 0, fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>{value}</dd>
+                    <dd style={{ margin: 0, fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>{linkify(value)}</dd>
                   </React.Fragment>
                 );
               })}

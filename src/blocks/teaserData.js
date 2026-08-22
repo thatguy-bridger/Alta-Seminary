@@ -14,7 +14,7 @@ function resolveLimit(count) {
 export async function fetchDirectoryTeaserItems(client, sourceType, count) {
   const { data, error } = await client
     .from('directory_entries')
-    .select('id, name, photo_url, bio')
+    .select('id, name, photo_url, bio, extra_fields')
     .eq('directory_kind', sourceType)
     .eq('status', 'published')
     .order('sort_order')

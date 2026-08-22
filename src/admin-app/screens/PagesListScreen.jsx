@@ -41,22 +41,33 @@ export function PagesListScreen() {
   const [newParentId, setNewParentId] = React.useState('');
   const [creating, setCreating] = React.useState(false);
 
-  async function load() {
-    const { data: existing } = await supabaseBrowser.from('pages').select('*');
+  // Plain refetch -- used after every mutation (delete/create/copy/reorder).
+  // Deliberately does NOT re-seed DEFAULT_BUILDER_PAGES: this used to be one
+  // function that both seeded and refetched, so deleting Home/About/
+  // Enrollment looked broken -- the very next reload saw that slug
+  // "missing" and silently re-inserted the page it had just deleted.
+  async function fetchPages() {
+    const { data } = await supabaseBrowser.from('pages').select('*');
+    setPages(data || []);
+  }
+
+  // One-time-per-mount seed of the default builder pages if missing, then
+  // the initial fetch. Only called from the mount effect below.
+  async function ensureDefaultPagesThenLoad() {
+    const { data: existing } = await supabaseBrowser.from('pages').select('slug');
     const existingSlugs = new Set((existing || []).map((p) => p.slug));
     const missing = DEFAULT_BUILDER_PAGES.filter((p) => !existingSlugs.has(p.slug));
     if (missing.length) {
       await supabaseBrowser.from('pages').insert(missing.map((p) => ({ ...p, page_kind: 'builder' })));
     }
-    const { data: finalPages } = await supabaseBrowser.from('pages').select('*');
-    setPages(finalPages || []);
+    await fetchPages();
   }
 
-  React.useEffect(() => { load(); }, []);
+  React.useEffect(() => { ensureDefaultPagesThenLoad(); }, []);
 
   async function toggleVisible(row) {
     await supabaseBrowser.from('pages').update({ show_in_nav: !row.show_in_nav }).eq('id', row.id);
-    load();
+    fetchPages();
   }
 
   async function move(siblings, row, direction) {
@@ -68,7 +79,7 @@ export function PagesListScreen() {
       supabaseBrowser.from('pages').update({ nav_order: other.nav_order }).eq('id', row.id),
       supabaseBrowser.from('pages').update({ nav_order: row.nav_order }).eq('id', other.id),
     ]);
-    load();
+    fetchPages();
   }
 
   async function handleCreate(e) {
@@ -87,7 +98,7 @@ export function PagesListScreen() {
     setCreateOpen(false);
     setNewTitle('');
     setNewParentId('');
-    load();
+    fetchPages();
   }
 
   async function handleCopy(row) {
@@ -99,7 +110,7 @@ export function PagesListScreen() {
       route_path: `/${slug}`, parent_id: row.parent_id, status: 'draft',
       draft_blocks: row.draft_blocks || [],
     });
-    load();
+    fetchPages();
   }
 
   async function handleDelete(row) {
@@ -109,7 +120,7 @@ export function PagesListScreen() {
       : `Delete "${row.title}"? This can't be undone.`;
     if (!(await confirm(warning, { title: 'Delete page?', confirmLabel: 'Delete', danger: true }))) return;
     await supabaseBrowser.from('pages').delete().eq('id', row.id);
-    load();
+    fetchPages();
   }
 
   if (pages === null) {

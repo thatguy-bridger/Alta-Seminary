@@ -3,9 +3,39 @@ import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { Card } from '../design-system/components/core/Card.jsx';
 import { withBase } from '../lib/url.js';
+import { linkify } from '../lib/linkify.jsx';
 import { DirectoryPersonDialog } from './DirectoryPersonDialog.jsx';
 
 const KIND_PATH = { staff: 'staff', council: 'council', missionary: 'missionaries' };
+
+// Bio + any extra fields (phone/email/title/whatever the admin filled in),
+// flattened into one snippet -- the card only has room for a preview, the
+// full text lives behind the "larger preview" dialog (DirectoryPersonDialog).
+function cardSnippet(person) {
+  const parts = [];
+  if (person.bio) parts.push(person.bio);
+  if (person.extra_fields) {
+    for (const value of Object.values(person.extra_fields)) {
+      if (value) parts.push(String(value));
+    }
+  }
+  return parts.join(' · ');
+}
+
+// Clips to ~3 lines and fades the last line to transparent instead of a hard
+// cutoff or "…" -- reads as "there's more, go open it" rather than a truncated dead end.
+const snippetStyle = {
+  margin: 'var(--space-2) 0 0',
+  fontFamily: 'var(--font-sans)',
+  fontSize: 'var(--fs-small)',
+  color: 'var(--text-secondary)',
+  textAlign: 'center',
+  maxHeight: '4.5em',
+  lineHeight: '1.5em',
+  overflow: 'hidden',
+  WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
+  maskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
+};
 
 // `items` is pre-fetched and passed in by the Astro public page (see
 // teaserData.js + src/lib/pages.js) since that context has no client JS to
@@ -77,42 +107,37 @@ export function DirectoryTeaserBlock({ heading, sourceType = 'staff', count = '3
             // reimplements its look inline rather than wrapping it. Content
             // that doesn't fit the resulting fixed height (a longer name)
             // clips via line-clamp rather than growing the card back out.
-            const card = uniformCardSize ? (
-              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', padding: 'var(--space-6)' }}>
+            const snippet = cardSnippet(person);
+            const header = (
+              <>
                 {person.photo_url && (
-                  <img src={person.photo_url} alt={person.name} loading="lazy" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)', flexShrink: 0 }} />
+                  <img src={person.photo_url} alt={person.name} loading="lazy" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)', flexShrink: uniformCardSize ? 0 : undefined }} />
                 )}
                 <div
-                  style={{
-                    fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)', textAlign: 'center',
-                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                  }}
+                  style={uniformCardSize
+                    ? { fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)', textAlign: 'center', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+                    : { fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)', textAlign: 'center' }}
                 >
                   {person.name}
                 </div>
-              </div>
-            ) : (
-              <Card>
-                {person.photo_url && (
-                  <img src={person.photo_url} alt={person.name} loading="lazy" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)' }} />
-                )}
-                <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)', textAlign: 'center' }}>{person.name}</div>
-              </Card>
+              </>
             );
+
             // Editable (admin canvas): never a real link -- href was
             // previously always set to the live URL regardless of editable,
             // so clicking a card in the page editor actually navigated to
             // the public site instead of just selecting the block.
-            if (!path || editable) return <div key={person.id} style={{ height: uniformCardSize ? '100%' : undefined }}>{card}</div>;
-            // Already on this directory's own page -- open the larger
-            // preview in place instead of a pointless self-navigation.
-            const onOwnPage = typeof window !== 'undefined'
+            //
+            // The snippet below (bio/extra fields) can itself contain real
+            // <a> links (email/phone/url, via linkify) -- those must NOT end
+            // up nested inside this card-opening link, so only the photo+name
+            // header is wrapped in the anchor; the snippet is a sibling.
+            const onOwnPage = path && typeof window !== 'undefined'
               && window.location.pathname.endsWith(withBase(`/directory/${path}`));
-            return (
+            const headerEl = (!path || editable) ? header : (
               <a
-                key={person.id}
                 href={withBase(`/directory/${path}?person=${person.id}`)}
-                style={{ textDecoration: 'none', display: uniformCardSize ? 'block' : undefined, height: uniformCardSize ? '100%' : undefined }}
+                style={{ textDecoration: 'none', display: 'block' }}
                 onClick={(e) => {
                   if (!onOwnPage) return;
                   e.preventDefault();
@@ -122,8 +147,23 @@ export function DirectoryTeaserBlock({ heading, sourceType = 'staff', count = '3
                   window.history.replaceState({}, '', url);
                 }}
               >
-                {card}
+                {header}
               </a>
+            );
+
+            if (uniformCardSize) {
+              return (
+                <div key={person.id} style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', padding: 'var(--space-6)' }}>
+                  {headerEl}
+                  {snippet && <p style={{ ...snippetStyle, flex: 1 }}>{linkify(snippet)}</p>}
+                </div>
+              );
+            }
+            return (
+              <Card key={person.id}>
+                {headerEl}
+                {snippet && <p style={snippetStyle}>{linkify(snippet)}</p>}
+              </Card>
             );
           })}
         </div>
