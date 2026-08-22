@@ -4,6 +4,7 @@ import { uploadImageBlob, fetchImageFromUrl } from '../imageUpload.js';
 import { CropEditor } from '../CropEditor.jsx';
 import { ImageSourceMenu } from '../ImageSourceMenu.jsx';
 import { Badge } from '../../design-system/components/core/Badge.jsx';
+import { BLOCK_REGISTRY } from '../../blocks/registry.js';
 
 // Every image anywhere on the site, grouped by where it's actually used --
 // no manual album/category upkeep required. Lets an admin swap out a stale
@@ -11,25 +12,64 @@ import { Badge } from '../../design-system/components/core/Badge.jsx';
 // hunting down which directory/page/post it lives on.
 //
 // Content-embedded images (Hero/Image/Carousel/Quote block props inside
-// pages & blog_posts) are matched by exact URL string across draft_blocks
-// AND published_blocks, so a replace here is reflected the next time either
-// gets rendered -- no separate "re-publish" step needed for the swap itself.
+// pages & blog_posts) are matched against a specific page/post's own block
+// tree, so each occurrence carries a "where on the page" location (e.g.
+// "Carousel -> slide 2 (Image + caption)") and a Replace that only touches
+// that one row -- not every other page that happens to reuse the same URL.
 function keyMatchesImage(key) {
   return /image|photo|avatar|background/i.test(key);
 }
 
-function walkBlocksForImages(node, urlMap, sourceLabel) {
-  if (Array.isArray(node)) { node.forEach((n) => walkBlocksForImages(n, urlMap, sourceLabel)); return; }
-  if (node && typeof node === 'object') {
-    for (const [key, val] of Object.entries(node)) {
-      if (typeof val === 'string' && val && keyMatchesImage(key) && /^https?:\/\//.test(val)) {
-        if (!urlMap.has(val)) urlMap.set(val, new Set());
-        urlMap.get(val).add(sourceLabel);
-      } else {
-        walkBlocksForImages(val, urlMap, sourceLabel);
-      }
+// Friendly label for a slide/column's nested type -- 'media' and 'content'
+// are pseudo-types local to Carousel/Columns (see CarouselBlock.jsx /
+// ColumnsBlock.jsx), not real BLOCK_REGISTRY entries.
+function nestedTypeLabel(type) {
+  if (type === 'media') return 'Image + caption';
+  if (type === 'content') return 'Image + text';
+  return BLOCK_REGISTRY[type]?.label || type;
+}
+
+// Image keys sit directly on a block/slide/column's own `props` -- nothing
+// in this codebase nests an image any deeper than that (see registry.js).
+function imageUrlsInProps(props) {
+  const found = [];
+  if (!props || typeof props !== 'object') return found;
+  for (const [key, val] of Object.entries(props)) {
+    if (typeof val === 'string' && val && keyMatchesImage(key) && /^https?:\/\//.test(val)) {
+      found.push(val);
     }
   }
+  return found;
+}
+
+// Walks one page/post's block array and returns [{url, location}] --
+// Carousel slides and Columns columns are the only two container shapes
+// that nest their own {id, type, props}, so those get a specific "slide N" /
+// "column N" location; everything else is just the block's own label.
+function findImagesInBlocks(blocks) {
+  const results = [];
+  for (const block of blocks || []) {
+    if (!block || typeof block !== 'object') continue;
+    const topLabel = BLOCK_REGISTRY[block.type]?.label || block.type;
+    if (block.type === 'carousel') {
+      (block.props?.items || []).forEach((slide, i) => {
+        imageUrlsInProps(slide.props).forEach((url) => {
+          results.push({ url, location: `${topLabel} — slide ${i + 1} (${nestedTypeLabel(slide.type)})` });
+        });
+      });
+    } else if (block.type === 'columns') {
+      (block.props?.columns || []).forEach((col, i) => {
+        imageUrlsInProps(col.props).forEach((url) => {
+          results.push({ url, location: `${topLabel} — column ${i + 1} (${nestedTypeLabel(col.type)})` });
+        });
+      });
+    } else {
+      imageUrlsInProps(block.props).forEach((url) => {
+        results.push({ url, location: topLabel });
+      });
+    }
+  }
+  return results;
 }
 
 function replaceUrlInBlocks(blocks, oldUrl, newUrl) {
@@ -37,6 +77,15 @@ function replaceUrlInBlocks(blocks, oldUrl, newUrl) {
   const serialized = JSON.stringify(blocks);
   if (!serialized.includes(oldUrl)) return blocks;
   return JSON.parse(serialized.split(oldUrl).join(newUrl));
+}
+
+// A group is either a flat leaf ({ label, items }) or a nested parent
+// ({ label, subgroups }) -- Page Images/Announcement Images are two levels
+// (the category, then one subgroup per page/post) so a category with a lot
+// of pages doesn't dump every image from every page into one giant grid.
+function countGroupItems(group) {
+  if (group.items) return group.items.length;
+  return (group.subgroups || []).reduce((sum, sg) => sum + countGroupItems(sg), 0);
 }
 
 export function AllSiteImagesPanel() {
@@ -49,110 +98,118 @@ export function AllSiteImagesPanel() {
     async function load() {
       setLoading(true);
       const [{ data: directories }, { data: dirEntries }, { data: posts }, { data: pages }, { data: albums }, { data: photos }] = await Promise.all([
-        supabaseBrowser.from('directories').select('id, slug, name'),
+        supabaseBrowser.from('directories').select('id, slug, name').order('sort_order'),
         supabaseBrowser.from('directory_entries').select('id, directory_kind, name, photo_url'),
         supabaseBrowser.from('blog_posts').select('id, title, cover_image_url, draft_blocks, published_blocks'),
         supabaseBrowser.from('pages').select('id, title, og_image_url, draft_blocks, published_blocks'),
-        supabaseBrowser.from('gallery_albums').select('id, name'),
+        supabaseBrowser.from('gallery_albums').select('id, name').order('sort_order'),
         supabaseBrowser.from('gallery_photos').select('id, album_id, image_url, caption'),
       ]);
       if (cancelled) return;
 
-      const dirNameByKind = new Map((directories || []).map((d) => [d.slug, d.name]));
+      // One dropdown per specific directory (e.g. "Directory: Seminary
+      // Council") rather than one lumped "Directory photos" group.
+      const directoryGroups = (directories || []).map((dir) => {
+        const items = (dirEntries || []).filter((e) => e.directory_kind === dir.slug && e.photo_url).map((e) => ({
+          id: `dir-${e.id}`,
+          imageUrl: e.photo_url,
+          aspect: 1,
+          title: e.name,
+          subtitle: 'Directory photo',
+          pathPrefix: `directory/${e.directory_kind}`,
+          onReplace: async (newUrl) => {
+            await supabaseBrowser.from('directory_entries').update({ photo_url: newUrl }).eq('id', e.id);
+          },
+        }));
+        return { label: `Directory: ${dir.name}`, items };
+      }).filter((g) => g.items.length > 0);
+
+      // One dropdown per album (+ Unsorted), same reasoning as directories.
       const albumNameById = new Map((albums || []).map((a) => [a.id, a.name]));
+      const albumIds = [...new Set((photos || []).map((ph) => ph.album_id))];
+      const galleryGroups = albumIds.map((albumId) => {
+        const items = (photos || []).filter((ph) => ph.album_id === albumId).map((ph) => ({
+          id: `photo-${ph.id}`,
+          imageUrl: ph.image_url,
+          aspect: 1,
+          title: ph.caption || '(untitled photo)',
+          subtitle: 'Gallery photo',
+          pathPrefix: `gallery/${ph.album_id || 'unsorted'}`,
+          onReplace: async (newUrl) => {
+            await supabaseBrowser.from('gallery_photos').update({ image_url: newUrl }).eq('id', ph.id);
+          },
+        }));
+        const label = albumId ? albumNameById.get(albumId) || 'Album' : 'Unsorted';
+        return { label: `Gallery: ${label}`, items };
+      }).filter((g) => g.items.length > 0);
 
-      const directoryItems = (dirEntries || []).filter((e) => e.photo_url).map((e) => ({
-        id: `dir-${e.id}`,
-        imageUrl: e.photo_url,
-        aspect: 1,
-        title: e.name,
-        subtitle: dirNameByKind.get(e.directory_kind) || e.directory_kind,
-        pathPrefix: `directory/${e.directory_kind}`,
-        onReplace: async (newUrl) => {
-          await supabaseBrowser.from('directory_entries').update({ photo_url: newUrl }).eq('id', e.id);
-        },
-      }));
-
-      const announcementItems = (posts || []).filter((p) => p.cover_image_url).map((p) => ({
-        id: `post-${p.id}`,
+      const coverImageItems = (posts || []).filter((p) => p.cover_image_url).map((p) => ({
+        id: `post-cover-${p.id}`,
         imageUrl: p.cover_image_url,
         aspect: 16 / 9,
         title: p.title,
-        subtitle: 'Cover image',
+        subtitle: 'Announcement cover image',
         pathPrefix: `posts/${p.id}`,
         onReplace: async (newUrl) => {
           await supabaseBrowser.from('blog_posts').update({ cover_image_url: newUrl }).eq('id', p.id);
         },
       }));
 
-      const pageItems = (pages || []).filter((p) => p.og_image_url).map((p) => ({
-        id: `page-${p.id}`,
-        imageUrl: p.og_image_url,
-        aspect: 16 / 9,
-        title: p.title,
-        subtitle: 'Social share image (og:image)',
-        pathPrefix: `pages/${p.id}`,
-        onReplace: async (newUrl) => {
-          await supabaseBrowser.from('pages').update({ og_image_url: newUrl }).eq('id', p.id);
-        },
-      }));
-
-      const galleryItems = (photos || []).map((ph) => ({
-        id: `photo-${ph.id}`,
-        imageUrl: ph.image_url,
-        aspect: 1,
-        title: ph.caption || '(untitled photo)',
-        subtitle: ph.album_id ? albumNameById.get(ph.album_id) || 'Album' : 'Unsorted',
-        pathPrefix: `gallery/${ph.album_id || 'unsorted'}`,
-        onReplace: async (newUrl) => {
-          await supabaseBrowser.from('gallery_photos').update({ image_url: newUrl }).eq('id', ph.id);
-        },
-      }));
-
-      // Content-embedded images: same URL can appear on multiple
-      // pages/posts and in both the draft and the live (published) copy, so
-      // group by URL and touch every row + both block columns that mention it.
-      const urlToSources = new Map(); // url -> Set(labels)
-      const urlToRows = new Map(); // url -> [{ table, row }]
-      function record(table, row) {
-        const found = new Map();
-        walkBlocksForImages(row.draft_blocks, found, row.title);
-        walkBlocksForImages(row.published_blocks, found, row.title);
-        for (const [url, labels] of found) {
-          if (!urlToSources.has(url)) urlToSources.set(url, new Set());
-          labels.forEach((l) => urlToSources.get(url).add(l));
-          if (!urlToRows.has(url)) urlToRows.set(url, []);
-          urlToRows.get(url).push({ table, row });
-        }
-      }
-      (pages || []).forEach((p) => record('pages', p));
-      (posts || []).forEach((p) => record('blog_posts', p));
-
-      const contentItems = [...urlToSources.entries()].map(([url, labels]) => ({
-        id: `content-${url}`,
-        imageUrl: url,
-        aspect: 16 / 9,
-        title: [...labels].join(', '),
-        subtitle: 'Used in page/post content',
-        pathPrefix: 'content',
-        onReplace: async (newUrl) => {
-          const rows = urlToRows.get(url) || [];
-          await Promise.all(rows.map(({ table, row }) =>
-            supabaseBrowser.from(table).update({
+      // Per-page subgroup: that page's own og:image (if any) plus every
+      // image found in its live (published) block tree, each carrying a
+      // "where on the page" location. Falls back to draft_blocks for a page
+      // that's never been published, so a brand-new page's images still show up.
+      function contentItemsForRow(row, table, pathPrefixBase) {
+        const source = (row.published_blocks && row.published_blocks.length) ? row.published_blocks : row.draft_blocks;
+        return findImagesInBlocks(source).map(({ url, location }, i) => ({
+          id: `${table}-content-${row.id}-${i}`,
+          imageUrl: url,
+          aspect: 16 / 9,
+          title: row.title,
+          subtitle: location,
+          pathPrefix: `${pathPrefixBase}/${row.id}`,
+          onReplace: async (newUrl) => {
+            await supabaseBrowser.from(table).update({
               draft_blocks: replaceUrlInBlocks(row.draft_blocks, url, newUrl),
               published_blocks: replaceUrlInBlocks(row.published_blocks, url, newUrl),
-            }).eq('id', row.id)
-          ));
-        },
-      }));
+            }).eq('id', row.id);
+          },
+        }));
+      }
 
-      setGroups([
-        { label: 'Directory photos', items: directoryItems },
-        { label: 'Announcement cover images', items: announcementItems },
-        { label: 'Page social share images', items: pageItems },
-        { label: 'Gallery photos', items: galleryItems },
-        { label: 'Images used in page/post content', items: contentItems },
-      ].filter((g) => g.items.length > 0));
+      const pageSubgroups = (pages || []).map((p) => {
+        const items = [];
+        if (p.og_image_url) {
+          items.push({
+            id: `page-og-${p.id}`,
+            imageUrl: p.og_image_url,
+            aspect: 16 / 9,
+            title: p.title,
+            subtitle: 'Social share image (og:image)',
+            pathPrefix: `pages/${p.id}`,
+            onReplace: async (newUrl) => {
+              await supabaseBrowser.from('pages').update({ og_image_url: newUrl }).eq('id', p.id);
+            },
+          });
+        }
+        items.push(...contentItemsForRow(p, 'pages', 'pages'));
+        return { label: p.title, items };
+      }).filter((g) => g.items.length > 0);
+
+      const postSubgroups = (posts || []).map((p) => {
+        const items = contentItemsForRow(p, 'blog_posts', 'posts');
+        return { label: p.title, items };
+      }).filter((g) => g.items.length > 0);
+
+      const allGroups = [
+        ...directoryGroups,
+        ...galleryGroups,
+        coverImageItems.length > 0 ? { label: 'Cover Images', items: coverImageItems } : null,
+        pageSubgroups.length > 0 ? { label: 'Page Images', subgroups: pageSubgroups } : null,
+        postSubgroups.length > 0 ? { label: 'Announcement Images', subgroups: postSubgroups } : null,
+      ].filter(Boolean);
+
+      setGroups(allGroups);
       setLoading(false);
     }
     load();
@@ -163,18 +220,40 @@ export function AllSiteImagesPanel() {
   if (groups.length === 0) return <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>No images found yet.</p>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
       {groups.map((group) => (
-        <div key={group.label}>
-          <h4 style={{ margin: '0 0 var(--space-3)', fontSize: 'var(--fs-body)' }}>{group.label} <Badge tone="neutral">{group.items.length}</Badge></h4>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--space-3)' }}>
-            {group.items.map((item) => (
-              <ImageTile key={item.id} item={item} onReplaced={() => setRefreshKey((k) => k + 1)} />
-            ))}
-          </div>
-        </div>
+        <GroupDisclosure key={group.label} group={group} onReplaced={() => setRefreshKey((k) => k + 1)} />
       ))}
     </div>
+  );
+}
+
+// <details>/<summary> gives collapse/expand behavior (and keyboard/
+// screen-reader support) for free -- no extra open/closed state to manage.
+// Nested one level for Page Images/Announcement Images (category -> page).
+function GroupDisclosure({ group, onReplaced, nested = false }) {
+  const count = countGroupItems(group);
+  return (
+    <details style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', background: nested ? 'var(--surface-card)' : 'var(--surface-sunken)' }}>
+      <summary style={{ cursor: 'pointer', padding: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', fontSize: nested ? 'var(--fs-small)' : 'var(--fs-body)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+        {group.label} <Badge tone="neutral">{count}</Badge>
+      </summary>
+      <div style={{ padding: '0 var(--space-3) var(--space-3)' }}>
+        {group.subgroups ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            {group.subgroups.map((sg) => (
+              <GroupDisclosure key={sg.label} group={sg} onReplaced={onReplaced} nested />
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--space-3)' }}>
+            {group.items.map((item) => (
+              <ImageTile key={item.id} item={item} onReplaced={onReplaced} />
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 
