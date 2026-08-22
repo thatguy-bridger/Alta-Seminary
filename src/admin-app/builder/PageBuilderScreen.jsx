@@ -356,6 +356,32 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
         </div>
       )}
 
+      {!isPost && row.page_kind === 'builder' && (
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          <Card title="Page SEO details">
+            {/* Collapsed by default -- these matter for search/social sharing
+                but aren't needed to just write and publish a page, so they
+                shouldn't compete with the actual content for attention. The
+                Pages overview flags a published page missing a description
+                (see PagesListScreen.jsx) so there's still a clear path back here. */}
+            <details>
+              <summary style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)' }}>
+                Meta description & social share image {!row.meta_description && '(not set yet)'}
+              </summary>
+              <div style={{ marginTop: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                <Textarea
+                  label="Meta description (shown in search results and link previews)"
+                  value={row.meta_description || ''}
+                  onChange={(e) => updateMeta({ meta_description: e.target.value })}
+                  rows={2}
+                />
+                <ImageUploadField label="Social share image (og:image)" value={row.og_image_url} onChange={(url) => updateMeta({ og_image_url: url })} pathPrefix={`pages/${row.id}`} aspect={16 / 9} />
+              </div>
+            </details>
+          </Card>
+        </div>
+      )}
+
       <Tabs tabs={['Edit', 'Preview']} active={view} onChange={setView} />
 
       <div style={{ marginTop: 'var(--space-6)' }}>

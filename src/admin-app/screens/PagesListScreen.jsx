@@ -21,6 +21,44 @@ const DEFAULT_BUILDER_PAGES = [
   { slug: 'enrollment', title: 'Enrollment', nav_label: 'Enrollment', nav_order: 6, route_path: '/enrollment' },
 ];
 
+// A slide/column can be the pseudo-type ('media'/'content') or any real
+// registered block type -- only the two that actually carry an image need
+// checking for alt text (mirrors the same shape knowledge CarouselBlock.jsx/
+// ColumnsBlock.jsx already encode).
+function missingAlt(block) {
+  return (block.type === 'image' || block.type === 'image-text') && block.props?.imageUrl && !block.props?.alt?.trim();
+}
+
+// Everything here is read straight off the already-fetched row -- no extra
+// queries, no network image checks (that's what the Diagnostics screen's
+// broken-image scan is for) -- just "is there something worth an admin's
+// attention before/after this page goes live."
+function computeHealth(row) {
+  if (row.page_kind !== 'builder') return [];
+  const flags = [];
+  const draftBlocks = row.draft_blocks || [];
+
+  if (row.status === 'published' && JSON.stringify(draftBlocks) !== JSON.stringify(row.published_blocks || [])) {
+    flags.push({ label: 'Unpublished changes', tone: 'warning' });
+  }
+  if (draftBlocks.length === 0) {
+    flags.push({ label: 'Empty — no content yet', tone: 'neutral' });
+  }
+  if (row.status === 'published' && !row.meta_description) {
+    flags.push({ label: 'Missing meta description', tone: 'neutral' });
+  }
+  const hasMissingAlt = draftBlocks.some((block) => {
+    if (!block || typeof block !== 'object') return false;
+    if (missingAlt(block)) return true;
+    if (block.type === 'carousel') return (block.props?.items || []).some(missingAlt);
+    if (block.type === 'columns') return (block.props?.columns || []).some(missingAlt);
+    return false;
+  });
+  if (hasMissingAlt) flags.push({ label: 'Image missing alt text', tone: 'warning' });
+
+  return flags;
+}
+
 function buildTree(rows) {
   const byParent = new Map();
   for (const row of rows) {
@@ -163,11 +201,12 @@ export function PagesListScreen() {
 
 function PageRow({ row, siblings, onToggle, onMove, onCopy, onDelete, depth }) {
   const isBuilder = row.page_kind === 'builder';
+  const healthFlags = computeHealth(row);
   return (
     <div>
       <div
         style={{
-          display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+          display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap',
           padding: 'var(--space-3)', paddingLeft: `calc(var(--space-3) + ${depth * 24}px)`,
           borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
           opacity: row.show_in_nav ? 1 : 0.55,
@@ -178,10 +217,19 @@ function PageRow({ row, siblings, onToggle, onMove, onCopy, onDelete, depth }) {
           <button onClick={() => onMove(siblings, row, 1)} title="Move down" style={arrowStyle}>▼</button>
         </div>
 
-        <div style={{ flex: 1 }}>
-          <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{row.title}</span>
-          {!isBuilder && row.route_path && (
-            <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>{row.route_path}</span>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <div>
+            <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{row.title}</span>
+            {!isBuilder && row.route_path && (
+              <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>{row.route_path}</span>
+            )}
+          </div>
+          {healthFlags.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+              {healthFlags.map((flag) => (
+                <Badge key={flag.label} tone={flag.tone}>{flag.label}</Badge>
+              ))}
+            </div>
           )}
         </div>
 
