@@ -82,7 +82,7 @@ function mergeLegacyColumns(items, legacyProps) {
 }
 
 export function ColumnsBlock({
-  editable, onFieldChange, onOpenSettings, pathPrefix, textAlign = 'left', widthRatio = 'equal', divider = false,
+  editable, onFieldChange, onOpenSettings, activeSettingsTarget, pathPrefix, textAlign = 'left', widthRatio = 'equal', divider = false,
   columns: columnsProp, columnCount, ...legacyProps
 }) {
   const count = columnCount === '3' ? 3 : 2;
@@ -163,6 +163,7 @@ export function ColumnsBlock({
               pathPrefix={pathPrefix}
               onFieldChange={(key, value) => updateColumnProps(i, { [key]: value })}
               onOpenSettings={onOpenSettings ? () => onOpenSettings('columns', i) : undefined}
+              isSettingsActive={activeSettingsTarget?.nestedKey === 'columns' && activeSettingsTarget?.nestedIndex === i}
             />
           ) : (
             <ColumnBlockLive type={col.type} id={col.id} props={col.props} />
@@ -178,7 +179,7 @@ export function ColumnsBlock({
 // renderer as the page-level style panel -- exactly CarouselBlock.jsx's
 // SlideBlockEditor, since a column isn't a real page block with its own row
 // in BlockConfigPanel either.
-function ColumnBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, onOpenSettings }) {
+function ColumnBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, onOpenSettings, isSettingsActive }) {
   const def = BLOCK_REGISTRY[type];
   const Component = BLOCK_COMPONENTS[type];
   if (!def || !Component) return null;
@@ -198,7 +199,7 @@ function ColumnBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, on
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onOpenSettings(); }}
-            className="btn btn-outline btn-sm"
+            className={`btn btn-sm ${isSettingsActive ? 'btn-secondary' : 'btn-outline'}`}
           >
             ⚙ Settings
           </button>

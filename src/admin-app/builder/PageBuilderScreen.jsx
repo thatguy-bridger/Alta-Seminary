@@ -220,7 +220,19 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   // block's own props.items/props.columns array) -- see EditableCanvas.jsx's
   // onOpenSettings and CarouselBlock.jsx/ColumnsBlock.jsx's "⚙ Settings"
   // buttons on each slide/column.
+  // Clicking the settings button for whatever's already open just closes
+  // the panel again (and its button reverts from filled back to outline --
+  // see EditableCanvas.jsx/CarouselBlock.jsx/ColumnsBlock.jsx); clicking any
+  // other block's settings button switches the panel to that target instead.
   function handleOpenSettings(blockId, nestedKey, nestedIndex) {
+    const isSameTarget = sidebarOpen && settingsTarget
+      && settingsTarget.blockId === blockId
+      && settingsTarget.nestedKey === nestedKey
+      && settingsTarget.nestedIndex === nestedIndex;
+    if (isSameTarget) {
+      setSidebarOpen(false);
+      return;
+    }
     setSettingsTarget({ blockId, nestedKey, nestedIndex });
     setSidebarOpen(true);
   }
@@ -395,6 +407,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                 onReorder={handleReorder}
                 onFieldChange={handleFieldChange}
                 onOpenSettings={handleOpenSettings}
+                activeSettingsTarget={sidebarOpen ? settingsTarget : null}
                 onRemove={handleRemove}
                 onDuplicate={handleDuplicate}
                 onDuplicateWithImages={handleDuplicateWithImages}

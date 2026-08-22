@@ -5,10 +5,20 @@ import { CSS } from '@dnd-kit/utilities';
 import { BLOCK_COMPONENTS } from '../../blocks/BlockRenderer.jsx';
 import { BlockWrapper } from '../../blocks/BlockWrapper.jsx';
 
-function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSettings, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
+function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSettings, activeSettingsTarget, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
   const Component = BLOCK_COMPONENTS[block.type];
   if (!Component) return null;
+
+  // Settings is showing THIS block's own (top-level) fields right now --
+  // its button fills with the secondary color to say so; clicking it again
+  // is a toggle (see PageBuilderScreen.jsx's handleOpenSettings) that closes
+  // the panel and reverts the button to plain.
+  const isSettingsActive = activeSettingsTarget?.blockId === block.id && !activeSettingsTarget?.nestedKey;
+  // A nested slide/column belonging to THIS block might be the active target
+  // instead -- forwarded to the block's own component (Carousel/Columns) so
+  // its per-slide/per-column settings buttons can highlight themselves too.
+  const nestedSettingsTarget = activeSettingsTarget?.blockId === block.id ? activeSettingsTarget : null;
 
   return (
     <div
@@ -57,7 +67,11 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
             <button
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onOpenSettings(block.id); }}
-              style={{ border: 'none', background: 'none', color: 'var(--text-on-inverse)', cursor: 'pointer', padding: '4px 8px', fontSize: 'var(--fs-caption)' }}
+              style={{
+                border: 'none', cursor: 'pointer', padding: '4px 8px', fontSize: 'var(--fs-caption)', borderRadius: 'var(--radius-sm)',
+                background: isSettingsActive ? 'var(--brand-secondary)' : 'none',
+                color: isSettingsActive ? 'var(--text-on-secondary)' : 'var(--text-on-inverse)',
+              }}
             >
               ⚙ Settings
             </button>
@@ -85,6 +99,7 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
           onFieldChange={(key, value) => onFieldChange(block.id, key, value)}
           onAddImageBlocks={onDuplicateWithImages ? (urls) => onDuplicateWithImages(block.id, urls) : undefined}
           onOpenSettings={(nestedKey, nestedIndex) => onOpenSettings(block.id, nestedKey, nestedIndex)}
+          activeSettingsTarget={nestedSettingsTarget}
           pathPrefix={pathPrefix}
           blockId={block.id}
         />
@@ -93,7 +108,7 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
   );
 }
 
-export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFieldChange, onOpenSettings, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
+export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFieldChange, onOpenSettings, activeSettingsTarget, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -127,6 +142,7 @@ export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFiel
               onSelect={onSelect}
               onFieldChange={onFieldChange}
               onOpenSettings={onOpenSettings}
+              activeSettingsTarget={activeSettingsTarget}
               onRemove={onRemove}
               onDuplicate={onDuplicate}
               onDuplicateWithImages={onDuplicateWithImages}

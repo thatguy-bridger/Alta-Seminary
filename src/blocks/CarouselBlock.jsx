@@ -128,7 +128,7 @@ function mergeLegacySlides(items, legacyProps) {
 export function CarouselBlock({
   items, autoplay = true, autoplaySpeed = 'normal', loop = true, pauseOnHover = true,
   showArrows = true, showDots = true, transition = 'slide', aspectRatio = '16:9',
-  editable, onFieldChange, onOpenSettings, pathPrefix,
+  editable, onFieldChange, onOpenSettings, activeSettingsTarget, pathPrefix,
   ...legacyProps
 }) {
   const originalItems = Array.isArray(items) ? items : [];
@@ -150,7 +150,7 @@ export function CarouselBlock({
 
   if (editable) {
     return (
-      <EditableCarousel slides={slides} pathPrefix={pathPrefix} onFieldChange={onFieldChange} onOpenSettings={onOpenSettings} aspectRatio={aspectRatio} />
+      <EditableCarousel slides={slides} pathPrefix={pathPrefix} onFieldChange={onFieldChange} onOpenSettings={onOpenSettings} activeSettingsTarget={activeSettingsTarget} aspectRatio={aspectRatio} />
     );
   }
 
@@ -175,7 +175,7 @@ export function CarouselBlock({
 // looks like -- one large "current" slide plus 2-3 narrow upcoming peeks --
 // in a row whose total width never exceeds its container, however many
 // slides exist. Add/duplicate/delete act on whichever slide is currently focused.
-function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, aspectRatio }) {
+function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, activeSettingsTarget, aspectRatio }) {
   const [focusIndex, setFocusIndex] = React.useState(0);
   const index = Math.min(focusIndex, slides.length - 1);
   const current = slides[index];
@@ -314,6 +314,7 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, a
               pathPrefix={pathPrefix}
               onFieldChange={(key, value) => updateSlideProps(index, { [key]: value })}
               onOpenSettings={onOpenSettings ? () => onOpenSettings('items', index) : undefined}
+              isSettingsActive={activeSettingsTarget?.nestedKey === 'items' && activeSettingsTarget?.nestedIndex === index}
             />
           )}
         </div>
@@ -454,7 +455,7 @@ function AutofillControls({ onGenerate }) {
 // Embed's URL) using the same field renderer as the page-level style panel --
 // those fields have no other home since a slide isn't a real page block with
 // its own row in BlockConfigPanel.
-function SlideBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, onOpenSettings }) {
+function SlideBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, onOpenSettings, isSettingsActive }) {
   const def = BLOCK_REGISTRY[type];
   const Component = BLOCK_COMPONENTS[type];
   if (!def || !Component) return null;
@@ -475,7 +476,7 @@ function SlideBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, onO
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onOpenSettings(); }}
-            className="btn btn-outline btn-sm"
+            className={`btn btn-sm ${isSettingsActive ? 'btn-secondary' : 'btn-outline'}`}
           >
             ⚙ Settings
           </button>
