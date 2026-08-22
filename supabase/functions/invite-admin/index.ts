@@ -56,7 +56,12 @@ Deno.serve(async (req: Request) => {
     }
 
     const invitedUser = inviteData.user;
-    const { error: profileError } = await admin.from('admin_profiles').insert({
+    // upsert, not insert: a DB trigger (0020_sync_admin_profiles.sql) also
+    // creates a stub admin_profiles row the instant auth.admin.inviteUserByEmail
+    // above inserts into auth.users, as a safety net for admins added any
+    // other way (e.g. straight from the Supabase dashboard). Whichever one
+    // runs first, this upsert still lands the invited_by this flow actually knows.
+    const { error: profileError } = await admin.from('admin_profiles').upsert({
       id: invitedUser.id,
       email,
       display_name: name,
