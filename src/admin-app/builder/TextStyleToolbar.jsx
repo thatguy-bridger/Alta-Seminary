@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { FONT_OPTIONS } from './textStyle.js';
+import { TEXT_COLOR_TOKENS } from '../../lib/richTextTokens.js';
 
 // Small floating toolbar shown above whichever text field is currently
 // focused (see EditableText.jsx) -- color/size/font overrides for that one
@@ -32,13 +33,29 @@ export function TextStyleToolbar({ toolbarRef, anchorRect, value, onChange }) {
         zIndex: 2000, whiteSpace: 'nowrap',
       }}
     >
-      <input
-        type="color"
-        value={current.color || '#000000'}
-        onChange={(e) => patch({ color: e.target.value })}
-        title="Text color"
-        style={{ width: 24, height: 24, padding: 0, border: 'none', borderRadius: 4, background: 'none', cursor: 'pointer' }}
-      />
+      {/* The same 6 curated color tokens as the rich text editor's swatches
+          (richTextTokens.js) -- every token maps to one of the site's own
+          design-system CSS variables, which already have separate light/
+          dark values, instead of a raw hex picker that could pick a color
+          that looks wrong (or unreadable) once dark mode is toggled. */}
+      <div style={{ display: 'flex', gap: 4 }}>
+        {TEXT_COLOR_TOKENS.map((t) => {
+          const tokenValue = `var(${t.var})`;
+          const active = current.color === tokenValue;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => patch({ color: tokenValue })}
+              title={t.label}
+              style={{
+                width: 18, height: 18, borderRadius: '50%', padding: 0, cursor: 'pointer',
+                background: tokenValue, border: active ? '2px solid var(--brand-secondary)' : '1px solid var(--border-default)',
+              }}
+            />
+          );
+        })}
+      </div>
       <input
         type="number"
         min={8}
