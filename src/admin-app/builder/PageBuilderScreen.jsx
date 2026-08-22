@@ -356,6 +356,12 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                   background: 'var(--surface-page)',
                   overflow: 'hidden',
                   transition: 'width var(--duration-standard)',
+                  // Blocks' own responsive CSS reacts to @container, not
+                  // @media (see components.css) -- without this, the frame
+                  // can look narrow while every block still renders its
+                  // desktop layout, since @media only ever sees the real
+                  // (full-width admin) browser window, never this div's width.
+                  containerType: 'inline-size',
                 }}
               >
                 {previewDevice === 'Mobile' && (

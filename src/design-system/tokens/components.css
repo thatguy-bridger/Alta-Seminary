@@ -55,7 +55,14 @@ a:hover{color:var(--text-link-hover)}
 .block-columns[data-divider="true"]>div:not(:last-child){border-right:1px solid var(--border-subtle);padding-right:var(--space-6)}
 .block-columns[data-ratio="wide-left"]{grid-template-columns:2fr 1fr}
 .block-columns[data-ratio="wide-right"]{grid-template-columns:1fr 2fr}
-@media (max-width: 640px){
+/* @container, not @media: this needs to react to the width of the block's
+   own containing box, not the actual browser window -- otherwise the
+   admin's mobile-preview frame (a narrowed <div> inside a full-width
+   desktop browser, see PageBuilderScreen.jsx) never matches, since @media
+   only ever sees the real viewport. Requires a `container-type:inline-size`
+   ancestor -- see .site-main in PublicLayout.astro (the real site) and the
+   preview-device-frame style in PageBuilderScreen.jsx (the admin preview). */
+@container (max-width: 640px){
   .block-image-text{grid-template-columns:1fr}
   .block-columns{grid-template-columns:1fr !important}
   .block-columns>div:not(:last-child){border-right:none !important;padding-right:0 !important}

@@ -56,6 +56,9 @@ const { title, description, ogImage, ogType, publishedTime, structuredData } = A
     max-width: var(--content-max);
     margin: 0 auto;
     padding: var(--space-8) var(--space-6);
+    /* Lets the @container(max-width:640px) rules in components.css react to
+       this box's own width -- see the comment there. */
+    container-type: inline-size;
   }
   .skip-link {
     position: absolute;
