@@ -4,7 +4,6 @@ import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { EditableImage } from '../admin-app/builder/EditableImage.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { AddBlockButton } from '../admin-app/builder/AddBlockButton.jsx';
-import { renderField } from '../admin-app/builder/BlockConfigPanel.jsx';
 import { BLOCK_REGISTRY, isInlineField } from './registry.js';
 // BlockRenderer.jsx imports ColumnsBlock (it's one of the types in
 // BLOCK_COMPONENTS), so this is a circular import -- safe here for the same
@@ -83,7 +82,7 @@ function mergeLegacyColumns(items, legacyProps) {
 }
 
 export function ColumnsBlock({
-  editable, onFieldChange, pathPrefix, textAlign = 'left', widthRatio = 'equal', divider = false,
+  editable, onFieldChange, onOpenSettings, pathPrefix, textAlign = 'left', widthRatio = 'equal', divider = false,
   columns: columnsProp, columnCount, ...legacyProps
 }) {
   const count = columnCount === '3' ? 3 : 2;
@@ -163,6 +162,7 @@ export function ColumnsBlock({
               props={col.props}
               pathPrefix={pathPrefix}
               onFieldChange={(key, value) => updateColumnProps(i, { [key]: value })}
+              onOpenSettings={onOpenSettings ? () => onOpenSettings('columns', i) : undefined}
             />
           ) : (
             <ColumnBlockLive type={col.type} id={col.id} props={col.props} />
@@ -178,7 +178,7 @@ export function ColumnsBlock({
 // renderer as the page-level style panel -- exactly CarouselBlock.jsx's
 // SlideBlockEditor, since a column isn't a real page block with its own row
 // in BlockConfigPanel either.
-function ColumnBlockEditor({ type, blockId, props, pathPrefix, onFieldChange }) {
+function ColumnBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, onOpenSettings }) {
   const def = BLOCK_REGISTRY[type];
   const Component = BLOCK_COMPONENTS[type];
   if (!def || !Component) return null;
@@ -187,20 +187,21 @@ function ColumnBlockEditor({ type, blockId, props, pathPrefix, onFieldChange }) 
   return (
     <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', background: 'var(--surface-card)' }}>
       <Component {...props} editable onFieldChange={onFieldChange} pathPrefix={pathPrefix} blockId={blockId} />
-      {settingsFields.length > 0 && (
-        // Collapsed by default; stopPropagation so opening this or touching
-        // a field doesn't bubble a pointerdown up to the canvas's draggable
-        // wrapper and start a reorder drag -- see CarouselBlock.jsx's
-        // identical SlideBlockEditor for the full reasoning.
-        <div onPointerDown={(e) => e.stopPropagation()} style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
-          <details>
-            <summary style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', color: 'var(--text-secondary)', userSelect: 'none' }}>
-              More options
-            </summary>
-            <div style={{ marginTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {settingsFields.map((field) => renderField(field, props[field.key], onFieldChange))}
-            </div>
-          </details>
+      {settingsFields.length > 0 && onOpenSettings && (
+        // This column's settings live in the right-hand panel like everything
+        // else -- see PageBuilderScreen.jsx's settingsTarget. stopPropagation:
+        // this sits inside the Columns block, itself inside the canvas's
+        // draggable wrapper -- without it, clicking bubbles a pointerdown up
+        // and starts a reorder drag right after the click.
+        <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onOpenSettings(); }}
+            className="btn btn-outline btn-sm"
+          >
+            ⚙ Settings
+          </button>
         </div>
       )}
     </div>

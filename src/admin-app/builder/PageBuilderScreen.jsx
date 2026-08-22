@@ -1,6 +1,6 @@
 import React from 'react';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
-import { createBlock } from '../../blocks/registry.js';
+import { createBlock, BLOCK_REGISTRY } from '../../blocks/registry.js';
 import { BlockRenderer } from '../../blocks/BlockRenderer.jsx';
 import { EditableCanvas } from './EditableCanvas.jsx';
 import { BlockConfigPanel } from './BlockConfigPanel.jsx';
@@ -32,6 +32,18 @@ function fromLocalInputValue(value) {
   return value ? new Date(value).toISOString() : null;
 }
 
+// "Carousel — slide 2" / "Columns — column 1" -- a nested block's own label
+// ("Quote / Scripture") doesn't say where it lives, and the Style panel can
+// otherwise be showing settings for something nowhere near what's visibly
+// selected on the canvas.
+function nestedContextLabel(blocks, settingsTarget) {
+  const parent = blocks.find((b) => b.id === settingsTarget.blockId);
+  if (!parent) return '';
+  const parentLabel = BLOCK_REGISTRY[parent.type]?.label || parent.type;
+  const noun = settingsTarget.nestedKey === 'items' ? 'slide' : 'column';
+  return `${parentLabel} — ${noun} ${settingsTarget.nestedIndex + 1}`;
+}
+
 const linkButtonStyle = {
   border: 'none', background: 'none', padding: 0, cursor: 'pointer',
   color: 'inherit', textDecoration: 'underline', fontFamily: 'inherit', fontSize: 'inherit',
@@ -45,6 +57,13 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const [row, setRow] = React.useState(null);
   const [blocks, setBlocks] = React.useState([]);
   const [selectedId, setSelectedId] = React.useState(null);
+  // Which block's settings the right-hand panel is showing -- see
+  // handleOpenSettings/resolveSettingsBlock below. Independent of
+  // `selectedId` (the canvas highlight/drag target) since it can point at a
+  // slide/column nested inside a Carousel/Columns block, not just a
+  // top-level one.
+  const [settingsTarget, setSettingsTarget] = React.useState(null);
+  const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [saveState, setSaveState] = React.useState('idle'); // idle | saving | saved
   const [view, setView] = React.useState('Edit');
   const [publishOpen, setPublishOpen] = React.useState(false);
@@ -120,6 +139,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   function handleRemove(id) {
     updateBlocks(blocks.filter((b) => b.id !== id));
     if (selectedId === id) setSelectedId(null);
+    if (settingsTarget?.blockId === id) setSettingsTarget(null);
   }
 
   function handleDuplicate(id) {
@@ -195,16 +215,41 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     updateBlocks(next);
   }
 
+  // The Style panel's target: either a real top-level block (nestedKey
+  // undefined) or a slide/column nested inside one (a Carousel/Columns
+  // block's own props.items/props.columns array) -- see EditableCanvas.jsx's
+  // onOpenSettings and CarouselBlock.jsx/ColumnsBlock.jsx's "⚙ Settings"
+  // buttons on each slide/column.
+  function handleOpenSettings(blockId, nestedKey, nestedIndex) {
+    setSettingsTarget({ blockId, nestedKey, nestedIndex });
+    setSidebarOpen(true);
+  }
+
+  function resolveSettingsBlock() {
+    if (!settingsTarget) return null;
+    const parent = blocks.find((b) => b.id === settingsTarget.blockId);
+    if (!parent) return null;
+    if (!settingsTarget.nestedKey) return parent;
+    const nested = (parent.props[settingsTarget.nestedKey] || [])[settingsTarget.nestedIndex];
+    return nested ? { id: nested.id, type: nested.type, props: nested.props } : null;
+  }
+
   function handleConfigChange(updatedBlock) {
-    updateBlocks(blocks.map((b) => (b.id === updatedBlock.id ? updatedBlock : b)));
+    if (!settingsTarget) return;
+    if (!settingsTarget.nestedKey) {
+      updateBlocks(blocks.map((b) => (b.id === updatedBlock.id ? updatedBlock : b)));
+      return;
+    }
+    updateBlocks(blocks.map((b) => {
+      if (b.id !== settingsTarget.blockId) return b;
+      const list = [...(b.props[settingsTarget.nestedKey] || [])];
+      list[settingsTarget.nestedIndex] = { id: list[settingsTarget.nestedIndex].id, type: updatedBlock.type, props: updatedBlock.props };
+      return { ...b, props: { ...b.props, [settingsTarget.nestedKey]: list } };
+    }));
   }
 
   function handleFieldChange(blockId, key, value) {
     updateBlocks(blocks.map((b) => (b.id === blockId ? { ...b, props: { ...b.props, [key]: value } } : b)));
-  }
-
-  function handleLayoutChange(blockId, key, value) {
-    updateBlocks(blocks.map((b) => (b.id === blockId ? { ...b, layout: { ...b.layout, [key]: value } } : b)));
   }
 
   async function handlePublish() {
@@ -315,7 +360,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
 
       <div style={{ marginTop: 'var(--space-6)' }}>
         {view === 'Edit' ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 'var(--space-6)', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: sidebarOpen ? '1.6fr 1fr' : '1fr', gap: 'var(--space-6)', alignItems: 'start' }}>
             <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', background: 'var(--surface-page)' }}>
               <EditableCanvas
                 blocks={blocks}
@@ -323,7 +368,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                 onSelect={setSelectedId}
                 onReorder={handleReorder}
                 onFieldChange={handleFieldChange}
-                onLayoutChange={handleLayoutChange}
+                onOpenSettings={handleOpenSettings}
                 onRemove={handleRemove}
                 onDuplicate={handleDuplicate}
                 onDuplicateWithImages={handleDuplicateWithImages}
@@ -338,9 +383,39 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                 </p>
               )}
             </div>
-            <div style={{ position: 'sticky', top: 'var(--space-6)' }}>
-              <BlockConfigPanel block={selectedBlock} onChange={handleConfigChange} />
-            </div>
+            {sidebarOpen ? (
+              <div style={{ position: 'sticky', top: 'var(--space-6)' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-2)' }}>
+                  <button
+                    onClick={() => setSidebarOpen(false)}
+                    title="Hide the settings panel to give the canvas more room"
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)' }}
+                  >
+                    Hide panel »
+                  </button>
+                </div>
+                <BlockConfigPanel
+                  block={resolveSettingsBlock()}
+                  onChange={handleConfigChange}
+                  showLayout={!settingsTarget?.nestedKey}
+                  contextLabel={settingsTarget?.nestedKey ? nestedContextLabel(blocks, settingsTarget) : undefined}
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                title="Show the settings panel"
+                style={{
+                  position: 'fixed', top: '50%', right: 0, transform: 'translateY(-50%)', zIndex: 30,
+                  border: '1px solid var(--border-subtle)', borderRight: 'none', borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
+                  background: 'var(--surface-card)', boxShadow: 'var(--shadow-md)', cursor: 'pointer',
+                  padding: 'var(--space-3) var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-secondary)',
+                  writingMode: 'vertical-rl',
+                }}
+              >
+                « Settings
+              </button>
+            )}
           </div>
         ) : (
           <div>

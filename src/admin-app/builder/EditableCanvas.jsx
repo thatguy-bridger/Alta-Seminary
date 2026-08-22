@@ -4,43 +4,8 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { CSS } from '@dnd-kit/utilities';
 import { BLOCK_COMPONENTS } from '../../blocks/BlockRenderer.jsx';
 import { BlockWrapper } from '../../blocks/BlockWrapper.jsx';
-import { BLOCK_REGISTRY, LAYOUT_FIELDS, isInlineField } from '../../blocks/registry.js';
-import { renderField } from './BlockConfigPanel.jsx';
 
-// Same fields the right-hand Style panel (BlockConfigPanel.jsx) shows for
-// the selected block, but collapsed by default directly under the block
-// itself -- so a quick tweak (e.g. Carousel's autoplay speed, an Image's alt
-// text) doesn't require hunting down the equivalent row in the sidebar.
-// Collapsed <details> by default: most edits are inline-on-canvas already
-// (EditableText/EditableImage), this is only for the handful of settings
-// that have no other home.
-function InlineMoreOptions({ block, onFieldChange, onLayoutChange }) {
-  const def = BLOCK_REGISTRY[block.type];
-  if (!def) return null;
-  const settingsFields = def.fields.filter((f) => !isInlineField(f)).filter((f) => !f.showIf || f.showIf(block.props));
-  if (settingsFields.length === 0 && LAYOUT_FIELDS.length === 0) return null;
-
-  return (
-    // stopPropagation on pointerdown: this sits inside the draggable block
-    // wrapper (see SortableBlock below) -- without it, opening the
-    // disclosure or touching a field bubbles a pointerdown up to dnd-kit's
-    // listeners and starts a reorder drag right after the click.
-    <div onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} style={{ marginTop: 'var(--space-3)' }}>
-      <details>
-        <summary style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', color: 'var(--text-secondary)', userSelect: 'none' }}>
-          More options
-        </summary>
-        <div style={{ marginTop: 'var(--space-3)', padding: 'var(--space-4)', background: 'var(--surface-sunken)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          {settingsFields.map((field) => renderField(field, block.props[field.key], onFieldChange))}
-          {settingsFields.length > 0 && <div style={{ borderTop: '1px solid var(--border-subtle)' }} />}
-          {LAYOUT_FIELDS.map((field) => renderField(field, block.layout?.[field.key], onLayoutChange))}
-        </div>
-      </details>
-    </div>
-  );
-}
-
-function SortableBlock({ block, selected, onSelect, onFieldChange, onLayoutChange, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
+function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSettings, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
   const Component = BLOCK_COMPONENTS[block.type];
   if (!Component) return null;
@@ -91,6 +56,13 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onLayoutChang
           <div style={{ position: 'absolute', top: 4, right: 4, zIndex: 20, display: 'flex', gap: 2, background: 'var(--surface-inverse)', borderRadius: 'var(--radius-sm)', padding: 2 }}>
             <button
               onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onOpenSettings(block.id); }}
+              style={{ border: 'none', background: 'none', color: 'var(--text-on-inverse)', cursor: 'pointer', padding: '4px 8px', fontSize: 'var(--fs-caption)' }}
+            >
+              ⚙ Settings
+            </button>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onDuplicate(block.id); }}
               style={{ border: 'none', background: 'none', color: 'var(--text-on-inverse)', cursor: 'pointer', padding: '4px 8px', fontSize: 'var(--fs-caption)' }}
             >
@@ -112,22 +84,16 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onLayoutChang
           editable
           onFieldChange={(key, value) => onFieldChange(block.id, key, value)}
           onAddImageBlocks={onDuplicateWithImages ? (urls) => onDuplicateWithImages(block.id, urls) : undefined}
+          onOpenSettings={(nestedKey, nestedIndex) => onOpenSettings(block.id, nestedKey, nestedIndex)}
           pathPrefix={pathPrefix}
           blockId={block.id}
         />
       </BlockWrapper>
-      {selected && (
-        <InlineMoreOptions
-          block={block}
-          onFieldChange={(key, value) => onFieldChange(block.id, key, value)}
-          onLayoutChange={(key, value) => onLayoutChange(block.id, key, value)}
-        />
-      )}
     </div>
   );
 }
 
-export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFieldChange, onLayoutChange, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
+export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFieldChange, onOpenSettings, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -160,7 +126,7 @@ export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFiel
               selected={block.id === selectedId}
               onSelect={onSelect}
               onFieldChange={onFieldChange}
-              onLayoutChange={onLayoutChange}
+              onOpenSettings={onOpenSettings}
               onRemove={onRemove}
               onDuplicate={onDuplicate}
               onDuplicateWithImages={onDuplicateWithImages}

@@ -4,7 +4,6 @@ import { EditableImage } from '../admin-app/builder/EditableImage.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { AddBlockButton } from '../admin-app/builder/AddBlockButton.jsx';
 import { BlockIcon } from '../admin-app/builder/blockIcons.jsx';
-import { renderField } from '../admin-app/builder/BlockConfigPanel.jsx';
 import { Select } from '../design-system/components/forms/Select.jsx';
 import { BLOCK_REGISTRY, BLOCK_TYPES, isInlineField } from './registry.js';
 // BlockRenderer.jsx imports CarouselBlock (it's one of the types in
@@ -129,7 +128,7 @@ function mergeLegacySlides(items, legacyProps) {
 export function CarouselBlock({
   items, autoplay = true, autoplaySpeed = 'normal', loop = true, pauseOnHover = true,
   showArrows = true, showDots = true, transition = 'slide', aspectRatio = '16:9',
-  editable, onFieldChange, pathPrefix,
+  editable, onFieldChange, onOpenSettings, pathPrefix,
   ...legacyProps
 }) {
   const originalItems = Array.isArray(items) ? items : [];
@@ -151,7 +150,7 @@ export function CarouselBlock({
 
   if (editable) {
     return (
-      <EditableCarousel slides={slides} pathPrefix={pathPrefix} onFieldChange={onFieldChange} aspectRatio={aspectRatio} />
+      <EditableCarousel slides={slides} pathPrefix={pathPrefix} onFieldChange={onFieldChange} onOpenSettings={onOpenSettings} aspectRatio={aspectRatio} />
     );
   }
 
@@ -176,7 +175,7 @@ export function CarouselBlock({
 // looks like -- one large "current" slide plus 2-3 narrow upcoming peeks --
 // in a row whose total width never exceeds its container, however many
 // slides exist. Add/duplicate/delete act on whichever slide is currently focused.
-function EditableCarousel({ slides, pathPrefix, onFieldChange, aspectRatio }) {
+function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, aspectRatio }) {
   const [focusIndex, setFocusIndex] = React.useState(0);
   const index = Math.min(focusIndex, slides.length - 1);
   const current = slides[index];
@@ -314,6 +313,7 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, aspectRatio }) {
               props={current.props}
               pathPrefix={pathPrefix}
               onFieldChange={(key, value) => updateSlideProps(index, { [key]: value })}
+              onOpenSettings={onOpenSettings ? () => onOpenSettings('items', index) : undefined}
             />
           )}
         </div>
@@ -454,7 +454,7 @@ function AutofillControls({ onGenerate }) {
 // Embed's URL) using the same field renderer as the page-level style panel --
 // those fields have no other home since a slide isn't a real page block with
 // its own row in BlockConfigPanel.
-function SlideBlockEditor({ type, blockId, props, pathPrefix, onFieldChange }) {
+function SlideBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, onOpenSettings }) {
   const def = BLOCK_REGISTRY[type];
   const Component = BLOCK_COMPONENTS[type];
   if (!def || !Component) return null;
@@ -463,23 +463,22 @@ function SlideBlockEditor({ type, blockId, props, pathPrefix, onFieldChange }) {
   return (
     <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', background: 'var(--surface-card)' }}>
       <Component {...props} editable onFieldChange={onFieldChange} pathPrefix={pathPrefix} blockId={blockId} />
-      {settingsFields.length > 0 && (
-        // Collapsed by default -- these settings (a Button's href, an
-        // Embed's URL, ...) are the exception rather than the rule for most
-        // slides, so they shouldn't always take up space. stopPropagation:
-        // this whole slide editor sits inside the Carousel block, which
-        // itself sits inside the canvas's draggable wrapper -- without it,
-        // opening this or touching a field bubbles a pointerdown up and
-        // starts a reorder drag right after the click.
-        <div onPointerDown={(e) => e.stopPropagation()} style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
-          <details>
-            <summary style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', color: 'var(--text-secondary)', userSelect: 'none' }}>
-              More options
-            </summary>
-            <div style={{ marginTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {settingsFields.map((field) => renderField(field, props[field.key], onFieldChange))}
-            </div>
-          </details>
+      {settingsFields.length > 0 && onOpenSettings && (
+        // This slide's settings (a Button's href, an Embed's URL, ...) live
+        // in the same right-hand panel as everything else -- see
+        // PageBuilderScreen.jsx's settingsTarget. stopPropagation:
+        // this sits inside the Carousel block, which itself sits inside the
+        // canvas's draggable wrapper -- without it, clicking bubbles a
+        // pointerdown up and starts a reorder drag right after the click.
+        <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onOpenSettings(); }}
+            className="btn btn-outline btn-sm"
+          >
+            ⚙ Settings
+          </button>
         </div>
       )}
     </div>

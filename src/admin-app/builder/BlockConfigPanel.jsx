@@ -79,11 +79,19 @@ export function renderField(field, value, onChange) {
   }
 }
 
-export function BlockConfigPanel({ block, onChange }) {
+// `block` is either a real top-level page block ({id, type, props, layout})
+// or a nested one -- a Carousel slide or Columns column ({id, type, props},
+// no layout of its own, see CarouselBlock.jsx/ColumnsBlock.jsx). `showLayout`
+// hides the Layout card for the latter (spacing/contained/background/anchor
+// only ever apply to a real top-level block). `contextLabel` disambiguates
+// which specific thing is being edited when it's nested (e.g. "Carousel —
+// slide 2"), since the block's own label alone ("Quote / Scripture") doesn't
+// say where it lives.
+export function BlockConfigPanel({ block, onChange, showLayout = true, contextLabel }) {
   if (!block) {
     return (
       <Card title="Style">
-        <p style={{ color: 'var(--text-muted)', margin: 0 }}>Select a block to edit its style. Text and images are click-to-edit directly on the page.</p>
+        <p style={{ color: 'var(--text-muted)', margin: 0 }}>Select a block, or click its "Settings" button, to edit its style. Text and images are click-to-edit directly on the page.</p>
       </Card>
     );
   }
@@ -103,18 +111,27 @@ export function BlockConfigPanel({ block, onChange }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-      <Card title={`${def.label} — Layout`}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          {LAYOUT_FIELDS.map((field) => renderField(field, layout[field.key], setLayout))}
-        </div>
-      </Card>
-      {styleFields.length > 0 && (
-        <Card title="Style">
+      {contextLabel && (
+        <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>{contextLabel}</p>
+      )}
+      {showLayout && (
+        <Card title={`${def.label} — Layout`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            {LAYOUT_FIELDS.map((field) => renderField(field, layout[field.key], setLayout))}
+          </div>
+        </Card>
+      )}
+      {styleFields.length > 0 ? (
+        <Card title={showLayout ? 'Style' : def.label}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             {styleFields.map((field) => renderField(field, block.props[field.key], setProp))}
           </div>
         </Card>
-      )}
+      ) : !showLayout ? (
+        <Card title={def.label}>
+          <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: 'var(--fs-small)' }}>Nothing else to configure here -- everything for this block is editable directly on the canvas.</p>
+        </Card>
+      ) : null}
     </div>
   );
 }
