@@ -176,7 +176,19 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     }
 
     function onKeyDown(e) {
-      if (view !== 'Edit' || !selectedId || isTypingInField()) return;
+      if (view !== 'Edit' || !selectedId) return;
+      // Escape bypasses the isTypingInField() guard below (unlike every
+      // other shortcut here) -- it's meant to work precisely WHILE editing
+      // text too, to back out of the field AND deselect the block in one
+      // press. EditableText/RichTextEditor's own Escape handling blurs the
+      // field first (so isTypingInField() is already false by the time this
+      // fires) and deliberately don't stopPropagation for this one key so
+      // it still reaches here.
+      if (e.key === 'Escape') {
+        setSelectedId(null);
+        return;
+      }
+      if (isTypingInField()) return;
       const mod = e.metaKey || e.ctrlKey;
       if ((e.key === 'Delete' || e.key === 'Backspace') && !mod) {
         e.preventDefault();
@@ -184,8 +196,6 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
       } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         handleDuplicate(selectedId);
-      } else if (e.key === 'Escape') {
-        setSelectedId(null);
       } else if (mod && e.shiftKey && e.key === 'ArrowUp') {
         e.preventDefault();
         moveBlock(selectedId, -1);

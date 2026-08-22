@@ -16,6 +16,27 @@ export function EditableText({ value, onCommit, as: Tag = 'span', multiline = fa
   const toolbarRef = React.useRef(null);
   const [toolbarOpen, setToolbarOpen] = React.useState(false);
   const [anchorRect, setAnchorRect] = React.useState(null);
+  const debounceTimer = React.useRef(null);
+
+  // Commit used to only ever fire on blur -- fine as long as you eventually
+  // click away, but PageBuilderScreen's own "Saving…"/"Saved" indicator and
+  // its 1s autosave debounce implied typing-then-pausing was enough on its
+  // own. It wasn't: navigating away before ever blurring the field (closing
+  // the tab, hitting the browser's own reload/back, even just being fast
+  // enough) lost whatever was typed, since nothing had told React about it
+  // yet. This mirrors that same debounce locally so a pause while typing
+  // commits on its own, not only a literal click away.
+  React.useEffect(() => () => clearTimeout(debounceTimer.current), []);
+
+  function commitIfChanged() {
+    const next = ref.current.innerText.replace(/ /g, ' ');
+    if (next !== (value || '')) onCommit(next);
+  }
+
+  function handleInput() {
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(commitIfChanged, 800);
+  }
 
   React.useEffect(() => {
     if (ref.current && ref.current.innerText !== (value || '')) {
@@ -45,24 +66,31 @@ export function EditableText({ value, onCommit, as: Tag = 'span', multiline = fa
   }
 
   function handleBlur() {
-    const next = ref.current.innerText.replace(/ /g, ' ');
-    if (next !== (value || '')) onCommit(next);
+    clearTimeout(debounceTimer.current);
+    commitIfChanged();
   }
 
   function handleKeyDown(e) {
-    // Stop every keystroke here from bubbling up to the block wrapper -- it
-    // carries dnd-kit's drag listeners (see EditableCanvas.jsx), which treats
-    // Space/Enter as "pick up for dragging." Without this, typing a space or
-    // pressing Enter while editing text would hijack focus into drag mode.
-    e.stopPropagation();
-    if (!multiline && e.key === 'Enter') {
-      e.preventDefault();
-      ref.current.blur();
-    }
+    // Escape deliberately does NOT stopPropagation like everything else
+    // below -- it needs to keep bubbling up to PageBuilderScreen's own
+    // keyboard-shortcut handler so the block itself also gets deselected
+    // (its border/Settings bar), not just this one field blurred. Without
+    // this, pressing Escape while editing text closed nothing but this
+    // field's own toolbar -- the block stayed visibly "selected."
     if (e.key === 'Escape') {
       ref.current.innerText = value || '';
       ref.current.blur();
       setToolbarOpen(false);
+      return;
+    }
+    // Stop every other keystroke here from bubbling up to the block wrapper
+    // -- it carries dnd-kit's drag listeners (see EditableCanvas.jsx), which
+    // treats Space/Enter as "pick up for dragging." Without this, typing a
+    // space or pressing Enter while editing text would hijack focus into drag mode.
+    e.stopPropagation();
+    if (!multiline && e.key === 'Enter') {
+      e.preventDefault();
+      ref.current.blur();
     }
   }
 
@@ -74,6 +102,7 @@ export function EditableText({ value, onCommit, as: Tag = 'span', multiline = fa
         suppressContentEditableWarning
         onFocus={handleFocus}
         onBlur={handleBlur}
+        onInput={handleInput}
         onKeyDown={handleKeyDown}
         onClick={(e) => e.stopPropagation()}
         // stopPropagation on pointerdown (a separate concern from onClick

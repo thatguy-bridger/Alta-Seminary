@@ -153,10 +153,21 @@ export function DiagnosticsScreen() {
       );
       const brokenImages = imageChecks.filter((r) => !r.ok);
 
+      // Strips a real base-path prefix (e.g. the old GitHub Pages
+      // "/Alta-Seminary") if one is actually configured -- basePrefix is ''
+      // now that the site serves from the domain root, and `url.replace('/',
+      // '')` (the old version of this) would then strip the url's OWN
+      // leading slash instead of doing nothing, since String#replace with a
+      // string argument only replaces the FIRST match. That silently broke
+      // every route comparison below ("/enrollment" became "enrollment,"
+      // which never matches a known route stored as "/enrollment"),
+      // reporting real, working pages as broken links.
+      const basePrefix = withBase('').replace(/\/$/, '');
       const brokenInternalLinks = [...internalLinks.entries()]
         .map(([url, sources]) => ({ url, sources }))
         .filter(({ url }) => {
-          const clean = url.replace(withBase(''), '').split('?')[0].split('#')[0];
+          const withoutBase = basePrefix && url.startsWith(basePrefix) ? url.slice(basePrefix.length) : url;
+          const clean = withoutBase.split('?')[0].split('#')[0];
           const normalized = clean.length > 1 && clean.endsWith('/') ? clean.slice(0, -1) : clean;
           return !knownRoutes.has(normalized) && normalized !== '';
         });

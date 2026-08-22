@@ -80,6 +80,20 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
   // contentEditable, which would otherwise make every mark-applying handler
   // below find "no selection" the moment a text input is involved.
   const savedRangeRef = React.useRef(null);
+  const debounceTimer = React.useRef(null);
+  React.useEffect(() => () => clearTimeout(debounceTimer.current), []);
+
+  // commit() used to only ever run on blur or right after a toolbar action
+  // -- fine as long as you eventually click away, but nothing committed
+  // plain typing on its own. Navigating away before ever blurring (closing
+  // the tab, the browser's own reload/back) lost whatever was typed, even
+  // after pausing for a while, since React never found out about it. This
+  // debounces a commit while typing too, matching what the "Saving…"/
+  // "Saved" indicator already implies is happening.
+  function handleInput() {
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(commit, 800);
+  }
 
   // Consistent <p>-per-line behavior across browsers on Enter (some default
   // to bare <div>s otherwise, which the sanitizer still accepts but this
@@ -164,8 +178,19 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
   }
 
   function handleKeyDown(e) {
-    // Stop every keystroke from bubbling to the canvas block wrapper, which
-    // carries dnd-kit's drag listeners (see EditableText.jsx for the same guard).
+    // Escape deliberately does NOT stopPropagation like everything else here
+    // -- it needs to keep bubbling up to PageBuilderScreen's own keyboard-
+    // shortcut handler so the block itself also gets deselected (its
+    // border/Settings bar), not just this field's own toolbar closed.
+    // Previously this field had no local Escape handling at all, so Escape
+    // did visibly nothing while editing rich text.
+    if (e.key === 'Escape') {
+      ref.current?.blur();
+      setToolbarOpen(false);
+      return;
+    }
+    // Stop every other keystroke from bubbling to the canvas block wrapper,
+    // which carries dnd-kit's drag listeners (see EditableText.jsx for the same guard).
     e.stopPropagation();
   }
 
@@ -234,7 +259,8 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
         contentEditable
         suppressContentEditableWarning
         onFocus={handleFocus}
-        onBlur={commit}
+        onBlur={() => { clearTimeout(debounceTimer.current); commit(); }}
+        onInput={handleInput}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         onClick={(e) => e.stopPropagation()}

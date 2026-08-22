@@ -29,6 +29,31 @@ function missingAlt(block) {
   return (block.type === 'image' || block.type === 'image-text') && block.props?.imageUrl && !block.props?.alt?.trim();
 }
 
+// Plain JSON.stringify comparison (what this used to be) is sensitive to
+// object key ORDER, not just actual content -- two blocks arrays can be
+// semantically identical but serialize differently depending on which code
+// path last touched them (e.g. a Carousel/Columns/RichText one-time legacy-
+// format self-heal, which rewrites draft_blocks the moment an admin simply
+// opens the editor, but has no reason to also touch published_blocks). That
+// was flagging pages as having "unpublished changes" when nothing an admin
+// would recognize as a real edit had actually happened. This walks both
+// structures and compares them regardless of key order.
+function deepEqual(a, b) {
+  if (a === b) return true;
+  if (typeof a !== typeof b || a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((item, i) => deepEqual(item, b[i]));
+  }
+  if (typeof a === 'object') {
+    const aKeys = Object.keys(a).filter((k) => a[k] !== undefined);
+    const bKeys = Object.keys(b).filter((k) => b[k] !== undefined);
+    if (aKeys.length !== bKeys.length) return false;
+    return aKeys.every((k) => deepEqual(a[k], b[k]));
+  }
+  return false;
+}
+
 // Everything here is read straight off the already-fetched row -- no extra
 // queries, no network image checks (that's what the Diagnostics screen's
 // broken-image scan is for) -- just "is there something worth an admin's
@@ -38,7 +63,7 @@ function computeHealth(row) {
   const flags = [];
   const draftBlocks = row.draft_blocks || [];
 
-  if (row.status === 'published' && JSON.stringify(draftBlocks) !== JSON.stringify(row.published_blocks || [])) {
+  if (row.status === 'published' && !deepEqual(draftBlocks, row.published_blocks || [])) {
     flags.push({ label: 'Unpublished changes', tone: 'warning' });
   }
   if (draftBlocks.length === 0) {
