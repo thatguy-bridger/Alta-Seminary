@@ -1,6 +1,7 @@
 import React from 'react';
 import { Dialog } from '../design-system/components/core/Dialog.jsx';
 import { Button } from '../design-system/components/forms/Button.jsx';
+import { ImageSourceMenu } from './ImageSourceMenu.jsx';
 
 // Every source photo is a different size and aspect ratio, so rather than a
 // fixed pixel crop rect, the zoom range is derived from each image's own
@@ -32,7 +33,12 @@ function clamp(n, min, max) {
 // so cropping can be the default step on every upload without ever forcing a
 // crop the caller didn't ask for: at zoom 1 the whole photo is visible
 // (nothing trimmed), and zooming in is still there for whoever wants it.
-export function CropEditor({ src, aspect, title = 'Crop photo', onCancel, onConfirm }) {
+// onSwapFile/onSwapUrl/onSwapExisting (all optional): when passed, shows a
+// "Change image" control that lets the photo being cropped be swapped for a
+// different one without closing this dialog first -- callers that don't
+// need that (re-cropping is the only entry point for them) simply omit all
+// three and the control doesn't render.
+export function CropEditor({ src, aspect, title = 'Crop photo', onCancel, onConfirm, onSwapFile, onSwapUrl, onSwapExisting }) {
   const [ready, setReady] = React.useState(false);
   const [natural, setNatural] = React.useState({ w: 0, h: 0 });
   const [zoom, setZoom] = React.useState(1);
@@ -78,6 +84,21 @@ export function CropEditor({ src, aspect, title = 'Crop photo', onCancel, onConf
 
   function handleImgError() {
     setError("Couldn't load that photo for cropping.");
+  }
+
+  // Swapping the source photo mid-dialog (see "Change image" below) changes
+  // `src` on the very same <img> already in the DOM -- handleImgLoad above
+  // recalculates natural/zoom/pos for it once the new photo decodes and
+  // fires its own load event, so no other reset is needed there. Marking
+  // not-ready here just for the moment in between hides the outgoing photo
+  // instead of leaving it visible (at the wrong size/position) until the
+  // new one finishes loading.
+  function handleSwap(fn) {
+    return (arg) => {
+      setReady(false);
+      setError('');
+      fn(arg);
+    };
   }
 
   function handleZoomChange(nextZoom) {
@@ -197,9 +218,20 @@ export function CropEditor({ src, aspect, title = 'Crop photo', onCancel, onConf
 
         {error && <p style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-error)' }}>{error}</p>}
 
-        <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end', width: '100%' }}>
-          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
-          <Button variant="primary" disabled={!ready || saving} onClick={handleConfirm}>{saving ? 'Saving…' : 'Use this crop'}</Button>
+        <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'space-between', width: '100%' }}>
+          {(onSwapFile || onSwapUrl || onSwapExisting) ? (
+            <ImageSourceMenu
+              label="Change image"
+              disabled={saving}
+              onFile={onSwapFile && handleSwap(onSwapFile)}
+              onUrl={onSwapUrl && handleSwap(onSwapUrl)}
+              onExisting={onSwapExisting && handleSwap(onSwapExisting)}
+            />
+          ) : <span />}
+          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+            <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+            <Button variant="primary" disabled={!ready || saving} onClick={handleConfirm}>{saving ? 'Saving…' : 'Use this crop'}</Button>
+          </div>
         </div>
       </div>
     </Dialog>

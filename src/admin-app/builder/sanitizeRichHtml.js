@@ -102,6 +102,11 @@ export function sanitizeRichHtml(rootEl) {
   // placeholder again, and any "hide when empty" block-level check on the
   // public site would keep rendering an empty paragraph. innerText strips
   // that stray markup down to a true blank, so it's the right emptiness check.
-  if (!rootEl.innerText.trim()) return '';
+  // .trim() alone isn't enough either -- WebKit/Chrome can leave a zero-width
+  // character (​ / ﻿) behind in an emptied contentEditable to
+  // keep the caret positioned, and that character isn't whitespace as far as
+  // JS's trim() is concerned, so it would otherwise count as "real" content
+  // forever (see the same fix in EditableText.jsx's commitIfChanged).
+  if (!rootEl.innerText.replace(/[​﻿]/g, '').trim()) return '';
   return serializeChildren(rootEl);
 }

@@ -28,8 +28,20 @@ export function EditableText({ value, onCommit, as: Tag = 'span', multiline = fa
   // commits on its own, not only a literal click away.
   React.useEffect(() => () => clearTimeout(debounceTimer.current), []);
 
+  // Backspacing a contentEditable all the way to nothing doesn't always
+  // leave it *actually* empty -- WebKit/Chrome commonly leave a zero-width
+  // character (​ or ﻿) behind internally to keep the caret
+  // positioned in an otherwise-childless inline element. innerText still
+  // includes that character, so it was being committed as "real" content
+  // (e.g. a single invisible char instead of ''), which is truthy -- the
+  // field would never be treated as empty again, permanently skipping the
+  // :empty:before placeholder and collapsing to that character's near-zero
+  // width. Stripping it (and treating whitespace-only results as truly
+  // empty) is what actually fixes "can't get back into an emptied field."
   function commitIfChanged() {
-    const next = ref.current.innerText.replace(/ /g, ' ');
+    const raw = ref.current.innerText.replace(/[​﻿]/g, '');
+    const next = raw.trim() === '' ? '' : raw;
+    if (next === '' && ref.current.childNodes.length > 0) ref.current.replaceChildren();
     if (next !== (value || '')) onCommit(next);
   }
 

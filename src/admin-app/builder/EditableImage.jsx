@@ -1,7 +1,6 @@
 import React from 'react';
 import { uploadImageBlob, uploadImageFile, fetchImageFromUrl } from '../imageUpload.js';
 import { CropEditor } from '../CropEditor.jsx';
-import { ImageSourceMenu } from '../ImageSourceMenu.jsx';
 import { useAlert } from '../ConfirmProvider.jsx';
 
 // Wraps an <img> (or empty-state placeholder) with a click-to-replace overlay,
@@ -89,6 +88,27 @@ export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLa
     setCropSrc(null);
   }
 
+  // Re-opens the crop frame on the CURRENT (already-hosted) photo, rather
+  // than picking a new one first -- CropEditor accepts a hosted https URL
+  // directly for exactly this (see its own comment). Confirming still
+  // uploads the result as a new file and swaps it in via onChange, same as
+  // any other crop.
+  function handleReCrop() {
+    setCropSrc(value);
+  }
+
+  // Lets the "Change image" control inside the crop dialog itself swap
+  // which photo is being cropped, without closing the dialog first -- same
+  // effect as picking a brand new source, just applied to the crop already
+  // in progress. handleUrl already fetches+opens the cropper, so it works
+  // unchanged for both "paste a URL" and "choose an existing image" (both
+  // need a real fetch before a canvas can read the pixels without CORS
+  // issues) -- a fresh file just needs an object URL, no fetch involved.
+  function handleSwapFile(file) {
+    if (cropSrc) URL.revokeObjectURL(cropSrc);
+    setCropSrc(URL.createObjectURL(file));
+  }
+
   return (
     <div
       onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
@@ -113,22 +133,40 @@ export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLa
       <input ref={inputRef} type="file" accept="image/*" multiple={multiple} style={{ display: 'none' }} onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} />
 
       {/* Clicking the image itself is always "upload from computer" (the
-          common case, zero extra clicks); this small corner control is the
-          only way to reach the other two sources, so it stops the parent
-          image click from also firing when it's used. */}
-      <div style={{ position: 'absolute', bottom: 6, right: 6, zIndex: 1 }} onClick={(e) => e.stopPropagation()}>
-        {/* Every source picked from this menu -- pasted URL or an existing
-            library image alike -- routes through the same crop/replace
-            modal as a fresh upload (handleUrl fetches then opens CropEditor).
-            "Choose an existing image" used to call onChange directly,
-            skipping the crop step entirely -- inconsistent with the other
-            two options and with clicking the image itself. */}
-        <ImageSourceMenu hideFileOption label="⋯" disabled={uploading} onUrl={handleUrl} onExisting={handleUrl} />
-      </div>
+          common case, zero extra clicks). This small corner thumbnail --
+          same compact-thumbnail idea as ImageUploadField's side-panel
+          version -- is the way to re-crop the CURRENT photo instead of
+          replacing it outright; it stops the parent image click from also
+          firing when it's used. The old "⋯" menu here is gone -- every
+          other source (paste a URL, an existing library image) is reachable
+          from the "Change image" control inside the crop dialog it opens. */}
+      {value && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); handleReCrop(); }}
+          disabled={uploading}
+          title="Crop or replace this image"
+          style={{
+            position: 'absolute', bottom: 6, right: 6, zIndex: 1, padding: 0, cursor: 'pointer',
+            width: 36, height: 36, borderRadius: 'var(--radius-sm)', overflow: 'hidden',
+            border: '2px solid var(--surface-card)', boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          <img src={value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        </button>
+      )}
 
       {cropSrc && (
         <div onClick={(e) => e.stopPropagation()}>
-          <CropEditor src={cropSrc} aspect={aspect} onCancel={closeCropper} onConfirm={handleCropConfirm} />
+          <CropEditor
+            src={cropSrc}
+            aspect={aspect}
+            onCancel={closeCropper}
+            onConfirm={handleCropConfirm}
+            onSwapFile={handleSwapFile}
+            onSwapUrl={handleUrl}
+            onSwapExisting={handleUrl}
+          />
         </div>
       )}
     </div>
