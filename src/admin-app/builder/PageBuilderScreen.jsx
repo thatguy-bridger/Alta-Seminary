@@ -329,6 +329,13 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     ? withBase(isPost ? `/announcements/${row.slug}` : (row.route_path || `/${row.slug}`))
     : null;
 
+  // Same path, but NOT withBase()-wrapped and not gated on being published
+  // yet -- this is for AnchorLinkField's copyable "link to this block"
+  // (pasted into a Button's Link field elsewhere, which renders its href
+  // completely as-is, with no base-path wrapping of its own) rather than an
+  // actual clickable link, so preparing it ahead of publishing is fine.
+  const pageUrl = isPost ? `/announcements/${row.slug}` : (row.route_path || `/${row.slug}`);
+
   return (
     <div>
       <a href={withBase(backHref)} style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-link)', textDecoration: 'none' }}>← Back</a>
@@ -460,6 +467,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                     onChange={handleConfigChange}
                     showLayout={!settingsTarget?.nestedKey}
                     contextLabel={settingsTarget?.nestedKey ? nestedContextLabel(blocks, settingsTarget) : undefined}
+                    pageUrl={pageUrl}
                   />
                 </div>
               </>

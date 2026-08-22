@@ -79,6 +79,59 @@ export function renderField(field, value, onChange) {
   }
 }
 
+// Shows the actual page-path#anchor link once an Anchor ID is set on this
+// block, with a one-click copy -- meant to be pasted straight into a
+// Button/CTA block's "Link" field elsewhere (or a directory bio, an
+// announcement, anywhere a link field takes a path) to jump straight to
+// this block's position on the page. `pageUrl` is the page's own relative
+// path (e.g. "/schedule"); Button.jsx's href already accepts a plain
+// relative path, so there's no need to know the site's domain here.
+function AnchorLinkField({ pageUrl, anchor }) {
+  const [copied, setCopied] = React.useState(false);
+  const trimmed = (anchor || '').trim();
+  if (!pageUrl) return null;
+  if (!trimmed) {
+    return (
+      <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+        Set an Anchor ID above to get a link you can paste into a Button (or
+        any other link field) to jump straight to this block.
+      </p>
+    );
+  }
+  const link = `${pageUrl}#${trimmed}`;
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard permission denied or unavailable (e.g. non-HTTPS) -- the
+      // link is still shown in the field itself, so the admin can select
+      // and copy it manually as a fallback.
+    }
+  }
+
+  return (
+    <div>
+      <span style={{ display: 'block', marginBottom: 4, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)' }}>
+        Link to this block
+      </span>
+      <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <input
+          readOnly
+          value={link}
+          onFocus={(e) => e.target.select()}
+          style={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'var(--surface-sunken)', color: 'var(--text-primary)' }}
+        />
+        <button type="button" onClick={handleCopy} className="btn btn-outline btn-sm">
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // `block` is either a real top-level page block ({id, type, props, layout})
 // or a nested one -- a Carousel slide or Columns column ({id, type, props},
 // no layout of its own, see CarouselBlock.jsx/ColumnsBlock.jsx). `showLayout`
@@ -86,8 +139,9 @@ export function renderField(field, value, onChange) {
 // only ever apply to a real top-level block). `contextLabel` disambiguates
 // which specific thing is being edited when it's nested (e.g. "Carousel —
 // slide 2"), since the block's own label alone ("Quote / Scripture") doesn't
-// say where it lives.
-export function BlockConfigPanel({ block, onChange, showLayout = true, contextLabel }) {
+// say where it lives. `pageUrl` (only meaningful alongside showLayout) is
+// the current page's own relative path, for AnchorLinkField above.
+export function BlockConfigPanel({ block, onChange, showLayout = true, contextLabel, pageUrl }) {
   if (!block) {
     return (
       <Card title="Style">
@@ -118,6 +172,7 @@ export function BlockConfigPanel({ block, onChange, showLayout = true, contextLa
         <Card title={`${def.label} — Layout`}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             {LAYOUT_FIELDS.map((field) => renderField(field, layout[field.key], setLayout))}
+            <AnchorLinkField pageUrl={pageUrl} anchor={layout.anchor} />
           </div>
         </Card>
       )}
