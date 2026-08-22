@@ -57,7 +57,12 @@ export const BLOCK_REGISTRY = {
     defaultProps: { imageUrl: '', alt: '', caption: '', width: 'full', aspectRatio: 'auto', corners: 'rounded', border: false, shadow: true, lightbox: false, link: '' },
     fields: [
       { key: 'imageUrl', kind: 'image', label: 'Image' },
-      { key: 'alt', kind: 'text', label: 'Alt text (required for accessibility)' },
+      // inline:false -- a 'text' field defaults to inline (click-to-edit
+      // directly on the canvas), but ImageBlock.jsx has no such inline UI
+      // for alt text specifically, so left at the default this field was
+      // unreachable from anywhere: excluded from the Style/Settings panel
+      // (isInlineField) AND never actually editable on the canvas either.
+      { key: 'alt', kind: 'text', label: 'Alt text (required for accessibility)', inline: false },
       { key: 'caption', kind: 'text', label: 'Caption' },
       { key: 'link', kind: 'text', label: 'Link (optional -- makes the image clickable)', inline: false },
       { key: 'width', kind: 'select', label: 'Width', options: [{value:'full',label:'Full width'},{value:'contained',label:'Contained'}] },
@@ -75,7 +80,9 @@ export const BLOCK_REGISTRY = {
     defaultProps: { imageUrl: '', alt: '', heading: '', body: '', imagePosition: 'left', verticalAlign: 'center', gap: 'lg', mobileImageFirst: true },
     fields: [
       { key: 'imageUrl', kind: 'image', label: 'Image' },
-      { key: 'alt', kind: 'text', label: 'Alt text' },
+      // inline:false -- see the identical comment on the `image` block's
+      // alt field above; ImageTextBlock.jsx has the same gap.
+      { key: 'alt', kind: 'text', label: 'Alt text', inline: false },
       { key: 'heading', kind: 'text', label: 'Heading' },
       { key: 'body', kind: 'richtext', label: 'Body' },
       { key: 'imagePosition', kind: 'select', label: 'Image position', options: [{value:'left',label:'Left'},{value:'right',label:'Right'}] },
