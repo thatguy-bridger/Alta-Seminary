@@ -22,7 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Publish/unpublish anything due
+        # -f (fail-on-HTTP-error) alone gives you nothing but "curl: (22)" in
+        # the log when this fails -- prints the actual status + response
+        # body first so a failure is self-diagnosing instead of a guessing game.
         run: |
-          curl -sf -X POST "https://huabopvggyiuljmgzhlq.supabase.co/functions/v1/sweep-scheduled-content" \
+          response=$(curl -s -w '\n%{http_code}' -X POST "https://huabopvggyiuljmgzhlq.supabase.co/functions/v1/sweep-scheduled-content" \
             -H "Content-Type: application/json" \
-            -H "x-webhook-secret: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}"
+            -H "x-webhook-secret: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "HTTP $http_code: $body"
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "::error::sweep-scheduled-content returned HTTP $http_code -- see body above. A 401 means DEPLOY_WEBHOOK_SECRET (this repo's Actions secret) doesn't match the same-named secret set on the Edge Function in Supabase; a 404 means the function isn't actually deployed yet."
+            exit 1
+          fi
