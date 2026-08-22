@@ -1,4 +1,19 @@
 *{box-sizing:border-box}
+/* Baseline reset: nothing media-like renders wider than its container by
+   default, so a naturally-large image/video/iframe scales down to fit
+   instead of overflowing (and forcing a sideways scrollbar) on a narrow
+   screen or inside the admin's device-width Preview frame. Most blocks
+   already set their own width:100% explicitly, but this is the backstop for
+   anything that doesn't (e.g. a page's or post's plain content-embedded image). */
+img,video,iframe{max-width:100%;height:auto}
+/* Deliberately not overflow-x:hidden on body/html -- that clips at the
+   viewport level, which also breaks position:sticky ANYWHERE on the page
+   (the admin's Style panel sidebar included): sticky stops tracking the
+   real viewport the moment any ancestor up to it has non-visible overflow.
+   The max-width reset above is the real fix; PageBuilderScreen.jsx's
+   Preview frame additionally sets its own overflowX:hidden locally, since
+   that one box is a fixed-width simulated device and never needs to be
+   sticky-aware. */
 body{margin:0;min-height:100vh;display:flex;flex-direction:column;font-family:var(--font-body);color:var(--text-primary);background:var(--surface-page);transition:background var(--duration-standard),color var(--duration-standard)}
 a{color:var(--text-link)}
 a:hover{color:var(--text-link-hover)}

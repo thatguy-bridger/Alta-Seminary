@@ -186,7 +186,7 @@ export const BLOCK_REGISTRY = {
         { id: 'slide-2', type: 'media', props: { image: '', heading: '', caption: '' } },
         { id: 'slide-3', type: 'media', props: { image: '', heading: '', caption: '' } },
       ],
-      autoplay: true, autoplaySpeed: 'normal', loop: true, pauseOnHover: true,
+      autoplay: true, autoplaySpeed: 'normal', loop: true, shuffleOnLoop: false, pauseOnHover: true,
       showArrows: true, showDots: true, transition: 'slide', aspectRatio: '16:9',
     },
     fields: [
@@ -196,6 +196,7 @@ export const BLOCK_REGISTRY = {
       { key: 'autoplaySpeed', kind: 'select', label: 'Auto-advance speed', options: [{value:'slow',label:'Slow (5s)'},{value:'normal',label:'Normal (3s)'},{value:'fast',label:'Fast (1.5s)'}], showIf: (p) => p.autoplay },
       { key: 'pauseOnHover', kind: 'toggle', label: 'Pause on hover', showIf: (p) => p.autoplay },
       { key: 'loop', kind: 'toggle', label: 'Loop back to start' },
+      { key: 'shuffleOnLoop', kind: 'toggle', label: 'Randomize slide order each time it loops back to the start', showIf: (p) => p.loop },
       { key: 'showArrows', kind: 'toggle', label: 'Show prev/next arrows' },
       { key: 'showDots', kind: 'toggle', label: 'Show dot indicators' },
     ],

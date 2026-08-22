@@ -126,7 +126,7 @@ function mergeLegacySlides(items, legacyProps) {
 }
 
 export function CarouselBlock({
-  items, autoplay = true, autoplaySpeed = 'normal', loop = true, pauseOnHover = true,
+  items, autoplay = true, autoplaySpeed = 'normal', loop = true, shuffleOnLoop = false, pauseOnHover = true,
   showArrows = true, showDots = true, transition = 'slide', aspectRatio = '16:9',
   editable, onFieldChange, onOpenSettings, activeSettingsTarget, pathPrefix,
   ...legacyProps
@@ -160,6 +160,7 @@ export function CarouselBlock({
       autoplay={autoplay}
       autoplaySpeed={autoplaySpeed}
       loop={loop}
+      shuffleOnLoop={shuffleOnLoop}
       pauseOnHover={pauseOnHover}
       showArrows={showArrows}
       showDots={showDots}
@@ -532,8 +533,27 @@ function PeekSlide({ slide, onClick, slideNumber, aspectRatio }) {
 // who doesn't want autoplay generally doesn't want it anywhere.
 const AUTOPLAY_OFF_KEY = 'alta-carousel-autoplay-off';
 
-function LiveCarousel({ items, autoplay, autoplaySpeed, loop, pauseOnHover, showArrows, showDots, transition, aspectRatio }) {
+// Fisher-Yates -- used by the carousel's "shuffle on loop" option, see
+// LiveCarousel's `order` state below.
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function LiveCarousel({ items, autoplay, autoplaySpeed, loop, shuffleOnLoop, pauseOnHover, showArrows, showDots, transition, aspectRatio }) {
   const [index, setIndex] = React.useState(0);
+  // The actually-displayed order -- identical to `items` unless
+  // shuffleOnLoop has reshuffled it after a full pass (see `go` below).
+  // Keyed off the slide content (not the `items` reference, which a parent
+  // re-render could recreate) so an in-progress shuffle isn't reset by
+  // something unrelated re-rendering this component.
+  const [order, setOrder] = React.useState(items);
+  const itemsKey = JSON.stringify(items);
+  React.useEffect(() => { setOrder(items); }, [itemsKey]); // eslint-disable-line react-hooks/exhaustive-deps -- `items` itself, not itemsKey, is what gets stored
   const [paused, setPaused] = React.useState(() => {
     if (typeof localStorage === 'undefined') return false;
     return localStorage.getItem(AUTOPLAY_OFF_KEY) === 'true';
@@ -548,13 +568,25 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, pauseOnHover, show
     });
   }
 
+  // Wrapping back around ("recycling" the deck) is exactly when
+  // shuffleOnLoop reshuffles -- setOrder and setIndex(0) land in the same
+  // render, so the slide shown at the new index 0 is already the freshly
+  // shuffled one, never a stale flash of the old order.
   const go = React.useCallback((next) => {
     setIndex((current) => {
-      if (next < 0) return loop ? items.length - 1 : 0;
-      if (next >= items.length) return loop ? 0 : items.length - 1;
+      if (next < 0) {
+        if (!loop) return 0;
+        if (shuffleOnLoop) setOrder((o) => shuffle(o));
+        return order.length - 1;
+      }
+      if (next >= order.length) {
+        if (!loop) return order.length - 1;
+        if (shuffleOnLoop) setOrder((o) => shuffle(o));
+        return 0;
+      }
       return next;
     });
-  }, [items.length, loop]);
+  }, [order.length, loop, shuffleOnLoop]);
 
   React.useEffect(() => {
     if (!autoplay || paused) return;
@@ -588,14 +620,14 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, pauseOnHover, show
     >
       <div style={{ position: 'relative', aspectRatio: ratioToCss(aspectRatio), borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
         {transition === 'fade' ? (
-          items.map((item, i) => (
+          order.map((item, i) => (
             <div key={item.id ?? i} style={{ position: 'absolute', inset: 0, opacity: i === index ? 1 : 0, transition: 'opacity var(--duration-standard)', pointerEvents: i === index ? 'auto' : 'none' }}>
               <Slide item={item} eager={i === 0} />
             </div>
           ))
         ) : (
           <div style={{ display: 'flex', width: '100%', height: '100%', transform: `translateX(-${index * 100}%)`, transition: 'transform var(--duration-standard) var(--ease-standard)' }}>
-            {items.map((item, i) => (
+            {order.map((item, i) => (
               <div key={item.id ?? i} style={{ flex: '0 0 100%', height: '100%' }}>
                 <Slide item={item} eager={i === 0} />
               </div>
@@ -603,7 +635,7 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, pauseOnHover, show
           </div>
         )}
 
-        {showArrows && items.length > 1 && (
+        {showArrows && order.length > 1 && (
           <>
             <button aria-label="Previous slide" onClick={() => go(index - 1)} style={arrowStyle('left')}><ChevronLeft /></button>
             <button aria-label="Next slide" onClick={() => go(index + 1)} style={arrowStyle('right')}><ChevronRight /></button>
@@ -621,9 +653,9 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, pauseOnHover, show
         )}
       </div>
 
-      {showDots && items.length > 1 && (
+      {showDots && order.length > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
-          {items.map((item, i) => (
+          {order.map((item, i) => (
             <button
               key={item.id ?? i}
               aria-label={`Go to slide ${i + 1}`}

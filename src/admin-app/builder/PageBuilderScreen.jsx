@@ -488,7 +488,12 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                     <div style={{ width: 60, height: 5, borderRadius: 3, background: 'var(--surface-page)' }} />
                   </div>
                 )}
-                <div style={{ padding: 'var(--space-8)', maxHeight: '80vh', overflowY: 'auto' }}>
+                {/* overflowX explicit -- setting overflowY without it makes a
+                    browser compute overflow-x as its own independent 'auto'
+                    (a CSS quirk), so this div could show its own sideways
+                    scrollbar for wide content even though the frame around
+                    it already has overflow:hidden. */}
+                <div style={{ padding: 'var(--space-8)', maxHeight: '80vh', overflowY: 'auto', overflowX: 'hidden' }}>
                   <BlockRenderer blocks={blocks} />
                 </div>
               </div>
