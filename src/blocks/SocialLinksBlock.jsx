@@ -34,6 +34,17 @@ const ICONS = {
   ),
 };
 
+// Circle diameter, icon glyph size (scaled down via cloneElement below since
+// each SVG above has its own fixed width/height="20" baked in), handle font
+// size, and the gap between icons -- all four move together per step so
+// "Large" doesn't end up with a huge icon crammed against tiny handle text.
+const SIZES = {
+  small: { circle: 32, icon: 16, font: 'var(--fs-caption)', gap: 'var(--space-3)' },
+  medium: { circle: 40, icon: 20, font: 'var(--fs-small)', gap: 'var(--space-4)' },
+  large: { circle: 52, icon: 26, font: 'var(--fs-body)', gap: 'var(--space-5)' },
+  xl: { circle: 64, icon: 32, font: 'var(--fs-body-lg)', gap: 'var(--space-6)' },
+};
+
 const PLATFORMS = [
   { key: 'facebookUrl', icon: 'facebook', label: 'Facebook' },
   { key: 'instagramUrl', icon: 'instagram', label: 'Instagram' },
@@ -59,12 +70,13 @@ function extractHandle(url) {
   }
 }
 
-export function SocialLinksBlock({ align = 'center', showHandles = false, editable, ...props }) {
+export function SocialLinksBlock({ align = 'center', showHandles = false, size = 'medium', editable, ...props }) {
   const active = PLATFORMS.filter((p) => props[p.key]);
   if (!editable && active.length === 0) return null;
+  const s = SIZES[size] || SIZES.medium;
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center', gap: 'var(--space-4)' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center', gap: s.gap }}>
       {(editable ? PLATFORMS : active).map((p) => {
         const handle = showHandles ? extractHandle(props[p.key]) : '';
         const disabled = editable && !props[p.key];
@@ -75,16 +87,16 @@ export function SocialLinksBlock({ align = 'center', showHandles = false, editab
             aria-label={p.label}
             title={p.label}
             style={{
-              height: 40, borderRadius: handle ? 'var(--radius-pill)' : '50%',
-              width: handle ? undefined : 40, padding: handle ? '0 var(--space-4) 0 var(--space-3)' : 0,
+              height: s.circle, borderRadius: handle ? 'var(--radius-pill)' : '50%',
+              width: handle ? undefined : s.circle, padding: handle ? `0 ${s.gap} 0 var(--space-3)` : 0,
               border: '1px solid var(--border-default)', textDecoration: 'none',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)',
               color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
               opacity: disabled ? 0.4 : 1,
-              fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', fontWeight: 'var(--fw-bold)',
+              fontFamily: 'var(--font-sans)', fontSize: s.font, fontWeight: 'var(--fw-bold)',
             }}
           >
-            {ICONS[p.icon]}
+            {React.cloneElement(ICONS[p.icon], { width: s.icon, height: s.icon })}
             {handle && <span>{handle}</span>}
           </a>
         );

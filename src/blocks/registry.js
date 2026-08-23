@@ -216,7 +216,7 @@ export const BLOCK_REGISTRY = {
     category: 'Interactive',
     icon: 'share-2',
     description: 'A row of icon links to your social media profiles.',
-    defaultProps: { facebookUrl: '', instagramUrl: '', youtubeUrl: '', xUrl: '', tiktokUrl: '', align: 'center', showHandles: false },
+    defaultProps: { facebookUrl: '', instagramUrl: '', youtubeUrl: '', xUrl: '', tiktokUrl: '', align: 'center', showHandles: false, size: 'medium' },
     fields: [
       { key: 'facebookUrl', kind: 'text', label: 'Facebook URL', inline: false },
       { key: 'instagramUrl', kind: 'text', label: 'Instagram URL', inline: false },
@@ -224,6 +224,7 @@ export const BLOCK_REGISTRY = {
       { key: 'xUrl', kind: 'text', label: 'X (Twitter) URL', inline: false },
       { key: 'tiktokUrl', kind: 'text', label: 'TikTok URL', inline: false },
       { key: 'showHandles', kind: 'toggle', label: 'Show @handle next to each icon' },
+      { key: 'size', kind: 'select', label: 'Size', options: [{value:'small',label:'Small'},{value:'medium',label:'Medium'},{value:'large',label:'Large'},{value:'xl',label:'XL'}] },
       { key: 'align', kind: 'select', label: 'Alignment', options: [{value:'left',label:'Left'},{value:'center',label:'Center'},{value:'right',label:'Right'}] },
     ],
   },
