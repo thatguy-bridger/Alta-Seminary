@@ -8,6 +8,7 @@ import { Select } from '../design-system/components/forms/Select.jsx';
 import { Input } from '../design-system/components/forms/Input.jsx';
 import { withBase } from '../lib/url.js';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { useDndContext } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { BLOCK_REGISTRY, BLOCK_TYPES, isInlineField } from './registry.js';
 // BlockRenderer.jsx imports CarouselBlock (it's one of the types in
@@ -194,6 +195,12 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, a
   // so the drag listeners go on a dedicated handle bar instead of the whole
   // box -- see the "⠿ Drag" bar below.
   const { attributes: currentDragAttrs, listeners: currentDragListeners, setNodeRef: setCurrentDragRef, transform: currentTransform, transition: currentTransition, isDragging: currentIsDragging } = useSortable({ id: current.id });
+  // Same drag-in-progress every other drop-target indicator in the builder
+  // reads (see EditableCanvas.jsx's SortableBlock) -- a red dashed outline
+  // on whichever slide is currently under the dragged item, so an admin can
+  // see exactly which slide would get replaced if they let go right now.
+  const { active: dndActive, over: dndOver } = useDndContext();
+  const currentIsDropTarget = !!dndActive && dndActive.id !== current.id && dndOver?.id === current.id;
   // Split the not-shown peeks evenly across both sides of the current slide
   // (previous slides peek in on the left, upcoming ones on the right). An odd
   // total can't split evenly, so it rounds down to the nearest even number.
@@ -291,7 +298,10 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, a
 
         <div
           ref={setCurrentDragRef}
-          style={{ flex: `${mainParts} 1 0%`, minWidth: 0, transform: CSS.Transform.toString(currentTransform), transition: currentTransition, opacity: currentIsDragging ? 0.4 : 1 }}
+          style={{
+            flex: `${mainParts} 1 0%`, minWidth: 0, transform: CSS.Transform.toString(currentTransform), transition: currentTransition, opacity: currentIsDragging ? 0.4 : 1,
+            outline: currentIsDropTarget ? '3px dashed var(--color-error)' : 'none', outlineOffset: currentIsDropTarget ? 3 : undefined, borderRadius: 'var(--radius-md)',
+          }}
         >
           <div
             {...currentDragAttrs}
@@ -553,6 +563,8 @@ function slideThumbnailImage(slide) {
 // from being mistaken for a drag).
 function PeekSlide({ slide, onClick, slideNumber, aspectRatio }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id });
+  const { active: dndActive, over: dndOver } = useDndContext();
+  const isDropTarget = !!dndActive && dndActive.id !== slide.id && dndOver?.id === slide.id;
   const thumb = slideThumbnailImage(slide);
   const def = BLOCK_REGISTRY[slide.type];
   const ratio = ratioToCss(aspectRatio);
@@ -568,6 +580,7 @@ function PeekSlide({ slide, onClick, slideNumber, aspectRatio }) {
         flex: '1 1 0%', minWidth: 0, border: 'none', background: 'none', cursor: 'grab', padding: 0,
         opacity: isDragging ? 0.3 : 0.5,
         transform: CSS.Transform.toString(transform), transition, touchAction: 'none',
+        outline: isDropTarget ? '3px dashed var(--color-error)' : 'none', outlineOffset: isDropTarget ? 2 : undefined, borderRadius: 'var(--radius-md)',
       }}
     >
       {thumb ? (

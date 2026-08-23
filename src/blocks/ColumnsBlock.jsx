@@ -6,6 +6,7 @@ import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { AddBlockButton } from '../admin-app/builder/AddBlockButton.jsx';
 import { Input } from '../design-system/components/forms/Input.jsx';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { useDndContext } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { BLOCK_REGISTRY, isInlineField } from './registry.js';
 // BlockRenderer.jsx imports ColumnsBlock (it's one of the types in
@@ -219,8 +220,19 @@ export function ColumnsBlock({
 // Only ever rendered when editable (see columnList above).
 function SortableColumn({ id, children }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  // Same drag-in-progress every other drop-target indicator in the builder
+  // reads (see EditableCanvas.jsx's SortableBlock) -- a red dashed outline
+  // on whichever column is currently under the dragged item.
+  const { active, over } = useDndContext();
+  const isDropTarget = !!active && active.id !== id && over?.id === id;
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}>
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1,
+        outline: isDropTarget ? '3px dashed var(--color-error)' : 'none', outlineOffset: isDropTarget ? 3 : undefined, borderRadius: 'var(--radius-md)',
+      }}
+    >
       <div
         {...attributes}
         {...listeners}

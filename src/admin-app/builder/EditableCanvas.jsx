@@ -1,5 +1,5 @@
 import React from 'react';
-import { DndContext, DragOverlay, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragOverlay, closestCenter, useDndContext, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { BLOCK_COMPONENTS } from '../../blocks/BlockRenderer.jsx';
@@ -24,6 +24,13 @@ function describeDraggedItem(found) {
 
 function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSettings, activeSettingsTarget, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
+  // Reads the SAME drag in progress that's driving the DragOverlay/planning
+  // logic above -- useDndContext works from anywhere inside the DndContext
+  // regardless of nesting, so this needs no prop drilling from EditableCanvas.
+  // Shows a red dashed outline on whichever block is currently under the
+  // dragged item -- i.e. exactly where it would land if dropped right now.
+  const { active, over } = useDndContext();
+  const isDropTarget = !!active && active.id !== block.id && over?.id === block.id;
   const Component = BLOCK_COMPONENTS[block.type];
   if (!Component) return null;
 
@@ -55,6 +62,8 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
         position: 'relative',
         borderRadius: 'var(--radius-md)',
         border: selected ? '3px solid var(--brand-secondary)' : '3px solid transparent',
+        outline: isDropTarget ? '3px dashed var(--color-error)' : 'none',
+        outlineOffset: isDropTarget ? 3 : undefined,
         touchAction: 'none',
       }}
       onClick={(e) => { e.stopPropagation(); onSelect(block.id); }}
