@@ -21,7 +21,7 @@ import { useAlert } from '../ConfirmProvider.jsx';
 // `onExtraImages` for the caller to turn into more blocks/slides -- see
 // ImageBlock (duplicates itself per extra photo) and CarouselBlock's media
 // slide (adds one new slide per extra photo).
-export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLabel = 'Click to add image', aspect, multiple = false, onExtraImages }) {
+export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLabel = 'Click to add image', aspect, multiple = false, onExtraImages, showCropThumbnail = true }) {
   const alertUser = useAlert();
   const inputRef = React.useRef(null);
   const [uploading, setUploading] = React.useState(false);
@@ -139,8 +139,12 @@ export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLa
           replacing it outright; it stops the parent image click from also
           firing when it's used. The old "⋯" menu here is gone -- every
           other source (paste a URL, an existing library image) is reachable
-          from the "Change image" control inside the crop dialog it opens. */}
-      {value && (
+          from the "Change image" control inside the crop dialog it opens.
+          Skipped entirely (showCropThumbnail=false) for callers that are
+          ALREADY a small corner control themselves -- e.g. Hero's own
+          background-image picker -- where a second nested thumbnail inside
+          an already-small preview is just visual clutter, not a new capability. */}
+      {value && showCropThumbnail && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); handleReCrop(); }}

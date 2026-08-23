@@ -45,6 +45,7 @@ export function HeroBlock({
             pathPrefix={pathPrefix}
             emptyLabel="Background image"
             style={{ width: 160, height: 90 }}
+            showCropThumbnail={false}
           />
         </div>
       )}
