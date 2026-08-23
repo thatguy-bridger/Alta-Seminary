@@ -45,6 +45,17 @@ const SIZES = {
   xl: { circle: 64, icon: 32, font: 'var(--fs-body-lg)', gap: 'var(--space-6)' },
 };
 
+// Each platform's own real brand color(s) -- a plain CSS `background` value,
+// so a single hex works for the ones with one, and a gradient string works
+// unchanged for Instagram/TikTok, which don't really have just one.
+const BRANDS = {
+  facebook: '#1877F2',
+  instagram: 'linear-gradient(45deg,#405DE6,#5851DB,#833AB4,#C13584,#E1306C,#FD1D1D,#F77737,#FCAF45)',
+  youtube: '#FF0000',
+  x: '#000000',
+  tiktok: 'linear-gradient(135deg,#25F4EE,#000000 50%,#FE2C55)',
+};
+
 const PLATFORMS = [
   { key: 'facebookUrl', icon: 'facebook', label: 'Facebook' },
   { key: 'instagramUrl', icon: 'instagram', label: 'Instagram' },
@@ -70,6 +81,56 @@ function extractHandle(url) {
   }
 }
 
+// A slow radial "fill" that grows outward from wherever the cursor entered,
+// in that platform's own real brand color -- purely decorative (the user
+// asked for it "for the fun of it"), so it's skipped entirely for a
+// not-yet-filled-in field in the editor (nothing to link to yet, no reason
+// to invite a hover). clip-path (not a CSS custom property driving a
+// gradient's position) is what actually animates smoothly here -- browsers
+// interpolate a `circle(r% at x% y%)` you hand them directly just fine, but
+// won't smoothly tween a plain custom property feeding into one without
+// registering it via @property first, which is extra ceremony a purely-fun
+// hover effect doesn't need.
+function SocialIconLink({ platform, href, handle, disabled, s, children, style }) {
+  const ref = React.useRef(null);
+  const [pos, setPos] = React.useState({ x: 50, y: 50 });
+  const [hovered, setHovered] = React.useState(false);
+
+  function updatePos(e) {
+    const rect = ref.current.getBoundingClientRect();
+    setPos({ x: ((e.clientX - rect.left) / rect.width) * 100, y: ((e.clientY - rect.top) / rect.height) * 100 });
+  }
+
+  return (
+    <a
+      ref={ref}
+      href={href}
+      aria-label={platform.label}
+      title={platform.label}
+      onMouseEnter={(e) => { if (disabled) return; updatePos(e); setHovered(true); }}
+      onMouseMove={(e) => { if (disabled) return; updatePos(e); }}
+      onMouseLeave={() => setHovered(false)}
+      style={{ ...style, position: 'relative', overflow: 'hidden' }}
+    >
+      {!disabled && (
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute', inset: 0,
+            background: BRANDS[platform.icon],
+            clipPath: `circle(${hovered ? 150 : 0}% at ${pos.x}% ${pos.y}%)`,
+            transition: 'clip-path 0.6s ease',
+          }}
+        />
+      )}
+      <span style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: hovered ? '#fff' : 'inherit', transition: 'color 0.3s ease' }}>
+        {React.cloneElement(ICONS[platform.icon], { width: s.icon, height: s.icon })}
+        {handle && <span>{handle}</span>}
+      </span>
+    </a>
+  );
+}
+
 export function SocialLinksBlock({ align = 'center', showHandles = false, size = 'medium', editable, ...props }) {
   const active = PLATFORMS.filter((p) => props[p.key]);
   if (!editable && active.length === 0) return null;
@@ -81,24 +142,23 @@ export function SocialLinksBlock({ align = 'center', showHandles = false, size =
         const handle = showHandles ? extractHandle(props[p.key]) : '';
         const disabled = editable && !props[p.key];
         return (
-          <a
+          <SocialIconLink
             key={p.key}
+            platform={p}
             href={editable ? undefined : props[p.key]}
-            aria-label={p.label}
-            title={p.label}
+            handle={handle}
+            disabled={disabled}
+            s={s}
             style={{
               height: s.circle, borderRadius: handle ? 'var(--radius-pill)' : '50%',
               width: handle ? undefined : s.circle, padding: handle ? `0 ${s.gap} 0 var(--space-3)` : 0,
               border: '1px solid var(--border-default)', textDecoration: 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
               opacity: disabled ? 0.4 : 1,
               fontFamily: 'var(--font-sans)', fontSize: s.font, fontWeight: 'var(--fw-bold)',
             }}
-          >
-            {React.cloneElement(ICONS[p.icon], { width: s.icon, height: s.icon })}
-            {handle && <span>{handle}</span>}
-          </a>
+          />
         );
       })}
     </div>
