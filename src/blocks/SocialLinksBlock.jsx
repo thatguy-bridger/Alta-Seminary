@@ -1,4 +1,5 @@
 import React from 'react';
+import { TEXT_COLOR_TOKENS } from '../lib/richTextTokens.js';
 
 // Simple, recognizable line-art glyphs -- consistent with the rest of the
 // design system's hand-drawn icon style (see ThemeToggle.jsx) rather than
@@ -56,12 +57,19 @@ const BRANDS = {
   tiktok: 'linear-gradient(135deg,#25F4EE,#000000 50%,#FE2C55)',
 };
 
+// "Hover fill color" options besides each platform's own real colors -- the
+// same 6 curated site tokens used everywhere else text/backgrounds get a
+// color choice (see richTextTokens.js), so a flat option here still resolves
+// to a real design-system variable (correct in both themes) instead of a
+// raw hex.
+const HOVER_TOKEN_COLOR = Object.fromEntries(TEXT_COLOR_TOKENS.map((t) => [t.key, `var(${t.var})`]));
+
 const PLATFORMS = [
-  { key: 'facebookUrl', icon: 'facebook', label: 'Facebook' },
-  { key: 'instagramUrl', icon: 'instagram', label: 'Instagram' },
-  { key: 'youtubeUrl', icon: 'youtube', label: 'YouTube' },
-  { key: 'xUrl', icon: 'x', label: 'X (Twitter)' },
-  { key: 'tiktokUrl', icon: 'tiktok', label: 'TikTok' },
+  { key: 'facebookUrl', handleKey: 'facebookHandle', icon: 'facebook', label: 'Facebook' },
+  { key: 'instagramUrl', handleKey: 'instagramHandle', icon: 'instagram', label: 'Instagram' },
+  { key: 'youtubeUrl', handleKey: 'youtubeHandle', icon: 'youtube', label: 'YouTube' },
+  { key: 'xUrl', handleKey: 'xHandle', icon: 'x', label: 'X (Twitter)' },
+  { key: 'tiktokUrl', handleKey: 'tiktokHandle', icon: 'tiktok', label: 'TikTok' },
 ];
 
 // Pulls a displayable "@handle" out of a profile URL -- the first real path
@@ -81,6 +89,16 @@ function extractHandle(url) {
   }
 }
 
+// A manually-typed handle (with or without its own leading "@") always wins
+// over whatever extractHandle() would have read out of the URL -- the URL's
+// first path segment isn't always the actual handle worth showing (a
+// vanity/shortened URL, a YouTube /channel/UC... ID instead of a @name, a
+// URL that still points at the right profile but under an old username).
+function formatHandle(raw) {
+  const trimmed = (raw || '').trim();
+  return trimmed ? `@${trimmed.replace(/^@/, '')}` : '';
+}
+
 // A slow radial "fill" that grows outward from wherever the cursor entered,
 // in that platform's own real brand color -- purely decorative (the user
 // asked for it "for the fun of it"), so it's skipped entirely for a
@@ -91,10 +109,15 @@ function extractHandle(url) {
 // won't smoothly tween a plain custom property feeding into one without
 // registering it via @property first, which is extra ceremony a purely-fun
 // hover effect doesn't need.
-function SocialIconLink({ platform, href, handle, disabled, s, children, style }) {
+function SocialIconLink({ platform, href, handle, disabled, s, fillEnabled, fillColor, style }) {
   const ref = React.useRef(null);
   const [pos, setPos] = React.useState({ x: 50, y: 50 });
   const [hovered, setHovered] = React.useState(false);
+  const showFill = fillEnabled && !disabled;
+  // 'platform' keeps each icon's own real brand color/gradient (the
+  // original version of this feature); any other choice is one of the
+  // site's own curated color tokens instead, resolved to a flat fill.
+  const fill = fillColor === 'platform' ? BRANDS[platform.icon] : (HOVER_TOKEN_COLOR[fillColor] || BRANDS[platform.icon]);
 
   function updatePos(e) {
     const rect = ref.current.getBoundingClientRect();
@@ -107,23 +130,23 @@ function SocialIconLink({ platform, href, handle, disabled, s, children, style }
       href={href}
       aria-label={platform.label}
       title={platform.label}
-      onMouseEnter={(e) => { if (disabled) return; updatePos(e); setHovered(true); }}
-      onMouseMove={(e) => { if (disabled) return; updatePos(e); }}
+      onMouseEnter={(e) => { if (!showFill) return; updatePos(e); setHovered(true); }}
+      onMouseMove={(e) => { if (!showFill) return; updatePos(e); }}
       onMouseLeave={() => setHovered(false)}
       style={{ ...style, position: 'relative', overflow: 'hidden' }}
     >
-      {!disabled && (
+      {showFill && (
         <span
           aria-hidden
           style={{
             position: 'absolute', inset: 0,
-            background: BRANDS[platform.icon],
+            background: fill,
             clipPath: `circle(${hovered ? 150 : 0}% at ${pos.x}% ${pos.y}%)`,
             transition: 'clip-path 0.6s ease',
           }}
         />
       )}
-      <span style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: hovered ? '#fff' : 'inherit', transition: 'color 0.3s ease' }}>
+      <span style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: showFill && hovered ? '#fff' : 'inherit', transition: 'color 0.3s ease' }}>
         {React.cloneElement(ICONS[platform.icon], { width: s.icon, height: s.icon })}
         {handle && <span>{handle}</span>}
       </span>
@@ -131,7 +154,7 @@ function SocialIconLink({ platform, href, handle, disabled, s, children, style }
   );
 }
 
-export function SocialLinksBlock({ align = 'center', showHandles = false, size = 'medium', editable, ...props }) {
+export function SocialLinksBlock({ align = 'center', showHandles = false, size = 'medium', hoverFill = true, hoverColor = 'platform', editable, ...props }) {
   const active = PLATFORMS.filter((p) => props[p.key]);
   if (!editable && active.length === 0) return null;
   const s = SIZES[size] || SIZES.medium;
@@ -139,7 +162,7 @@ export function SocialLinksBlock({ align = 'center', showHandles = false, size =
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center', gap: s.gap }}>
       {(editable ? PLATFORMS : active).map((p) => {
-        const handle = showHandles ? extractHandle(props[p.key]) : '';
+        const handle = showHandles ? (formatHandle(props[p.handleKey]) || extractHandle(props[p.key])) : '';
         const disabled = editable && !props[p.key];
         return (
           <SocialIconLink
@@ -148,6 +171,8 @@ export function SocialLinksBlock({ align = 'center', showHandles = false, size =
             href={editable ? undefined : props[p.key]}
             handle={handle}
             disabled={disabled}
+            fillEnabled={hoverFill}
+            fillColor={hoverColor}
             s={s}
             style={{
               height: s.circle, borderRadius: handle ? 'var(--radius-pill)' : '50%',
