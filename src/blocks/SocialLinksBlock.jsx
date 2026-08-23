@@ -42,28 +42,53 @@ const PLATFORMS = [
   { key: 'tiktokUrl', icon: 'tiktok', label: 'TikTok' },
 ];
 
-export function SocialLinksBlock({ align = 'center', editable, ...props }) {
+// Pulls a displayable "@handle" out of a profile URL -- the first real path
+// segment is the username/page-name on every one of these platforms (e.g.
+// instagram.com/alta.seminary, tiktok.com/@alta.seminary, x.com/altaseminary),
+// whether or not the admin already included TikTok's own leading "@" when
+// pasting the link. Falls back to '' (icon-only, same as before this
+// feature existed) for anything that doesn't parse as a URL at all.
+function extractHandle(url) {
+  if (!url) return '';
+  try {
+    const u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
+    const segment = u.pathname.split('/').filter(Boolean)[0] || '';
+    return segment ? `@${segment.replace(/^@/, '')}` : '';
+  } catch {
+    return '';
+  }
+}
+
+export function SocialLinksBlock({ align = 'center', showHandles = false, editable, ...props }) {
   const active = PLATFORMS.filter((p) => props[p.key]);
   if (!editable && active.length === 0) return null;
 
   return (
-    <div style={{ display: 'flex', justifyContent: align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center', gap: 'var(--space-4)' }}>
-      {(editable ? PLATFORMS : active).map((p) => (
-        <a
-          key={p.key}
-          href={editable ? undefined : props[p.key]}
-          aria-label={p.label}
-          title={p.label}
-          style={{
-            width: 40, height: 40, borderRadius: '50%', border: '1px solid var(--border-default)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: editable && !props[p.key] ? 'var(--text-muted)' : 'var(--text-primary)',
-            opacity: editable && !props[p.key] ? 0.4 : 1,
-          }}
-        >
-          {ICONS[p.icon]}
-        </a>
-      ))}
+    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center', gap: 'var(--space-4)' }}>
+      {(editable ? PLATFORMS : active).map((p) => {
+        const handle = showHandles ? extractHandle(props[p.key]) : '';
+        const disabled = editable && !props[p.key];
+        return (
+          <a
+            key={p.key}
+            href={editable ? undefined : props[p.key]}
+            aria-label={p.label}
+            title={p.label}
+            style={{
+              height: 40, borderRadius: handle ? 'var(--radius-pill)' : '50%',
+              width: handle ? undefined : 40, padding: handle ? '0 var(--space-4) 0 var(--space-3)' : 0,
+              border: '1px solid var(--border-default)', textDecoration: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)',
+              color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
+              opacity: disabled ? 0.4 : 1,
+              fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', fontWeight: 'var(--fw-bold)',
+            }}
+          >
+            {ICONS[p.icon]}
+            {handle && <span>{handle}</span>}
+          </a>
+        );
+      })}
     </div>
   );
 }

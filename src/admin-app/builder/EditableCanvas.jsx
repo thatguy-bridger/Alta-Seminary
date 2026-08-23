@@ -1,11 +1,26 @@
 import React from 'react';
-import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragOverlay, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { BLOCK_COMPONENTS } from '../../blocks/BlockRenderer.jsx';
 import { BlockWrapper } from '../../blocks/BlockWrapper.jsx';
-import { planDragMove } from './dragReorg.js';
+import { BLOCK_REGISTRY } from '../../blocks/registry.js';
+import { BlockIcon } from './blockIcons.jsx';
+import { planDragMove, locate } from './dragReorg.js';
 import { useConfirm } from '../ConfirmProvider.jsx';
+
+// A short label for whatever's being dragged -- a real top-level block uses
+// its own registry label; a Carousel slide/Columns column can be either a
+// real nested block (same label) or one of the two carousel/columns-only
+// pseudo-types ('media'/'content', see dragReorg.js), which have no
+// registry entry of their own.
+function describeDraggedItem(found) {
+  if (!found) return 'Block';
+  const { item } = found;
+  if (item.type === 'media') return 'Image + caption';
+  if (item.type === 'content') return 'Image + text';
+  return BLOCK_REGISTRY[item.type]?.label || item.type;
+}
 
 function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSettings, activeSettingsTarget, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
@@ -25,12 +40,14 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
   return (
     <div
       ref={setNodeRef}
-      // Drag listeners live on this whole wrapper (border included), not just a
-      // small icon -- a real drag (pointer down + move) starts a reorder, while
-      // a plain click still reaches inner elements normally (see EditableText/
-      // EditableImage's own onClick), so text/image editing is unaffected.
-      {...attributes}
-      {...listeners}
+      // Drag listeners deliberately do NOT live on this whole wrapper --
+      // they used to, and every plain click to select a block (any small
+      // hand/trackpad jitter counts as "movement" to dnd-kit's activation
+      // distance) risked being read as the start of a drag instead, which
+      // could end the "click" somewhere else entirely once the pointer
+      // settled. The dedicated "⠿ Move" bar below (same pattern as Carousel/
+      // Columns' own "⠿ Drag" handles) is now the only way to start a
+      // reorder, so a plain click anywhere else always just selects.
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
@@ -38,7 +55,6 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
         position: 'relative',
         borderRadius: 'var(--radius-md)',
         border: selected ? '3px solid var(--brand-secondary)' : '3px solid transparent',
-        cursor: selected ? 'grab' : 'default',
         touchAction: 'none',
       }}
       onClick={(e) => { e.stopPropagation(); onSelect(block.id); }}
@@ -46,7 +62,9 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
       {selected && (
         <>
           <div
-            title="Drag anywhere on this bar (or the block's border) to reorder"
+            {...attributes}
+            {...listeners}
+            title="Drag this bar to reorder"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -61,6 +79,7 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
               fontSize: 'var(--fs-small)',
               fontWeight: 'var(--fw-bold)',
               cursor: 'grab',
+              touchAction: 'none',
             }}
           >
             ⠿ Move
@@ -112,10 +131,15 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
 
 export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFieldChange, onOpenSettings, activeSettingsTarget, onRemove, onDuplicate, onDuplicateWithImages, pathPrefix }) {
   const confirm = useConfirm();
+  const [activeId, setActiveId] = React.useState(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  function handleDragStart(event) {
+    setActiveId(event.active.id);
+  }
 
   // Handles four cases (see dragReorg.js's planDragMove): reordering the
   // top-level list (unchanged from before), reordering slides within one
@@ -124,6 +148,7 @@ export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFiel
   // there, confirmed first if it wasn't blank), and pulling a slide/column
   // back OUT to become a real top-level block again.
   async function handleDragEnd(event) {
+    setActiveId(null);
     const { active, over } = event;
     if (!over) return;
     const plan = planDragMove(blocks, active.id, over.id);
@@ -143,8 +168,13 @@ export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFiel
     );
   }
 
+  // Only ever set from a genuine drag start (handleDragStart), so it's
+  // always resolvable in the current `blocks` tree -- top-level or nested
+  // inside a Carousel/Columns block alike (see dragReorg.js's locate()).
+  const draggedItem = activeId ? locate(blocks, activeId) : null;
+
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
       <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
         <div onClick={() => onSelect(null)}>
           {blocks.map((block) => (
@@ -164,6 +194,29 @@ export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFiel
           ))}
         </div>
       </SortableContext>
+      {/* A floating preview under the cursor while dragging, instead of just
+          fading the original in place -- the previous fade-only feedback
+          gave no sense of what was actually being picked up or where it'd
+          land, especially for a slide/column pulled out of a Carousel/
+          Columns block (dropped somewhere in an entirely different
+          SortableContext, so there's no built-in reordering animation to
+          lean on). One simple generic card covers every drag source --
+          a real top-level block or a nested slide/column alike -- since the
+          full interactive block content isn't safe to re-mount mid-drag. */}
+      <DragOverlay>
+        {draggedItem && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+            padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
+            background: 'var(--surface-card)', border: '2px solid var(--brand-secondary)',
+            boxShadow: 'var(--shadow-lg)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)',
+            fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)', cursor: 'grabbing',
+          }}>
+            <BlockIcon name={BLOCK_REGISTRY[draggedItem.item.type]?.icon || 'type'} />
+            {describeDraggedItem(draggedItem)}
+          </div>
+        )}
+      </DragOverlay>
     </DndContext>
   );
 }
