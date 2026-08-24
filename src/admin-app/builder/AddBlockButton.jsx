@@ -7,9 +7,13 @@ import { BlockIcon } from './blockIcons.jsx';
 // label/dialogTitle/excludeTypes let this same picker double as a "change
 // slide type" control inside CarouselBlock.jsx, not just the page-level
 // "+ Add block" button.
-export function AddBlockButton({ onAdd, label = '+ Add block', dialogTitle = 'Add a block', excludeTypes = [] }) {
+// excludeChromeless: a "chromeless" block (Background Music, and any future
+// block that sits outside the normal content flow -- see registry.js) makes
+// no sense as a Carousel slide or Columns column, so both of those pickers
+// pass this; the top-level "+ Add block" button leaves it off.
+export function AddBlockButton({ onAdd, label = '+ Add block', dialogTitle = 'Add a block', excludeTypes = [], excludeChromeless = false }) {
   const [open, setOpen] = React.useState(false);
-  const types = excludeTypes.length > 0 ? BLOCK_TYPES.filter((t) => !excludeTypes.includes(t)) : BLOCK_TYPES;
+  const types = BLOCK_TYPES.filter((t) => !excludeTypes.includes(t) && !(excludeChromeless && BLOCK_REGISTRY[t].chromeless));
   // Grouped by category (Layout/Media/Informational/Interactive/Live
   // Content -- see registry.js) instead of one long flat list, now that
   // there are enough block types that scanning all of them at once is a lot

@@ -278,6 +278,7 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, a
             label="Change slide type"
             dialogTitle="Choose this slide's content"
             excludeTypes={['carousel']}
+            excludeChromeless
             onAdd={(type) => setSlideType(index, type)}
           />
           <button type="button" onClick={duplicateSlide} className="btn btn-outline btn-sm">Duplicate slide</button>

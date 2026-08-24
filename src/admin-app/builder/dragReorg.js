@@ -3,7 +3,7 @@
 // (and back out again), not just reorder the top-level list among itself.
 // Kept as plain functions (no React/dnd-kit imports) so the actual move/
 // replace/reorder rules are easy to read and reason about on their own.
-import { DEFAULT_LAYOUT } from '../../blocks/registry.js';
+import { DEFAULT_LAYOUT, BLOCK_REGISTRY } from '../../blocks/registry.js';
 
 // Finds an id anywhere in the block tree: the top-level list, or nested
 // inside any Carousel's `items` or Columns' `columns` array.
@@ -103,6 +103,11 @@ export function planDragMove(blocks, activeId, overId) {
   // type" picker already enforces (AddBlockButton's excludeTypes).
   if (dst.kind === 'items' && src.item.type === 'carousel') return { type: 'noop' };
   if (dst.kind === 'columns' && src.item.type === 'columns') return { type: 'noop' };
+  // Same restriction as the "change slide/column type" picker's own
+  // excludeChromeless (AddBlockButton.jsx) -- a block that renders no
+  // visible content in the normal flow (Background Music) makes no sense
+  // dropped into a slide/column slot either.
+  if (dst.kind !== 'top' && BLOCK_REGISTRY[src.item.type]?.chromeless) return { type: 'noop' };
 
   const needsConfirm = dst.kind !== 'top' && !isBlankNestedItem(dst.item);
   const confirmMessage = dst.kind !== 'top'

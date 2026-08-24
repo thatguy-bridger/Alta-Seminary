@@ -18,7 +18,9 @@ import { PostsTeaserBlock } from './PostsTeaserBlock.jsx';
 import { GalleryBlock } from './GalleryBlock.jsx';
 import { ContactFormBlock } from './ContactFormBlock.jsx';
 import { FaqBlock } from './FaqBlock.jsx';
+import { BackgroundMusicBlock } from './BackgroundMusicBlock.jsx';
 import { BlockWrapper } from './BlockWrapper.jsx';
+import { BLOCK_REGISTRY } from './registry.js';
 
 // The one component-per-type map used both by Astro's build (server-rendered,
 // no client JS shipped for it), the admin Preview tab, and the interactive
@@ -45,6 +47,7 @@ export const BLOCK_COMPONENTS = {
   gallery: GalleryBlock,
   'contact-form': ContactFormBlock,
   faq: FaqBlock,
+  'background-music': BackgroundMusicBlock,
 };
 
 // teaserData: optional {[blockId]: items[]} map -- pre-fetched server-side by
@@ -59,9 +62,14 @@ export function BlockRenderer({ blocks, teaserData }) {
         const Component = BLOCK_COMPONENTS[block.type];
         if (!Component) return null;
         const extra = teaserData && teaserData[block.id] !== undefined ? { items: teaserData[block.id] } : {};
+        const content = <Component {...block.props} {...extra} blockId={block.id} />;
+        // See EditableCanvas.jsx's identical check -- a chromeless block
+        // (Background Music) renders no visible content at this position,
+        // so BlockWrapper's spacing padding would just be an empty gap.
+        if (BLOCK_REGISTRY[block.type]?.chromeless) return <React.Fragment key={block.id}>{content}</React.Fragment>;
         return (
           <BlockWrapper key={block.id} layout={block.layout}>
-            <Component {...block.props} {...extra} blockId={block.id} />
+            {content}
           </BlockWrapper>
         );
       })}

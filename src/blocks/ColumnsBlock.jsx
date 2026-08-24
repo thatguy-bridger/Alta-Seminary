@@ -136,6 +136,7 @@ export function ColumnsBlock({
               label={`Column ${i + 1}: ${col.type === 'content' ? 'Image + text' : BLOCK_REGISTRY[col.type]?.label || col.type}`}
               dialogTitle={`Choose column ${i + 1}'s content`}
               excludeTypes={['columns']}
+              excludeChromeless
               onAdd={(type) => setColumnType(i, type)}
             />
           </div>

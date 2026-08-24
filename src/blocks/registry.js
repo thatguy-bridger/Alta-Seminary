@@ -350,12 +350,46 @@ export const BLOCK_REGISTRY = {
       { key: 'heading', kind: 'text', label: 'Heading' },
     ],
   },
+  'background-music': {
+    label: 'Background Music',
+    category: 'Utility',
+    icon: 'music',
+    description: 'Plays audio in the background of the page as a small floating control -- not a visible content block, and can go anywhere in the list.',
+    // A "chromeless" block renders no visible content at its position in the
+    // block list -- BlockWrapper's per-block spacing/contained/background/
+    // anchor (registry.js's own DEFAULT_LAYOUT/LAYOUT_FIELDS, applied to
+    // every other block type) is skipped entirely for these (see
+    // EditableCanvas.jsx/BlockRenderer.jsx), and they're excluded from
+    // Carousel slide / Columns column nesting (AddBlockButton's
+    // excludeChromeless, dragReorg.js's planDragMove) since neither makes
+    // sense for something with no content to show there.
+    chromeless: true,
+    defaultProps: {
+      sourceType: 'upload', fileUrl: '', fileName: '', externalUrl: '',
+      volume: 40, loop: true, autoplay: false, showControls: true, position: 'bottom-right',
+    },
+    fields: [
+      { key: 'sourceType', kind: 'select', label: 'Audio source', options: [{ value: 'upload', label: 'Upload a file' }, { value: 'url', label: 'Link to a hosted audio file' }] },
+      // Deliberately left inline (the default for kind 'file', same as
+      // DownloadBlock's own fileUrl) -- BackgroundMusicBlock.jsx renders its
+      // own upload control directly (needs a different accept type/upload
+      // bucket than the generic file-kind field would know how to use), so
+      // this must NOT also show up in the generic settings panel.
+      { key: 'fileUrl', kind: 'file', label: 'Audio file', showIf: (p) => p.sourceType !== 'url' },
+      { key: 'externalUrl', kind: 'text', label: 'Audio file URL (direct link to an mp3/etc, not a YouTube/Spotify page)', inline: false, showIf: (p) => p.sourceType === 'url' },
+      { key: 'volume', kind: 'range', label: 'Volume', min: 0, max: 100, unit: '%' },
+      { key: 'loop', kind: 'toggle', label: 'Loop' },
+      { key: 'showControls', kind: 'toggle', label: 'Show a play/pause + volume control to visitors' },
+      { key: 'position', kind: 'select', label: 'Control position', showIf: (p) => p.showControls, options: [{ value: 'bottom-right', label: 'Bottom right' }, { value: 'bottom-left', label: 'Bottom left' }, { value: 'top-right', label: 'Top right' }, { value: 'top-left', label: 'Top left' }] },
+      { key: 'autoplay', kind: 'toggle', label: 'Try to autoplay (most browsers block sound until the visitor interacts with the page at all -- it starts muted and unmutes on their first click/keypress/tap anywhere)' },
+    ],
+  },
 };
 
 export const BLOCK_TYPES = Object.keys(BLOCK_REGISTRY);
 
 // Display order for the "Add block" picker's category sections (AddBlockButton.jsx).
-export const BLOCK_CATEGORIES = ['Layout', 'Media', 'Informational', 'Interactive', 'Live Content'];
+export const BLOCK_CATEGORIES = ['Layout', 'Media', 'Informational', 'Interactive', 'Live Content', 'Utility'];
 
 // Universal per-block layout -- every block gets these regardless of type,
 // applied by BlockWrapper.jsx. Kept separate from type-specific `props` so

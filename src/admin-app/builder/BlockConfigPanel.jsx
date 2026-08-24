@@ -74,6 +74,27 @@ export function renderField(field, value, onChange) {
           {field.label}
         </label>
       );
+    case 'range': {
+      const min = field.min ?? 0;
+      const max = field.max ?? 100;
+      const current = value ?? min;
+      return (
+        <div key={field.key}>
+          <span style={{ display: 'block', marginBottom: 4, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)' }}>
+            {field.label}: {current}{field.unit || ''}
+          </span>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={field.step ?? 1}
+            value={current}
+            onChange={(e) => onChange(field.key, Number(e.target.value))}
+            style={{ width: '100%' }}
+          />
+        </div>
+      );
+    }
     default:
       return null;
   }
@@ -162,13 +183,18 @@ export function BlockConfigPanel({ block, onChange, showLayout = true, contextLa
   }
 
   const styleFields = def.fields.filter((f) => !isInlineField(f)).filter((f) => !f.showIf || f.showIf(block.props));
+  // A "chromeless" block (e.g. Background Music) renders no visible content
+  // in the normal page flow -- spacing/contained/background/an anchor link
+  // TO it all describe a position on the page that this block never
+  // actually occupies, so none of it applies.
+  const effectiveShowLayout = showLayout && !def.chromeless;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       {contextLabel && (
         <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>{contextLabel}</p>
       )}
-      {showLayout && (
+      {effectiveShowLayout && (
         <Card title={`${def.label} — Layout`}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             {LAYOUT_FIELDS.map((field) => renderField(field, layout[field.key], setLayout))}
@@ -177,12 +203,12 @@ export function BlockConfigPanel({ block, onChange, showLayout = true, contextLa
         </Card>
       )}
       {styleFields.length > 0 ? (
-        <Card title={showLayout ? 'Style' : def.label}>
+        <Card title={effectiveShowLayout ? 'Style' : def.label}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             {styleFields.map((field) => renderField(field, block.props[field.key], setProp))}
           </div>
         </Card>
-      ) : !showLayout ? (
+      ) : !effectiveShowLayout ? (
         <Card title={def.label}>
           <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: 'var(--fs-small)' }}>Nothing else to configure here -- everything for this block is editable directly on the canvas.</p>
         </Card>

@@ -122,18 +122,25 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
           </div>
         </>
       )}
-      <BlockWrapper layout={block.layout}>
-        <Component
-          {...block.props}
-          editable
-          onFieldChange={(key, value) => onFieldChange(block.id, key, value)}
-          onAddImageBlocks={onDuplicateWithImages ? (urls) => onDuplicateWithImages(block.id, urls) : undefined}
-          onOpenSettings={(nestedKey, nestedIndex) => onOpenSettings(block.id, nestedKey, nestedIndex)}
-          activeSettingsTarget={nestedSettingsTarget}
-          pathPrefix={pathPrefix}
-          blockId={block.id}
-        />
-      </BlockWrapper>
+      {(() => {
+        const content = (
+          <Component
+            {...block.props}
+            editable
+            onFieldChange={(key, value) => onFieldChange(block.id, key, value)}
+            onAddImageBlocks={onDuplicateWithImages ? (urls) => onDuplicateWithImages(block.id, urls) : undefined}
+            onOpenSettings={(nestedKey, nestedIndex) => onOpenSettings(block.id, nestedKey, nestedIndex)}
+            activeSettingsTarget={nestedSettingsTarget}
+            pathPrefix={pathPrefix}
+            blockId={block.id}
+          />
+        );
+        // A "chromeless" block (Background Music, and any future block that
+        // sits outside the normal content flow) renders no visible content
+        // at this position -- BlockWrapper's spacing padding would just be
+        // an empty gap in the page with nothing in it to justify one.
+        return BLOCK_REGISTRY[block.type]?.chromeless ? content : <BlockWrapper layout={block.layout}>{content}</BlockWrapper>;
+      })()}
     </div>
   );
 }
