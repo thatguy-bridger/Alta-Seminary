@@ -64,6 +64,12 @@ const ICONS = {
   music: () => (
     <svg {...props}><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></svg>
   ),
+  'arrow-up': () => (
+    <svg {...props}><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></svg>
+  ),
+  sparkles: () => (
+    <svg {...props}><path d="M12 3l1.5 5L18 9.5 13.5 11 12 16l-1.5-5L5 9.5 9.5 8z" /><path d="M19 4l.6 1.9L21.5 6.5l-1.9.6L19 9l-.6-1.9L16.5 6.5l1.9-.6z" /></svg>
+  ),
 };
 
 const Fallback = () => <svg {...props}><rect x="4" y="4" width="16" height="16" rx="2" /></svg>;

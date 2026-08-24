@@ -14,7 +14,33 @@ export async function getPublishedPage(slug) {
     console.error(`Failed to fetch page "${slug}":`, error.message);
     return null;
   }
+  // A "show on all pages" chromeless block (Background Music, Back to Top,
+  // ...) still physically lives in whichever page's own block list the
+  // admin dropped it on -- editing it there is what BlockConfigPanel's
+  // toggle actually changes. But rendering it needs to happen exactly once
+  // per page load, via PublicLayout.astro's own getGlobalChromelessBlocks()
+  // call below, not also here on top of that -- otherwise the one page it's
+  // physically stored on would render it twice.
+  if (data?.published_blocks) {
+    data.published_blocks = data.published_blocks.filter((b) => b?.layout?.showOnAllPages !== true);
+  }
   return data;
+}
+
+// Every chromeless block (see registry.js) flagged "Show on all pages" --
+// regardless of which specific page it's actually stored on -- read from the
+// global_chromeless_blocks view (0023_global_chromeless_blocks.sql).
+// PublicLayout.astro renders these once per page load, on every public page,
+// so an admin only has to place one of these blocks somewhere once.
+export async function getGlobalChromelessBlocks() {
+  const { data, error } = await supabaseBuild
+    .from('global_chromeless_blocks')
+    .select('id, type, props, layout');
+  if (error) {
+    console.error('Failed to fetch global blocks:', error.message);
+    return [];
+  }
+  return data || [];
 }
 
 // Builds the site nav tree (builder pages + route/section entries, with

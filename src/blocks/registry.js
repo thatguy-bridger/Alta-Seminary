@@ -12,6 +12,16 @@
 // Every block also carries a `layout` object (spacing/contained/background/anchor) --
 // see DEFAULT_LAYOUT / LAYOUT_FIELDS below -- applied by BlockWrapper.jsx
 // universally, so every block type gets these controls for free.
+//
+// `chromeless: true` on an entry (Background Music, Back to Top, Timed
+// Popup, Site Effect) marks a block that renders no visible content at its
+// position in the page -- see BackgroundMusicBlock.jsx's own comment for the
+// full list of what that skips. Every chromeless block automatically gets a
+// "Show on all pages" layout toggle (BlockConfigPanel.jsx) that, once on,
+// makes it render once on every public page via global_chromeless_blocks
+// (see lib/pages.js / PublicLayout.astro) instead of just the page it's
+// physically stored on.
+import { SITE_EFFECT_PRESET_OPTIONS } from './SiteEffectBlock.jsx';
 
 export const BLOCK_REGISTRY = {
   hero: {
@@ -382,6 +392,53 @@ export const BLOCK_REGISTRY = {
       { key: 'showControls', kind: 'toggle', label: 'Show a play/pause + volume control to visitors' },
       { key: 'position', kind: 'select', label: 'Control position', showIf: (p) => p.showControls, options: [{ value: 'bottom-right', label: 'Bottom right' }, { value: 'bottom-left', label: 'Bottom left' }, { value: 'top-right', label: 'Top right' }, { value: 'top-left', label: 'Top left' }] },
       { key: 'autoplay', kind: 'toggle', label: 'Try to autoplay (most browsers block sound until the visitor interacts with the page at all -- it starts muted and unmutes on their first click/keypress/tap anywhere)' },
+    ],
+  },
+  'back-to-top': {
+    label: 'Back to Top Button',
+    category: 'Utility',
+    icon: 'arrow-up',
+    description: 'A floating button that appears once a visitor has scrolled down and jumps back to the top of the page.',
+    chromeless: true,
+    defaultProps: { position: 'bottom-right', showAfter: 400 },
+    fields: [
+      { key: 'position', kind: 'select', label: 'Position', options: [{ value: 'bottom-right', label: 'Bottom right' }, { value: 'bottom-left', label: 'Bottom left' }] },
+      { key: 'showAfter', kind: 'range', label: 'Show after scrolling', min: 100, max: 2000, step: 50, unit: 'px' },
+    ],
+  },
+  'timed-popup': {
+    label: 'Timed Popup',
+    category: 'Utility',
+    icon: 'megaphone',
+    description: 'An announcement that pops up as a dismissible modal after a delay -- same idea as the Announcement Banner, just harder to miss.',
+    chromeless: true,
+    defaultProps: { heading: '', message: '', tone: 'info', link: '', linkLabel: '', delaySeconds: 3, oncePerVisitor: true },
+    fields: [
+      { key: 'heading', kind: 'text', label: 'Heading (optional)' },
+      { key: 'message', kind: 'text', label: 'Message' },
+      { key: 'tone', kind: 'select', label: 'Tone', options: [{ value: 'info', label: 'Info' }, { value: 'success', label: 'Success' }, { value: 'warning', label: 'Warning' }, { value: 'error', label: 'Urgent' }] },
+      { key: 'link', kind: 'text', label: 'Link URL (optional)', inline: false },
+      { key: 'linkLabel', kind: 'text', label: 'Link label (e.g. "Learn more")', inline: false },
+      { key: 'delaySeconds', kind: 'range', label: 'Show after', min: 0, max: 60, step: 1, unit: 's' },
+      { key: 'oncePerVisitor', kind: 'toggle', label: "Only show once per visitor (remembers via their browser)" },
+    ],
+  },
+  'site-effect': {
+    label: 'Site Effect',
+    category: 'Utility',
+    icon: 'sparkles',
+    description: 'A festive animated overlay across the whole site -- falling snow, confetti, seasonal themes, and more. Purely decorative; never blocks clicking or reading the page.',
+    chromeless: true,
+    defaultProps: { preset: 'snow', customGlyph: '', density: 40, speed: 50, size: 24 },
+    fields: [
+      { key: 'preset', kind: 'select', label: 'Effect', options: SITE_EFFECT_PRESET_OPTIONS },
+      // Deliberately the ONLY visual input this block has -- see
+      // SiteEffectBlock.jsx's own comment on why there's no image/video
+      // option here at all.
+      { key: 'customGlyph', kind: 'text', label: 'Custom emoji or character (just one, e.g. 🦋)', inline: false, showIf: (p) => p.preset === 'custom' },
+      { key: 'density', kind: 'range', label: 'Amount', min: 5, max: 120, step: 5 },
+      { key: 'speed', kind: 'range', label: 'Speed', min: 10, max: 100, step: 5, unit: '%' },
+      { key: 'size', kind: 'range', label: 'Size', min: 10, max: 60, step: 2, unit: 'px' },
     ],
   },
 };

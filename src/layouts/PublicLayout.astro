@@ -2,6 +2,8 @@
 import BaseLayout from './BaseLayout.astro';
 import Header from '../components/site/Header.astro';
 import Footer from '../components/site/Footer.astro';
+import { BlockRenderer } from '../blocks/BlockRenderer.jsx';
+import { getGlobalChromelessBlocks } from '../lib/pages.js';
 
 interface Props {
   title: string;
@@ -13,6 +15,13 @@ interface Props {
 }
 
 const { title, description, ogImage, ogType, publishedTime, structuredData } = Astro.props;
+// Chromeless blocks (Background Music, Back to Top, Timed Popup, Site
+// Effect, ...) flagged "Show on all pages" -- fetched once here so every
+// public page that goes through this shared layout renders them, regardless
+// of which specific page they're actually stored in (see getPublishedPage's
+// own filtering-out of these, in lib/pages.js, so the one page storing it
+// doesn't also render it a second time via its own block list).
+const globalBlocks = await getGlobalChromelessBlocks();
 ---
 
 <BaseLayout title={title} description={description} ogImage={ogImage} ogType={ogType} publishedTime={publishedTime} structuredData={structuredData}>
@@ -22,6 +31,7 @@ const { title, description, ogImage, ogType, publishedTime, structuredData } = A
     <slot />
   </main>
   <Footer />
+  {globalBlocks.length > 0 && <BlockRenderer blocks={globalBlocks} client:load />}
   <div id="not-found-toast" class="not-found-toast" role="status" hidden>
     <span class="not-found-toast__icon" aria-hidden="true">⚠</span>
     <span>That page doesn't exist — it may still be a work in progress. We brought you here instead.</span>

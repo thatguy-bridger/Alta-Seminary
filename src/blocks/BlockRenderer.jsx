@@ -19,6 +19,9 @@ import { GalleryBlock } from './GalleryBlock.jsx';
 import { ContactFormBlock } from './ContactFormBlock.jsx';
 import { FaqBlock } from './FaqBlock.jsx';
 import { BackgroundMusicBlock } from './BackgroundMusicBlock.jsx';
+import { BackToTopBlock } from './BackToTopBlock.jsx';
+import { TimedPopupBlock } from './TimedPopupBlock.jsx';
+import { SiteEffectBlock } from './SiteEffectBlock.jsx';
 import { BlockWrapper } from './BlockWrapper.jsx';
 import { BLOCK_REGISTRY } from './registry.js';
 
@@ -48,13 +51,16 @@ export const BLOCK_COMPONENTS = {
   'contact-form': ContactFormBlock,
   faq: FaqBlock,
   'background-music': BackgroundMusicBlock,
+  'back-to-top': BackToTopBlock,
+  'timed-popup': TimedPopupBlock,
+  'site-effect': SiteEffectBlock,
 };
 
 // teaserData: optional {[blockId]: items[]} map -- pre-fetched server-side by
 // Astro public pages for directory-teaser/events-teaser/posts-teaser blocks (see
 // src/lib/pages.js resolveTeaserData). Admin canvas/preview omit it and let
 // those two block types fetch their own data client-side instead.
-export function BlockRenderer({ blocks, teaserData }) {
+export function BlockRenderer({ blocks, teaserData = {} }) {
   if (!Array.isArray(blocks) || blocks.length === 0) return null;
   return (
     <div>

@@ -202,6 +202,19 @@ export function BlockConfigPanel({ block, onChange, showLayout = true, contextLa
           </div>
         </Card>
       )}
+      {/* A chromeless block skips the normal Layout card above (spacing/
+          background/anchor describe a position on the page it never
+          occupies) but still needs ITS one layout-level setting: whether
+          it's just this page's own copy, or shows up on every public page
+          site-wide (see global_chromeless_blocks / PublicLayout.astro). */}
+      {def.chromeless && showLayout && (
+        <Card title={`${def.label} — Layout`}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-primary)' }}>
+            <Switch checked={!!layout.showOnAllPages} onChange={(e) => setLayout('showOnAllPages', e.target.checked)} />
+            Show on all pages
+          </label>
+        </Card>
+      )}
       {styleFields.length > 0 ? (
         <Card title={effectiveShowLayout ? 'Style' : def.label}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
