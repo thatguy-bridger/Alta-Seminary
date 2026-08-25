@@ -1214,14 +1214,17 @@ function useFireworks(canvasRef, density, speedMul, size, interactive, opacity) 
     // Finale: several rockets launched in quick succession -- Fireworks'
     // own signature moment, on the same random timer every other kind uses
     // (see SiteEffectCanvas -- fireworks runs its own loop, so it schedules
-    // this bit itself instead).
-    const signatureTimer = setInterval(() => {
+    // this bit itself instead). Fired once shortly after mount too, not
+    // only ever starting the 20-38s wait fresh on load.
+    function fireFinale() {
       let i = 0;
       const id = setInterval(() => {
         spawnRocket();
         if (++i >= 5) clearInterval(id);
       }, 180);
-    }, rand(20000, 38000));
+    }
+    const finaleTimeout = setTimeout(fireFinale, 1500);
+    const signatureTimer = setInterval(fireFinale, rand(20000, 38000));
 
     function frame(now) {
       const dt = Math.min(0.032, (now - last) / 1000);
@@ -1273,6 +1276,7 @@ function useFireworks(canvasRef, density, speedMul, size, interactive, opacity) 
       cancelAnimationFrame(raf);
       clearInterval(spawnTimer);
       clearInterval(signatureTimer);
+      clearTimeout(finaleTimeout);
       window.removeEventListener('resize', resize);
       if (interactive) window.removeEventListener('pointerdown', handleClick);
     };
@@ -1377,19 +1381,28 @@ function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind
 
     // The rare full-screen "signature moment" -- every kind that defines
     // one gets its own random 20-40s timer, independent of every other
-    // instance of this block on the page.
+    // instance of this block on the page. Fired once right away too (after
+    // a brief pause for the page to actually settle/paint first), instead
+    // of only ever starting the wait from scratch on load -- a visitor who
+    // doesn't stick around 20+ seconds should still get to see it.
     let signatureTimer;
+    function fireSignature() {
+      if (system.signature) {
+        const { extras: newExtras, flash } = system.signature(window.innerWidth, window.innerHeight) || {};
+        if (newExtras) extras.push(...newExtras);
+        if (flash) { flashColor = flash.color; flashDuration = flash.duration; flashAlpha = 1; }
+      }
+    }
     function scheduleSignature() {
       signatureTimer = setTimeout(() => {
-        if (system.signature) {
-          const { extras: newExtras, flash } = system.signature(window.innerWidth, window.innerHeight) || {};
-          if (newExtras) extras.push(...newExtras);
-          if (flash) { flashColor = flash.color; flashDuration = flash.duration; flashAlpha = 1; }
-        }
+        fireSignature();
         scheduleSignature();
       }, rand(20000, 40000));
     }
-    scheduleSignature();
+    signatureTimer = setTimeout(() => {
+      fireSignature();
+      scheduleSignature();
+    }, 800);
 
     function onPointerMove(e) {
       pointer.x = e.clientX;
