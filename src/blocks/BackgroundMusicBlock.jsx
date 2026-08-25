@@ -76,13 +76,48 @@ export function BackgroundMusicBlock({
   return <LiveBackgroundMusic src={src} volume={volume} loop={loop} autoplay={autoplay} showControls={showControls} position={position} />;
 }
 
+// This is a real multi-page site, not a single-page app -- every navigation
+// tears down and rebuilds the whole document, which would otherwise reset
+// an admin's carefully-set-up background music to 0:00 (or silence
+// entirely) every time a visitor clicks to another page. sessionStorage is
+// what actually survives that: this component saves {src, time, playing}
+// as it plays and on the way out (see the 'pagehide' listener below), and
+// the NEXT page's copy of this same component reads it back on mount to
+// resume from that position instead of starting over. It can't make the
+// audio play gaplessly straight through the page transition itself --
+// nothing running client-side today can do that without turning the whole
+// site into an SPA -- so there's still a brief silent gap while the new
+// page loads, but playback picks back up automatically afterward rather
+// than requiring the visitor to find and press Play again on every page.
+const RESUME_KEY = 'alta-bg-music-state';
+
+function readResumeState(src) {
+  try {
+    const raw = sessionStorage.getItem(RESUME_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw);
+    return state && state.src === src ? state : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeResumeState(src, time, playing) {
+  try {
+    sessionStorage.setItem(RESUME_KEY, JSON.stringify({ src, time, playing }));
+  } catch {
+    // Storage disabled/full -- resuming across pages just silently won't
+    // happen this visit, same as if nothing had been saved at all.
+  }
+}
+
 // Browsers block audio-with-sound from starting before the visitor has
 // interacted with the page at all -- true regardless of any `autoplay`
-// attribute. When `autoplay` is on, this still starts playback immediately
-// but muted (always allowed), then unmutes on the visitor's first
-// click/tap/keypress anywhere on the page, so it's already playing the
-// instant sound is actually permitted instead of waiting for them to find
-// and press the play button themselves.
+// attribute or a resumed-from-a-previous-page state. Either case starts
+// playback immediately but muted (always allowed), then unmutes on the
+// visitor's first click/tap/keypress anywhere on the NEW page, so it's
+// already playing the instant sound is actually permitted instead of
+// waiting for them to find and press the play button themselves.
 function LiveBackgroundMusic({ src, volume, loop, autoplay, showControls, position }) {
   const audioRef = React.useRef(null);
   const [playing, setPlaying] = React.useState(false);
@@ -93,23 +128,54 @@ function LiveBackgroundMusic({ src, volume, loop, autoplay, showControls, positi
 
   React.useEffect(() => {
     const audio = audioRef.current;
-    if (!autoplay || !audio) return;
-    audio.muted = true;
-    audio.play().then(() => setPlaying(true)).catch(() => {});
-    function unlock() {
-      audio.muted = false;
+    if (!audio) return;
+
+    const resumeState = readResumeState(src);
+    // A visitor's own earlier "press Play" on a previous page always wins
+    // over the admin's `autoplay` setting -- resuming what they themselves
+    // started is different from forcing sound on a first-time visitor who
+    // never asked for it.
+    const shouldStart = resumeState?.playing || autoplay;
+    if (resumeState && resumeState.time > 0) audio.currentTime = resumeState.time;
+
+    let cleanupUnlock = () => {};
+    if (shouldStart) {
+      audio.muted = true;
       audio.play().then(() => setPlaying(true)).catch(() => {});
-      document.removeEventListener('pointerdown', unlock);
-      document.removeEventListener('keydown', unlock);
+      const unlock = () => {
+        audio.muted = false;
+        audio.play().then(() => setPlaying(true)).catch(() => {});
+        document.removeEventListener('pointerdown', unlock);
+        document.removeEventListener('keydown', unlock);
+      };
+      document.addEventListener('pointerdown', unlock);
+      document.addEventListener('keydown', unlock);
+      cleanupUnlock = () => {
+        document.removeEventListener('pointerdown', unlock);
+        document.removeEventListener('keydown', unlock);
+      };
     }
-    document.addEventListener('pointerdown', unlock);
-    document.addEventListener('keydown', unlock);
+
+    const saveState = () => writeResumeState(src, audio.currentTime, !audio.paused);
+    const throttledSave = () => { if (Math.floor(audio.currentTime) % 2 === 0) saveState(); };
+    audio.addEventListener('timeupdate', throttledSave);
+    audio.addEventListener('play', saveState);
+    audio.addEventListener('pause', saveState);
+    // 'pagehide' (not 'beforeunload', which also blocks the back/forward
+    // cache) is the reliable "the visitor is navigating away right now"
+    // signal -- this is what lets the NEXT page's mount above find an
+    // accurate, up-to-the-second position to resume from.
+    window.addEventListener('pagehide', saveState);
+
     return () => {
-      document.removeEventListener('pointerdown', unlock);
-      document.removeEventListener('keydown', unlock);
+      cleanupUnlock();
+      audio.removeEventListener('timeupdate', throttledSave);
+      audio.removeEventListener('play', saveState);
+      audio.removeEventListener('pause', saveState);
+      window.removeEventListener('pagehide', saveState);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- set up once per mount; volume/loop have their own effects
-  }, [autoplay]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- set up once per mount (a fresh mount IS a fresh page here); volume/loop have their own effects
+  }, [src]);
 
   function toggle() {
     const audio = audioRef.current;
@@ -117,9 +183,11 @@ function LiveBackgroundMusic({ src, volume, loop, autoplay, showControls, positi
     if (playing) {
       audio.pause();
       setPlaying(false);
+      writeResumeState(src, audio.currentTime, false);
     } else {
       audio.muted = false;
       audio.play().then(() => setPlaying(true)).catch(() => {});
+      writeResumeState(src, audio.currentTime, true);
     }
   }
 
