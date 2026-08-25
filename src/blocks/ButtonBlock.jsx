@@ -22,7 +22,22 @@ const ICONS = {
 
 // Renders as a styled <a>, not a nested <button> inside <a> (invalid HTML) --
 // reuses the exact same .btn/.btn-* classes Button.jsx applies to its <button>.
+// Every real (published) button gets its own random depth tier -- see
+// SiteEffectBlock.jsx's SITE_EFFECT_DEPTH_TIERS, which this must stay in
+// sync with. Picked once per mount (not on every render, which would make a
+// button's stacking flicker/reshuffle on every re-render) via lazy useState
+// init. Only matters when a Site Effect block is also on the page (a
+// button with no such neighbor just gets an unused, harmless z-index) --
+// this is what lets a floating particle end up genuinely above one button
+// but below the next, not just uniformly in front of or behind ALL of them.
+const DEPTH_TIERS = [1, 3, 5];
+function useDepthTier() {
+  const [tier] = React.useState(() => DEPTH_TIERS[Math.floor(Math.random() * DEPTH_TIERS.length)]);
+  return tier;
+}
+
 export function ButtonBlock({ label, href = '#', variant = 'primary', size = 'md', align = 'left', icon = 'none', fullWidth = false, newTab = false, labelStyle, editable, onFieldChange }) {
+  const depthTier = useDepthTier();
   if (!editable && !label) return null;
   const cls = ['btn', 'btn-' + variant, size === 'sm' ? 'btn-sm' : size === 'lg' ? 'btn-lg' : ''].filter(Boolean).join(' ');
   const content = editable ? (
@@ -37,7 +52,7 @@ export function ButtonBlock({ label, href = '#', variant = 'primary', size = 'md
       {editable ? (
         <span className={cls} style={style}>{iconEl}{content}</span>
       ) : (
-        <a href={href} className={cls} style={style} target={newTab ? '_blank' : undefined} rel={newTab ? 'noopener noreferrer' : undefined}>
+        <a href={href} className={cls} style={{ ...style, position: 'relative', zIndex: depthTier }} target={newTab ? '_blank' : undefined} rel={newTab ? 'noopener noreferrer' : undefined}>
           {iconEl}{content}
         </a>
       )}

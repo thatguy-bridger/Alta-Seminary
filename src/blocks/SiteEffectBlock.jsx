@@ -1282,26 +1282,61 @@ function useFireworks(canvasRef, density, speedMul, size, interactive, opacity) 
 const TOUCH_RADIUS = 55;
 const AMBIENT_RADIUS = 90;
 
-// Roughly this share of particles render on the BACK canvas (see below) --
-// tuned so the depth effect reads clearly without half the effect
-// disappearing behind a busy page.
-const BACK_LAYER_SHARE = 0.35;
-function pickLayer() { return Math.random() < BACK_LAYER_SHARE ? 'back' : 'front'; }
+// Four depth tiers, not just "behind everything" / "in front of
+// everything" -- ButtonBlock.jsx gives every real button its own random
+// z-index from {1, 3, 5} (its own DEPTH_TIERS, kept in sync with this list
+// by hand). Slotting a canvas at -1, 2, and 4 interleaves particles
+// BETWEEN individual buttons per CSS's actual stacking rules (a positioned
+// element paints in ascending z-index order among its siblings) -- a
+// z:2 particle sits above any button that happened to land on tier 1, but
+// below one that landed on tier 3 or 5. That's what makes "this bubble
+// floats over one button but under the next" literally true, not just an
+// illusion of two fixed depths. 400 is unchanged from before (still above
+// the mobile nav drawer at 499's little sibling... no, still safely below
+// that and the 1000 dialog overlay, per components.css) -- most particles
+// still end up simply "in front of everything," same as the original design.
+const SITE_EFFECT_DEPTH_TIERS = [
+  { key: 'back', z: -1, weight: 0.3 }, // behind all normal content AND every button
+  { key: 'mid1', z: 2, weight: 0.15 }, // behind buttons on tier 3/5, in front of tier 1 and plain content
+  { key: 'mid2', z: 4, weight: 0.15 }, // behind buttons on tier 5 only
+  { key: 'front', z: 400, weight: 0.4 }, // in front of everything (the original single front layer)
+];
+function pickLayer() {
+  const r = Math.random();
+  let acc = 0;
+  for (const tier of SITE_EFFECT_DEPTH_TIERS) {
+    acc += tier.weight;
+    if (r < acc) return tier.key;
+  }
+  return SITE_EFFECT_DEPTH_TIERS[SITE_EFFECT_DEPTH_TIERS.length - 1].key;
+}
 
 function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind, opacity, interactive }) {
-  const canvasRef = React.useRef(null); // front layer -- above all normal page content, same as before
-  const backCanvasRef = React.useRef(null); // back layer -- see its own z-index comment below
+  // One ref per depth tier, in the same order as SITE_EFFECT_DEPTH_TIERS --
+  // React refs can't be created in a loop, so this is the fixed-arity
+  // equivalent (four tiers, four named refs, each nulled and paired up
+  // below rather than a variable-length array of hooks).
+  const backRef = React.useRef(null);
+  const mid1Ref = React.useRef(null);
+  const mid2Ref = React.useRef(null);
+  const canvasRef = React.useRef(null); // "front" tier -- also what Fireworks alone uses
+  const layerRefs = { back: backRef, mid1: mid1Ref, mid2: mid2Ref, front: canvasRef };
   const isFirework = def.kind === 'firework';
 
   useFireworks(isFirework ? canvasRef : { current: null }, density, speedMul, size, interactive, opacity);
 
   React.useEffect(() => {
     if (isFirework) return;
-    const canvas = canvasRef.current;
-    const backCanvas = backCanvasRef.current;
-    if (!canvas || !backCanvas) return;
-    const ctx = canvas.getContext('2d');
-    const backCtx = backCanvas.getContext('2d');
+    const canvases = {};
+    const ctxs = {};
+    for (const tier of SITE_EFFECT_DEPTH_TIERS) {
+      const el = layerRefs[tier.key].current;
+      if (!el) return;
+      canvases[tier.key] = el;
+      ctxs[tier.key] = el.getContext('2d');
+    }
+    const canvas = canvases.front;
+    const ctx = ctxs.front;
     const system = buildSystem(def, density, speedMul, size, reverseDirection, wind);
     if (!system) return;
     let particles = [];
@@ -1318,19 +1353,18 @@ function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind
     function resize(spawnFull) {
       const dpr = window.devicePixelRatio || 1;
       const w = window.innerWidth, h = window.innerHeight;
-      for (const c of [canvas, backCanvas]) {
+      for (const key of Object.keys(canvases)) {
+        const c = canvases[key];
         c.width = w * dpr;
         c.height = h * dpr;
         c.style.width = `${w}px`;
         c.style.height = `${h}px`;
+        ctxs[key].setTransform(dpr, 0, 0, dpr, 0, 0);
       }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      backCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // Random z-depth: each particle is independently assigned to the back
-      // canvas (behind ordinary page content -- see its z-index below) or
-      // the front one (above everything, the original behavior) right here
-      // at creation, so the same preset simultaneously reads as floating
-      // both behind and in front of different things on the page.
+      // Random z-depth: each particle is independently assigned to one of
+      // the four tiers right here at creation (see SITE_EFFECT_DEPTH_TIERS),
+      // so the same preset simultaneously reads as floating behind, between,
+      // and in front of different buttons/content on the page.
       particles = system.makeAll(w, h, spawnFull).map((p) => Object.assign(p, { layer: pickLayer() }));
     }
     resize(true);
@@ -1416,8 +1450,7 @@ function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind
       const dt = Math.min(0.032, (now - last) / 1000);
       last = now;
       const w = window.innerWidth, h = window.innerHeight;
-      ctx.clearRect(0, 0, w, h);
-      backCtx.clearRect(0, 0, w, h);
+      for (const key of Object.keys(ctxs)) ctxs[key].clearRect(0, 0, w, h);
 
       for (const p of particles) {
         const wasAboveGround = p.y <= h;
@@ -1448,7 +1481,7 @@ function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind
           p.y += p.repelY;
         }
 
-        system.draw(p.layer === 'back' ? backCtx : ctx, p, opacity);
+        system.draw(ctxs[p.layer] || ctx, p, opacity);
       }
 
       extras = extras.filter((e) => {
@@ -1500,21 +1533,19 @@ function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind
 
   return (
     <>
-      {/* A negative z-index puts this canvas behind ordinary in-flow page
-          content (headings, paragraphs, images, cards -- anything that
-          isn't itself explicitly positioned with its own z-index) while
-          still painting on top of the page's own solid background color,
-          per how CSS stacking order actually works: the root's
-          background/borders paint first, THEN negative-z-index
-          descendants, THEN normal in-flow content. Not rendered at all for
-          Fireworks (an aerial show reads as "in front of the whole scene"
-          regardless, so it keeps a single always-on-top canvas). */}
+      {/* One canvas per depth tier (see SITE_EFFECT_DEPTH_TIERS) -- -1 and
+          the two low positive values (2, 4) interleave with buttons'
+          own random {1,3,5} z-index (ButtonBlock.jsx) so a particle can
+          genuinely sit above one button and below the next, not just
+          uniformly behind or in front of everything. Not rendered at all
+          for Fireworks, which keeps a single always-on-top canvas (an
+          aerial show reads as "in front of the whole scene" regardless). */}
       {!isFirework && (
-        <canvas
-          ref={backCanvasRef}
-          aria-hidden="true"
-          style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none' }}
-        />
+        <>
+          <canvas ref={backRef} aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none' }} />
+          <canvas ref={mid1Ref} aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 2, pointerEvents: 'none' }} />
+          <canvas ref={mid2Ref} aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 4, pointerEvents: 'none' }} />
+        </>
       )}
       <canvas
         ref={canvasRef}
