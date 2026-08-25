@@ -1,0 +1,41 @@
+---
+// A genuine standalone page, loaded into a real <iframe> by the Preview tab
+// in PageBuilderScreen.jsx -- see DraftPreviewBody.jsx for why that matters
+// (vw-based fluid font sizing needs a REAL browser viewport to size against,
+// which a width-constrained <div> in the same document never had).
+//
+// Deliberately its own light shell rather than reusing PublicLayout.astro
+// directly: PublicLayout also fetches and renders every site-wide
+// "Show on all pages" chromeless block (Background Music, Site Effect,
+// Timed Popup, ...), which would mean autoplaying audio or a confetti
+// overlay firing inside this small preview frame on every edit -- accurate
+// to a real visitor's experience, but distracting busywork while editing a
+// single block. Header/Footer are kept (real nav, real footer, real global
+// CSS) since those genuinely affect how a page reads in context.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/site/Header.astro';
+import Footer from '../../components/site/Footer.astro';
+import { DraftPreviewBody } from '../../admin-app/builder/DraftPreviewBody.jsx';
+---
+
+<BaseLayout title="Preview" noindex>
+  <Header />
+  <main class="site-main" id="main-content">
+    <DraftPreviewBody client:only="react" />
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>
+  /* Same sizing as PublicLayout.astro's own .site-main -- without this the
+     preview's content column wouldn't match the real site's width/padding,
+     undermining the entire point of this being a "true mock". */
+  .site-main {
+    flex: 1;
+    width: 100%;
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: var(--space-8) var(--space-6);
+    container-type: inline-size;
+  }
+</style>

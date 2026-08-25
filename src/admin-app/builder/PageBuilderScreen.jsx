@@ -1,7 +1,6 @@
 import React from 'react';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
 import { createBlock, BLOCK_REGISTRY } from '../../blocks/registry.js';
-import { BlockRenderer } from '../../blocks/BlockRenderer.jsx';
 import { EditableCanvas } from './EditableCanvas.jsx';
 import { BlockConfigPanel } from './BlockConfigPanel.jsx';
 import { AddBlockButton } from './AddBlockButton.jsx';
@@ -71,6 +70,9 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const [toast, setToast] = React.useState(null);
   const modKeyLabel = useModKeyLabel();
   const [previewDevice, setPreviewDevice] = React.useState('Desktop');
+  const [customPreviewWidth, setCustomPreviewWidth] = React.useState(null); // non-null while dragging the resize handle -- see the Preview tab below
+  const previewFrameRef = React.useRef(null);
+  const previewFrameReady = React.useRef(false);
   const [publishMode, setPublishMode] = React.useState('now');
   const [scheduleAt, setScheduleAt] = React.useState('');
   const [unpublishAt, setUnpublishAt] = React.useState('');
@@ -208,6 +210,38 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [view, selectedId, blocks]);
+
+  // Feeds the current draft blocks into the Preview tab's <iframe> (see
+  // preview-frame.astro / DraftPreviewBody.jsx) over postMessage, instead of
+  // the iframe fetching them itself -- this is what makes the preview
+  // reflect exactly what's on screen right now, including changes autosave
+  // hasn't written to the database yet. `previewFrameReady` guards against
+  // posting before the iframe's own listener has actually mounted (a real
+  // race with client:only), and gets reset to false on every load so a
+  // width-preset change (which reassigns iframe src="about:blank" briefly in
+  // some browsers, or just re-navigates) waits for a fresh ready signal
+  // instead of posting into a frame that already navigated away.
+  function postBlocksToPreview() {
+    if (!previewFrameReady.current) return;
+    previewFrameRef.current?.contentWindow?.postMessage({ type: 'alta-preview-blocks', blocks }, window.location.origin);
+  }
+  React.useEffect(() => {
+    if (view !== 'Preview') return;
+    function onMessage(event) {
+      if (event.source !== previewFrameRef.current?.contentWindow || event.origin !== window.location.origin) return;
+      if (event.data?.type === 'alta-preview-ready') {
+        previewFrameReady.current = true;
+        postBlocksToPreview();
+      }
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- postBlocksToPreview reads the latest `blocks` itself; this effect only needs to (re)run on view/frame identity
+  }, [view]);
+  React.useEffect(() => {
+    postBlocksToPreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately re-posts on every blocks change, using whatever's ready at call time
+  }, [blocks]);
 
   // Selecting several photos at once in an Image block's file picker (see
   // EditableImage's `multiple` mode): the first becomes this block's own
@@ -519,43 +553,83 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
           </div>
         ) : (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-4)', flexWrap: 'wrap' }}>
               {Object.keys(DEVICE_WIDTHS).map((device) => (
-                <Button key={device} variant={previewDevice === device ? 'primary' : 'outline'} size="sm" onClick={() => setPreviewDevice(device)}>
+                <Button
+                  key={device}
+                  variant={!customPreviewWidth && previewDevice === device ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => { setPreviewDevice(device); setCustomPreviewWidth(null); }}
+                >
                   {device}
                 </Button>
               ))}
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', marginLeft: 'var(--space-2)' }}>
+                {customPreviewWidth ? `${Math.round(customPreviewWidth)}px — drag the handle to resize` : 'or drag the handle on the right edge for a custom width'}
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <div
                 style={{
-                  width: DEVICE_WIDTHS[previewDevice] || '100%',
+                  width: customPreviewWidth ?? (DEVICE_WIDTHS[previewDevice] || '100%'),
                   maxWidth: '100%',
-                  border: previewDevice === 'Desktop' ? '1px solid var(--border-subtle)' : '8px solid var(--text-primary)',
-                  borderRadius: previewDevice === 'Desktop' ? 'var(--radius-lg)' : 'var(--radius-xl, 32px)',
+                  position: 'relative',
+                  border: !customPreviewWidth && previewDevice === 'Desktop' ? '1px solid var(--border-subtle)' : '8px solid var(--text-primary)',
+                  borderRadius: !customPreviewWidth && previewDevice === 'Desktop' ? 'var(--radius-lg)' : 'var(--radius-xl, 32px)',
                   background: 'var(--surface-page)',
                   overflow: 'hidden',
-                  transition: 'width var(--duration-standard)',
-                  // Blocks' own responsive CSS reacts to @container, not
-                  // @media (see components.css) -- without this, the frame
-                  // can look narrow while every block still renders its
-                  // desktop layout, since @media only ever sees the real
-                  // (full-width admin) browser window, never this div's width.
-                  containerType: 'inline-size',
+                  transition: customPreviewWidth ? 'none' : 'width var(--duration-standard)',
                 }}
               >
-                {previewDevice === 'Mobile' && (
+                {!customPreviewWidth && previewDevice === 'Mobile' && (
                   <div style={{ height: 18, background: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ width: 60, height: 5, borderRadius: 3, background: 'var(--surface-page)' }} />
                   </div>
                 )}
-                {/* overflowX explicit -- setting overflowY without it makes a
-                    browser compute overflow-x as its own independent 'auto'
-                    (a CSS quirk), so this div could show its own sideways
-                    scrollbar for wide content even though the frame around
-                    it already has overflow:hidden. */}
-                <div style={{ padding: 'var(--space-8)', maxHeight: '80vh', overflowY: 'auto', overflowX: 'hidden' }}>
-                  <BlockRenderer blocks={blocks} />
+                {/* A genuine <iframe>, not BlockRenderer re-rendered into a
+                    width-constrained div in this same document -- every
+                    block's fluid font-size is computed off `vw` units,
+                    which only ever measure the REAL browser viewport. A
+                    narrowed div never actually changed what `vw` resolved
+                    to, so text silently stayed desktop-sized (and overflowed)
+                    no matter which device preset was picked. An iframe has
+                    its OWN real viewport, so `vw`-based sizing responds
+                    exactly like it would on an actual phone -- see
+                    preview-frame.astro / DraftPreviewBody.jsx for the other
+                    half of this (it receives the current draft blocks over
+                    postMessage, not a database read, so it's always exactly
+                    up to date with what's on screen right now). */}
+                <iframe
+                  ref={previewFrameRef}
+                  src={withBase('/admin/preview-frame')}
+                  title="Page preview"
+                  onLoad={() => { previewFrameReady.current = false; }}
+                  style={{ width: '100%', height: '80vh', border: 'none', display: 'block', background: 'var(--surface-page)' }}
+                />
+                <div
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    const startX = e.clientX;
+                    const frameEl = e.currentTarget.parentElement;
+                    const startWidth = customPreviewWidth ?? frameEl.getBoundingClientRect().width;
+                    function onMove(ev) {
+                      setCustomPreviewWidth(Math.max(280, Math.min(1600, startWidth + (ev.clientX - startX))));
+                    }
+                    function onUp() {
+                      window.removeEventListener('pointermove', onMove);
+                      window.removeEventListener('pointerup', onUp);
+                    }
+                    window.addEventListener('pointermove', onMove);
+                    window.addEventListener('pointerup', onUp);
+                  }}
+                  title="Drag to resize the preview to a custom width"
+                  style={{
+                    position: 'absolute', top: 0, right: 0, bottom: 0, width: 14,
+                    cursor: 'ew-resize', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'transparent',
+                  }}
+                >
+                  <div style={{ width: 4, height: 40, borderRadius: 2, background: 'var(--border-subtle)' }} />
                 </div>
               </div>
             </div>
