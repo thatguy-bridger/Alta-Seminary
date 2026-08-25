@@ -1,31 +1,33 @@
 import React from 'react';
-import { BlockIcon } from '../admin-app/builder/blockIcons.jsx';
 
-// Every preset renders as one of a handful of particle "kinds" -- weather-app
-// style layered/blurred/glowing shapes for the atmospheric ones (snow, rain,
-// sparkle, bubbles, fireworks), small hand-drawn gradient vector shapes for
-// the ones worth being genuinely pretty (leaves, petals, hearts, shamrocks,
-// confetti), and real emoji for everything that already looks great as
-// exactly what it is (a pumpkin, a ghost, a graduation cap, ...) -- redrawing
-// those would just be more code for a worse result. `customGlyph` (the
-// "Custom emoji…" option) always renders through the plain emoji kind, same
-// as any of the built-in emoji presets.
+// Rendered on a single <canvas> (see SiteEffectLive below), not DOM+CSS
+// spans -- this rewrite followed a look at how real particle-effect
+// libraries actually do it (tsParticles' snow/fireworks presets,
+// canvas-confetti): canvas is what lets hundreds of particles move smoothly
+// with real glow/gradients, and -- the actual point of switching -- it's
+// what makes an "instant, already-populated" scene possible. The old
+// DOM/CSS-keyframe version always started every particle off-screen at one
+// edge with a random animation-delay, which reads as a slow "things
+// trickling in" loading moment before the effect looks full. Canvas
+// particles are seeded across the ENTIRE height on the very first frame
+// (see initParticles below) and just wrap around forever after that, so the
+// effect is fully there the instant it mounts.
 export const SITE_EFFECT_PRESETS = {
   snow: { kind: 'snow', label: 'Snow' },
   rain: { kind: 'rain', label: 'Rain' },
   leaves: { kind: 'leaf', label: 'Autumn Leaves' },
   petals: { kind: 'petal', label: 'Spring Petals' },
-  sparkle: { kind: 'sparkle', palette: ['#fff6cf', '#ffe9a8', '#ffffff'], label: 'Summer Sparkle' },
+  sparkle: { kind: 'glint', palette: ['#fff6cf', '#ffe9a8', '#ffffff'], label: 'Summer Sparkle' },
   bubbles: { kind: 'bubble', label: 'Bubbles' },
   butterflies: { kind: 'emoji', glyph: '🦋', label: 'Butterflies' },
-  fireflies: { kind: 'sparkle', palette: ['#e8ff9e', '#c6f26a', '#fff9d0'], label: 'Fireflies', ambient: true },
+  fireflies: { kind: 'glint', palette: ['#e8ff9e', '#c6f26a', '#fff9d0'], label: 'Fireflies', ambient: true },
   confetti: { kind: 'confetti', label: 'Confetti' },
   balloons: { kind: 'emoji', glyph: '🎈', label: 'Balloons', direction: 'up' },
   hearts: { kind: 'heart', label: "Hearts (Valentine's)" },
   shamrocks: { kind: 'shamrock', label: "Shamrocks (St. Patrick's)" },
   eggs: { kind: 'emoji', glyph: '🥚', label: 'Easter Eggs' },
   fireworks: { kind: 'firework', label: 'Fireworks (4th of July)' },
-  stars: { kind: 'sparkle', palette: ['#ffffff', '#dfe7ff', '#c7d2ff'], label: 'Stars' },
+  stars: { kind: 'glint', palette: ['#ffffff', '#dfe7ff', '#c7d2ff'], label: 'Stars', ambient: true },
   pumpkins: { kind: 'emoji', glyph: '🎃', label: 'Pumpkins (Halloween)' },
   bats: { kind: 'emoji', glyph: '🦇', label: 'Bats (Halloween)' },
   ghosts: { kind: 'emoji', glyph: '👻', label: 'Ghosts (Halloween)' },
@@ -41,21 +43,21 @@ export const SITE_EFFECT_PRESET_OPTIONS = [
   { value: 'custom', label: 'Custom emoji…' },
 ];
 
-const PREVIEW_GLYPH = { snow: '❄️', rain: '🌧️', sparkle: '✨', bubble: '🫧', confetti: '🎊', firework: '🎆', leaf: '🍂', petal: '🌸', heart: '💕', shamrock: '☘️' };
+const PREVIEW_GLYPH = { snow: '❄️', rain: '🌧️', glint: '✨', bubble: '🫧', confetti: '🎊', firework: '🎆', leaf: '🍂', petal: '🌸', heart: '💕', shamrock: '☘️' };
 
 // Chromeless (registry.js) -- a purely decorative animated overlay across
 // the whole site. Deliberately built so an admin CAN'T turn this into a
 // full-bleed background image/video sitting on top of the page, which was
 // an explicit ask, not an oversight:
 //   - No image/video/file field exists on this block at all -- every preset
-//     is either an emoji glyph or one of a handful of small CSS/SVG shapes.
-//   - The overlay container is always `pointer-events: none`, so it can
-//     never block a click or a tap regardless of any setting here.
+//     is either an emoji glyph or one of a handful of hand-drawn canvas shapes.
+//   - The canvas is always `pointer-events: none`, so it can never block a
+//     click or a tap regardless of any setting here.
 //   - Density and size are both hard-capped (see the clamps below)
 //     independent of whatever's actually stored, so a bad/stale value can't
 //     produce enough coverage to read as a solid layer.
-//   - The container itself never gets a background color/image of its own --
-//     only small individual particles move across a fully transparent field.
+//   - Nothing here ever paints a background color/image across the canvas --
+//     only small individual particles on an otherwise fully transparent one.
 export function SiteEffectBlock({ preset = 'snow', customGlyph = '', density = 40, speed = 50, size = 24, editable }) {
   const isCustom = preset === 'custom';
   const def = isCustom ? { kind: 'emoji', glyph: customGlyph || '✨', label: 'Custom' } : (SITE_EFFECT_PRESETS[preset] || SITE_EFFECT_PRESETS.snow);
@@ -72,7 +74,7 @@ export function SiteEffectBlock({ preset = 'snow', customGlyph = '', density = 4
             Site Effect — {def.label}
           </div>
           <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
-            Drifts across every page on the live site — a decorative overlay that never blocks clicking or reading. Doesn't take up space here in the block list.
+            Fills the whole screen on every page on the live site — a decorative overlay that never blocks clicking or reading. Doesn't take up space here in the block list.
           </div>
         </div>
       </div>
@@ -83,411 +85,589 @@ export function SiteEffectBlock({ preset = 'snow', customGlyph = '', density = 4
   const clampedDensity = Math.max(5, Math.min(120, density));
   const clampedSize = Math.max(10, Math.min(60, size));
   const clampedSpeed = Math.max(10, Math.min(100, speed));
-  return <SiteEffectLive def={def} density={clampedDensity} speed={clampedSpeed} size={clampedSize} />;
+  return <SiteEffectCanvas def={def} density={clampedDensity} speed={clampedSpeed} size={clampedSize} />;
 }
 
-// The falling kinds sway gently side to side on the way down (four waypoints,
-// not just a straight start->end line) instead of a flat linear drift --
-// real snow/leaves/petals never fall in a perfectly straight diagonal, and
-// the wobble is most of what makes this read as "designed" instead of "css
-// demo". Rotation direction is randomized per particle (--spin) so a batch
-// never all spins the same way. Rain intentionally does NOT use this --
-// real rain falls fast and essentially straight, see its own keyframe.
-const KEYFRAMES = `
-  @keyframes site-effect-sway {
-    0%   { transform: translate(0, -10vh) rotate(0deg); opacity: 0; }
-    8%   { opacity: var(--peak, 0.9); }
-    28%  { transform: translate(calc(var(--drift) * 0.35), 22vh) rotate(calc(var(--spin) * 90deg)); }
-    52%  { transform: translate(calc(var(--drift) * -0.25), 52vh) rotate(calc(var(--spin) * 190deg)); }
-    76%  { transform: translate(calc(var(--drift) * 0.6), 82vh) rotate(calc(var(--spin) * 300deg)); }
-    92%  { opacity: var(--peak, 0.9); }
-    100% { transform: translate(var(--drift), 110vh) rotate(calc(var(--spin) * 360deg)); opacity: 0; }
+function rand(min, max) { return min + Math.random() * (max - min); }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// --- Per-kind particle factories -------------------------------------
+// Each returns { init(w,h,spawnFull), step(p,dt,w,h), draw(ctx,p) }.
+// `init`'s spawnFull=true (only used the very first time, and again after a
+// resize) seeds `p.y` (or `p.top`, for ambient kinds) anywhere across the
+// FULL height/viewport instead of just above it -- that's the whole fix for
+// "instant effects, no loading wait". Every subsequent respawn (wrapping
+// after leaving the screen) uses spawnFull=false, which puts it back at the
+// proper off-screen edge, exactly like real snow/rain/confetti continuously
+// replenishing itself.
+
+// `dt` throughout this file is in SECONDS (the RAF loops below convert once
+// per frame), so every velocity here is a plain px/second or radians/second
+// -- no ad-hoc per-frame fudge factors. Horizontal sway is computed fresh
+// each frame as `baseX + sin(...)`, an OFFSET from a fixed anchor, not
+// accumulated by `+=` every frame -- accumulating it would have compounded
+// forever into runaway horizontal drift instead of a bounded side-to-side sway.
+function fallFactory({ speed, size, sway = 40, spin = true }) {
+  return {
+    make(w, h, spawnFull) {
+      const duration = rand(9, 16) * (1 - (speed / 100) * 0.55); // seconds to cross the full height
+      const baseX = rand(0, w);
+      return {
+        baseX, x: baseX,
+        y: spawnFull ? rand(-size, h) : -rand(size, size * 2),
+        vy: h / duration,
+        swayAmp: rand(sway * 0.4, sway),
+        swayFreq: rand(0.3, 0.8),
+        phase: rand(0, Math.PI * 2),
+        rot: rand(0, Math.PI * 2),
+        rotSpeed: spin ? rand(-1.4, 1.4) : 0,
+        scale: rand(0.7, 1.3),
+        t: 0,
+      };
+    },
+    step(p, dt, w, h) {
+      p.t += dt;
+      p.y += p.vy * dt;
+      p.x = p.baseX + Math.sin(p.t * p.swayFreq + p.phase) * p.swayAmp;
+      p.rot += p.rotSpeed * dt;
+      if (p.y > h + size * 2) return true; // needs respawn
+      return false;
+    },
+  };
+}
+
+function riseFactory({ speed, size, sway = 30 }) {
+  return {
+    make(w, h, spawnFull) {
+      const duration = rand(10, 16) * (1 - (speed / 100) * 0.5);
+      const baseX = rand(0, w);
+      return {
+        baseX, x: baseX,
+        y: spawnFull ? rand(0, h + size) : h + rand(size, size * 2),
+        vy: -h / duration,
+        swayAmp: rand(sway * 0.4, sway),
+        swayFreq: rand(0.2, 0.6),
+        phase: rand(0, Math.PI * 2),
+        scale: rand(0.6, 1.3),
+        t: 0,
+      };
+    },
+    step(p, dt, w, h) {
+      p.t += dt;
+      p.y += p.vy * dt;
+      p.x = p.baseX + Math.sin(p.t * p.swayFreq + p.phase) * p.swayAmp;
+      if (p.y < -size * 2) return true;
+      return false;
+    },
+  };
+}
+
+function ambientFactory({ drift = 0 }) {
+  return {
+    make(w, h) {
+      return {
+        x: rand(0, w),
+        y: rand(0, h),
+        vx: rand(-drift, drift),
+        vy: rand(-drift, drift),
+        twinklePhase: rand(0, Math.PI * 2),
+        twinkleSpeed: rand(0.6, 1.4),
+        scale: rand(0.6, 1.3),
+        t: rand(0, 10),
+      };
+    },
+    step(p, dt, w, h) {
+      p.t += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.x < -10) p.x = w + 10;
+      if (p.x > w + 10) p.x = -10;
+      if (p.y < -10) p.y = h + 10;
+      if (p.y > h + 10) p.y = -10;
+      return false;
+    },
+  };
+}
+
+// --- Drawing routines ---------------------------------------------------
+// Real vector shapes drawn with actual bezier curves + gradients + glow,
+// not font glyphs -- this is what makes Leaves/Petals/Hearts/Shamrocks look
+// like a designed graphic instead of a repeated emoji.
+
+function drawLeaf(ctx, p, size) {
+  const s = size * p.scale;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.rot);
+  const g = ctx.createLinearGradient(-s / 2, -s / 2, s / 2, s / 2);
+  g.addColorStop(0, p.c1);
+  g.addColorStop(1, p.c2);
+  ctx.fillStyle = g;
+  ctx.shadowColor = p.c2;
+  ctx.shadowBlur = s * 0.35;
+  ctx.beginPath();
+  ctx.moveTo(0, -s / 2);
+  ctx.bezierCurveTo(s / 2, -s / 3, s / 2, s / 4, 0, s / 2);
+  ctx.bezierCurveTo(-s / 2, s / 4, -s / 2, -s / 3, 0, -s / 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = Math.max(0.6, s * 0.03);
+  ctx.beginPath();
+  ctx.moveTo(0, -s / 2.1);
+  ctx.lineTo(0, s / 2.1);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPetal(ctx, p, size) {
+  const s = size * p.scale;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.rot);
+  const g = ctx.createRadialGradient(0, -s * 0.15, s * 0.05, 0, 0, s * 0.6);
+  g.addColorStop(0, p.c1);
+  g.addColorStop(1, p.c2);
+  ctx.fillStyle = g;
+  ctx.shadowColor = p.c2;
+  ctx.shadowBlur = s * 0.3;
+  ctx.beginPath();
+  ctx.moveTo(0, -s / 2);
+  ctx.quadraticCurveTo(s / 2.2, -s / 6, 0, s / 2);
+  ctx.quadraticCurveTo(-s / 2.2, -s / 6, 0, -s / 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawHeart(ctx, p, size) {
+  const s = size * p.scale * (1 + Math.sin(p.t * 3) * 0.06);
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.rot * 0.3);
+  const g = ctx.createLinearGradient(0, -s / 2, 0, s / 2);
+  g.addColorStop(0, p.c1);
+  g.addColorStop(1, p.c2);
+  ctx.fillStyle = g;
+  ctx.shadowColor = p.c2;
+  ctx.shadowBlur = s * 0.4;
+  ctx.beginPath();
+  ctx.moveTo(0, s * 0.35);
+  ctx.bezierCurveTo(-s * 0.55, -s * 0.15, -s * 0.3, -s * 0.55, 0, -s * 0.18);
+  ctx.bezierCurveTo(s * 0.3, -s * 0.55, s * 0.55, -s * 0.15, 0, s * 0.35);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawShamrock(ctx, p, size) {
+  const s = size * p.scale;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.rot);
+  const g = ctx.createLinearGradient(-s / 2, -s / 2, s / 2, s / 2);
+  g.addColorStop(0, p.c1);
+  g.addColorStop(1, p.c2);
+  ctx.fillStyle = g;
+  ctx.shadowColor = p.c2;
+  ctx.shadowBlur = s * 0.3;
+  const leafR = s * 0.28;
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 - Math.PI / 2;
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(a) * leafR * 0.9, Math.sin(a) * leafR * 0.9, leafR, leafR * 0.75, a, 0, Math.PI * 2);
+    ctx.fill();
   }
-  @keyframes site-effect-rain {
-    0% { transform: translateY(-10vh) translateX(0); opacity: 0; }
-    5% { opacity: var(--peak, 0.75); }
-    92% { opacity: var(--peak, 0.75); }
-    100% { transform: translateY(108vh) translateX(var(--drift)); opacity: 0; }
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = p.c2;
+  ctx.lineWidth = Math.max(1, s * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(0, leafR * 0.6);
+  ctx.lineTo(0, s * 0.55);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Two depth layers: crisp 6-branch crystal flakes up close, soft round
+// bokeh circles farther back -- the actual "designed" snow look, rather
+// than one repeated shape.
+function drawSnow(ctx, p, size) {
+  const s = size * p.scale;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  if (p.far) {
+    ctx.filter = `blur(${s * 0.12}px)`;
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 0.5);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.rotate(p.rot);
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = Math.max(0.8, s * 0.06);
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = s * 0.3;
+    for (let i = 0; i < 6; i++) {
+      ctx.save();
+      ctx.rotate((i / 6) * Math.PI * 2);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, s * 0.5);
+      ctx.moveTo(0, s * 0.28);
+      ctx.lineTo(s * 0.12, s * 0.4);
+      ctx.moveTo(0, s * 0.28);
+      ctx.lineTo(-s * 0.12, s * 0.4);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
-  @keyframes site-effect-bubble {
-    0%   { transform: translate(0, 0) scale(0.7); opacity: 0; }
-    10%  { opacity: var(--peak, 0.85); }
-    40%  { transform: translate(calc(var(--drift) * 0.4), -45vh) scale(0.95); }
-    75%  { transform: translate(calc(var(--drift) * -0.3), -85vh) scale(1.05); }
-    88%  { opacity: var(--peak, 0.85); }
-    100% { transform: translate(var(--drift), -115vh) scale(1.05); opacity: 0; }
+  ctx.restore();
+}
+
+function drawRain(ctx, p, size) {
+  ctx.save();
+  ctx.strokeStyle = p.far ? 'rgba(170,205,255,0.35)' : 'rgba(190,220,255,0.85)';
+  ctx.lineWidth = p.far ? 1 : 1.8;
+  ctx.lineCap = 'round';
+  const len = size * (p.far ? 1.1 : 1.9);
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y);
+  ctx.lineTo(p.x + len * 0.18, p.y + len);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBubble(ctx, p, size) {
+  const s = size * p.scale;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  const g = ctx.createRadialGradient(-s * 0.15, -s * 0.2, s * 0.05, 0, 0, s * 0.5);
+  g.addColorStop(0, 'rgba(255,255,255,0.55)');
+  g.addColorStop(0.7, 'rgba(160,220,255,0.15)');
+  g.addColorStop(1, 'rgba(160,220,255,0.03)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, s * 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.arc(-s * 0.18, -s * 0.2, s * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawConfetti(ctx, p, size) {
+  const s = size * p.scale;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.rot);
+  ctx.scale(Math.cos(p.rot * 2) || 0.05, 1); // simulated paper-flip tumble
+  ctx.fillStyle = p.color;
+  if (p.shape === 'circle') {
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (p.shape === 'triangle') {
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.25);
+    ctx.lineTo(s * 0.22, s * 0.2);
+    ctx.lineTo(-s * 0.22, s * 0.2);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    ctx.fillRect(-s * 0.18, -s * 0.32, s * 0.36, s * 0.64);
   }
-  @keyframes site-effect-twinkle {
-    0%, 100% { opacity: 0.12; transform: scale(0.6) rotate(0deg); }
-    50%      { opacity: 1; transform: scale(1.15) rotate(45deg); }
+  ctx.restore();
+}
+
+// A 4-point glint star drawn as two crossed diamonds -- used for Summer
+// Sparkle/Fireflies/Stars, distinguished by palette + whether they drift.
+function drawGlint(ctx, p) {
+  const alpha = 0.15 + Math.abs(Math.sin(p.t * p.twinkleSpeed + p.twinklePhase)) * 0.85;
+  const s = 10 * p.scale * (0.6 + alpha * 0.5);
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = p.color;
+  ctx.shadowColor = p.color;
+  ctx.shadowBlur = s * 1.4;
+  ctx.beginPath();
+  ctx.moveTo(0, -s);
+  ctx.quadraticCurveTo(s * 0.15, -s * 0.15, s, 0);
+  ctx.quadraticCurveTo(s * 0.15, s * 0.15, 0, s);
+  ctx.quadraticCurveTo(-s * 0.15, s * 0.15, -s, 0);
+  ctx.quadraticCurveTo(-s * 0.15, -s * 0.15, 0, -s);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawEmoji(ctx, p, glyph, size) {
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.rot * 0.4);
+  ctx.font = `${size * p.scale}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(glyph, 0, 0);
+  ctx.restore();
+}
+
+const LEAF_PALETTES = [['#f4a534', '#c1440e'], ['#e8c547', '#a6631a'], ['#d9713c', '#7a2e12']];
+const PETAL_PALETTES = [['#ffe3ee', '#f582b0'], ['#fff0f5', '#e69bc4'], ['#ffe9f2', '#d873a8']];
+const HEART_PALETTES = [['#ff9bb3', '#e8385c'], ['#ffc2d1', '#c81e4a'], ['#ff7a99', '#a01238']];
+const SHAMROCK_PALETTES = [['#8fe08f', '#1c7a3c'], ['#b6f0a8', '#2e8b46']];
+const CONFETTI_SHAPES = ['rect', 'circle', 'triangle'];
+
+// Sets up (and later restores) one particle system per canvas mount, based
+// on `def.kind`. `resize` re-seeds every particle with spawnFull=true, so
+// the "instant, already-populated" scene holds true even if the browser
+// window is resized mid-effect, not just on first mount.
+function buildSystem(def, density, speed, size) {
+  switch (def.kind) {
+    case 'snow': {
+      const near = fallFactory({ speed, size, sway: 30 });
+      const far = fallFactory({ speed: speed * 1.4, size: size * 1.3, sway: 45 });
+      const nearCount = Math.round(density * 0.4);
+      return {
+        makeAll(w, h, spawnFull) {
+          return [
+            ...Array.from({ length: nearCount }, () => ({ ...near.make(w, h, spawnFull), far: false, factory: near })),
+            ...Array.from({ length: density - nearCount }, () => ({ ...far.make(w, h, spawnFull), far: true, factory: far })),
+          ];
+        },
+        step: (p, dt, w, h) => p.factory.step(p, dt, w, h),
+        respawn: (p, w, h) => Object.assign(p, p.factory.make(w, h, false), { far: p.far, factory: p.factory }),
+        draw: (ctx, p) => drawSnow(ctx, p, size),
+      };
+    }
+    case 'rain': {
+      const near = fallFactory({ speed: speed * 2.2, size, sway: 3, spin: false });
+      const far = fallFactory({ speed: speed * 2.8, size: size * 0.8, sway: 2, spin: false });
+      const nearCount = Math.round(density * 0.45);
+      return {
+        makeAll(w, h, spawnFull) {
+          return [
+            ...Array.from({ length: nearCount }, () => ({ ...near.make(w, h, spawnFull), far: false, factory: near })),
+            ...Array.from({ length: density - nearCount }, () => ({ ...far.make(w, h, spawnFull), far: true, factory: far })),
+          ];
+        },
+        step: (p, dt, w, h) => p.factory.step(p, dt, w, h),
+        respawn: (p, w, h) => Object.assign(p, p.factory.make(w, h, false), { far: p.far, factory: p.factory }),
+        draw: (ctx, p) => drawRain(ctx, p, size),
+      };
+    }
+    case 'leaf':
+    case 'petal':
+    case 'heart':
+    case 'shamrock': {
+      const factory = fallFactory({ speed, size, sway: 50 });
+      const palette = { leaf: LEAF_PALETTES, petal: PETAL_PALETTES, heart: HEART_PALETTES, shamrock: SHAMROCK_PALETTES }[def.kind];
+      const drawFn = { leaf: drawLeaf, petal: drawPetal, heart: drawHeart, shamrock: drawShamrock }[def.kind];
+      return {
+        makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => {
+          const [c1, c2] = pick(palette);
+          return { ...factory.make(w, h, spawnFull), c1, c2 };
+        }),
+        step: (p, dt, w, h) => factory.step(p, dt, w, h),
+        respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false), { c1: p.c1, c2: p.c2 }),
+        draw: (ctx, p) => drawFn(ctx, p, size),
+      };
+    }
+    case 'confetti': {
+      const factory = fallFactory({ speed, size, sway: 55 });
+      return {
+        makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => ({
+          ...factory.make(w, h, spawnFull), color: `hsl(${Math.round(rand(0, 360))} 85% 62%)`, shape: pick(CONFETTI_SHAPES),
+        })),
+        step: (p, dt, w, h) => factory.step(p, dt, w, h),
+        respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false), { color: p.color, shape: p.shape }),
+        draw: (ctx, p) => drawConfetti(ctx, p, size),
+      };
+    }
+    case 'bubble': {
+      const factory = riseFactory({ speed, size, sway: 40 });
+      return {
+        makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => factory.make(w, h, spawnFull)),
+        step: (p, dt, w, h) => factory.step(p, dt, w, h),
+        respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false)),
+        draw: (ctx, p) => drawBubble(ctx, p, size),
+      };
+    }
+    case 'glint': {
+      const factory = ambientFactory({ drift: def.ambient ? 12 : 0 });
+      return {
+        makeAll: (w, h) => Array.from({ length: Math.round(density * 0.6) }, () => ({ ...factory.make(w, h), color: pick(def.palette) })),
+        step: (p, dt, w, h) => factory.step(p, dt, w, h),
+        respawn: () => {},
+        draw: (ctx, p) => drawGlint(ctx, p),
+      };
+    }
+    case 'emoji': {
+      const factory = fallFactory({ speed, size, sway: 45 });
+      const riser = def.direction === 'up' ? riseFactory({ speed, size, sway: 35 }) : null;
+      const use = riser || factory;
+      return {
+        makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => use.make(w, h, spawnFull)),
+        step: (p, dt, w, h) => use.step(p, dt, w, h),
+        respawn: (p, w, h) => Object.assign(p, use.make(w, h, false)),
+        draw: (ctx, p) => drawEmoji(ctx, p, def.glyph, size),
+      };
+    }
+    default:
+      return null;
   }
-  @keyframes site-effect-drift {
-    0%   { transform: translate(0, 0); }
-    50%  { transform: translate(var(--driftx), var(--drifty)); }
-    100% { transform: translate(0, 0); }
-  }
-  @keyframes site-effect-burst-core {
-    0% { transform: scale(0.2); opacity: 1; }
-    40% { transform: scale(1.6); opacity: 0.6; }
-    100% { transform: scale(2.2); opacity: 0; }
-  }
-  @keyframes site-effect-burst-ray {
-    0% { transform: translate(0, 0) scale(1); opacity: 1; }
-    70% { opacity: 0.9; }
-    100% { transform: translate(var(--tx), calc(var(--ty) + 18px)) scale(0.15); opacity: 0; }
-  }
-`;
-
-function fallingParticles(count, speed, driftRange = 90) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    delay: Math.random() * 10,
-    duration: 17 - (speed / 100) * 10 + Math.random() * 5,
-    drift: Math.round((Math.random() - 0.5) * driftRange),
-    spin: Math.random() > 0.5 ? 1 : -1,
-    peak: 0.7 + Math.random() * 0.25,
-  }));
 }
 
-function SiteEffectLive({ def, density, speed, size }) {
-  return (
-    <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 400, overflow: 'hidden', pointerEvents: 'none' }}>
-      <style>{KEYFRAMES}</style>
-      {def.kind === 'emoji' && <EmojiLayer glyph={def.glyph} density={density} speed={speed} size={size} up={def.direction === 'up'} />}
-      {def.kind === 'snow' && <SnowLayer density={density} speed={speed} size={size} />}
-      {def.kind === 'rain' && <RainLayer density={density} speed={speed} size={size} />}
-      {def.kind === 'leaf' && <LeafLayer density={density} speed={speed} size={size} />}
-      {def.kind === 'petal' && <PetalLayer density={density} speed={speed} size={size} />}
-      {def.kind === 'heart' && <HeartLayer density={density} speed={speed} size={size} />}
-      {def.kind === 'shamrock' && <ShamrockLayer density={density} speed={speed} size={size} />}
-      {def.kind === 'confetti' && <ConfettiLayer density={density} speed={speed} size={size} />}
-      {def.kind === 'bubble' && <BubbleLayer density={density} speed={speed} size={size} />}
-      {def.kind === 'sparkle' && <SparkleLayer density={density} size={size} palette={def.palette} ambient={def.ambient} />}
-      {def.kind === 'firework' && <FireworkLayer density={density} speed={speed} size={size} />}
-    </div>
-  );
-}
+// Fireworks are event-driven (periodic bursts), not a steady-state particle
+// field like everything else, so they get their own standalone loop:
+// a rocket streak rises from the bottom leaving a fading trail, then bursts
+// at its apex into a ring of glowing, gravity-drooping sparks.
+function useFireworks(canvasRef, density, speed, size) {
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let raf;
+    let last = performance.now();
+    let rockets = [];
+    let sparks = [];
+    const rays = Math.max(14, Math.min(36, Math.round(density / 2.5)));
 
-function EmojiLayer({ glyph, density, speed, size, up }) {
-  const particles = React.useMemo(() => fallingParticles(density, speed), [density, speed]);
-  return particles.map((p) => (
-    <span
-      key={p.id}
-      style={{
-        position: 'absolute', [up ? 'bottom' : 'top']: 0, left: `${p.left}%`, fontSize: size, lineHeight: 1,
-        '--drift': `${p.drift}px`, '--spin': p.spin, '--peak': p.peak,
-        animation: `site-effect-sway ${p.duration}s ease-in-out ${p.delay}s infinite${up ? ' reverse' : ''}`,
-        willChange: 'transform, opacity', userSelect: 'none',
-      }}
-    >
-      {glyph}
-    </span>
-  ));
-}
+    function spawnRocket() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.width / dpr, h = canvas.height / dpr;
+      rockets.push({
+        x: rand(w * 0.15, w * 0.85), y: h, targetY: rand(h * 0.15, h * 0.55),
+        vy: -rand(260, 380), hue: Math.round(rand(0, 360)), trail: [],
+      });
+    }
 
-// Two depth layers -- a crisp, small, slower-falling "near" layer and a
-// larger, softer-blurred, faster "far" layer underneath it -- is the actual
-// trick behind that Apple-Weather-style snow look: real falling snow reads
-// as depth because flakes at different distances are different sizes and
-// different amounts in focus, not because any single flake looks special.
-function SnowLayer({ density, speed, size }) {
-  const near = React.useMemo(() => (
-    fallingParticles(Math.round(density * 0.4), speed * 0.7, 60).map((p) => ({ ...p, dotSize: size * (0.5 + Math.random() * 0.3), blur: 0 }))
-  ), [density, speed, size]);
-  const far = React.useMemo(() => (
-    fallingParticles(Math.round(density * 0.6), speed * 1.3, 100).map((p) => ({ ...p, dotSize: size * (0.7 + Math.random() * 0.6), blur: 1 + Math.random() }))
-  ), [density, speed, size]);
-  const flake = (p) => (
-    <span
-      key={p.id}
-      style={{
-        position: 'absolute', top: 0, left: `${p.left}%`, width: p.dotSize, height: p.dotSize, borderRadius: '50%',
-        background: 'radial-gradient(circle at 35% 35%, #fff, rgba(255,255,255,0.6) 55%, transparent 75%)',
-        filter: p.blur ? `blur(${p.blur}px)` : undefined,
-        '--drift': `${p.drift}px`, '--spin': p.spin, '--peak': p.peak,
-        animation: `site-effect-sway ${p.duration}s ease-in-out ${p.delay}s infinite`,
-        willChange: 'transform, opacity',
-      }}
-    />
-  );
-  return <>{far.map(flake)}{near.map(flake)}</>;
-}
+    // Spark speed/decay are all px/second or 1/second now -- see the
+    // dt-in-seconds note on fallFactory above for why that matters.
+    function burst(x, y, hue) {
+      for (let i = 0; i < rays; i++) {
+        const angle = (i / rays) * Math.PI * 2 + rand(-0.15, 0.15);
+        const v = rand(size * 6, size * 11);
+        sparks.push({ x, y, vx: Math.cos(angle) * v, vy: Math.sin(angle) * v, hue: hue + rand(-15, 15), life: 1 });
+      }
+    }
 
-// A short, thin, tilted gradient streak falling fast and almost straight
-// down, in two depth layers (thin/dim "far" rain behind thicker/brighter
-// "near" rain) for the same weather-app depth effect as snow above -- a
-// static droplet emoji never looked like rain because rain isn't a droplet
-// shape, it's a fast blurred line, and real rain is many different
-// distances/intensities at once, not one repeating streak.
-function RainLayer({ density, speed, size }) {
-  const makeLayer = (count, opacity, widthMul, heightMul, speedMul) => Array.from({ length: count }, (_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    delay: Math.random() * 2,
-    duration: (0.45 + (1 - speed / 100) * 0.55 + Math.random() * 0.25) / speedMul,
-    drift: Math.round((Math.random() - 0.5) * 12),
-    peak: opacity,
-    width: 1.5 * widthMul,
-    height: size * heightMul,
-  }));
-  const far = React.useMemo(() => makeLayer(Math.round(density * 0.55), 0.4, 0.8, 1.3, 1.15), [density, speed, size]);
-  const near = React.useMemo(() => makeLayer(Math.round(density * 0.45), 0.85, 1.2, 2.1, 1), [density, speed, size]);
-  const streak = (p) => (
-    <span
-      key={p.id}
-      style={{
-        position: 'absolute', top: 0, left: `${p.left}%`, width: p.width, height: p.height,
-        background: 'linear-gradient(to bottom, transparent, rgba(180,210,255,0.95))',
-        borderRadius: 2, transform: 'rotate(9deg)',
-        '--drift': `${p.drift}px`, '--peak': p.peak,
-        animation: `site-effect-rain ${p.duration}s linear ${p.delay}s infinite`,
-        willChange: 'transform, opacity',
-      }}
-    />
-  );
-  return <>{far.map(streak)}{near.map(streak)}</>;
-}
+    const intervalMs = Math.max(700, 3000 - (speed / 100) * 2200);
+    const spawnTimer = setInterval(spawnRocket, intervalMs);
+    spawnRocket();
 
-// Hand-drawn gradient vector shapes (leaf/petal/heart/shamrock), each with a
-// soft drop-shadow glow and a small curated color palette so a batch of them
-// looks naturally varied instead of one flat icon repeated. Rendered as
-// inline SVG rather than emoji -- full control over color and finish, and
-// noticeably crisper/richer than a font glyph at these sizes.
-function svgParticle({ id, path, viewBox, gradientStops, glow, p, size }) {
-  const gradId = `sfx-grad-${id}`;
-  return (
-    <span
-      key={p.id}
-      style={{
-        position: 'absolute', top: 0, left: `${p.left}%`, width: size * (0.7 + (p.scale || 0)), height: size * (0.7 + (p.scale || 0)),
-        '--drift': `${p.drift}px`, '--spin': p.spin, '--peak': p.peak,
-        animation: `site-effect-sway ${p.duration}s ease-in-out ${p.delay}s infinite`,
-        willChange: 'transform, opacity', filter: `drop-shadow(0 0 ${size * 0.15}px ${glow})`,
-      }}
-    >
-      <svg viewBox={viewBox} width="100%" height="100%">
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
-            {gradientStops.map((s, i) => <stop key={i} offset={s.offset} stopColor={s.color} />)}
-          </linearGradient>
-        </defs>
-        <path d={path} fill={`url(#${gradId})`} />
-      </svg>
-    </span>
-  );
-}
+    function frame(now) {
+      const dt = Math.min(0.032, (now - last) / 1000);
+      last = now;
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.width / dpr, h = canvas.height / dpr;
+      ctx.clearRect(0, 0, w, h);
 
-const LEAF_PALETTES = [
-  [{ offset: '0%', color: '#f4a534' }, { offset: '100%', color: '#c1440e' }],
-  [{ offset: '0%', color: '#e8c547' }, { offset: '100%', color: '#a6631a' }],
-  [{ offset: '0%', color: '#d9713c' }, { offset: '100%', color: '#7a2e12' }],
-];
-function LeafLayer({ density, speed, size }) {
-  const particles = React.useMemo(() => (
-    fallingParticles(density, speed).map((p, i) => ({ ...p, palette: LEAF_PALETTES[i % LEAF_PALETTES.length], scale: Math.random() * 0.4 }))
-  ), [density, speed]);
-  return particles.map((p, i) => svgParticle({
-    id: `leaf-${i}`, p, size,
-    viewBox: '0 0 24 24', glow: 'rgba(193,68,14,0.35)', gradientStops: p.palette,
-    path: 'M12 2c5 3 9 7 9 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9c0-5 4-9 9-12z M12 4v18',
-  }));
-}
+      rockets = rockets.filter((r) => {
+        r.trail.push({ x: r.x, y: r.y });
+        if (r.trail.length > 8) r.trail.shift();
+        r.y += r.vy * dt;
+        ctx.strokeStyle = `hsla(${r.hue}, 90%, 70%, 0.6)`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        r.trail.forEach((pt, i) => (i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+        ctx.stroke();
+        if (r.y <= r.targetY) {
+          burst(r.x, r.y, r.hue);
+          return false;
+        }
+        return true;
+      });
 
-const PETAL_PALETTES = [
-  [{ offset: '0%', color: '#ffe3ee' }, { offset: '100%', color: '#f582b0' }],
-  [{ offset: '0%', color: '#fff0f5' }, { offset: '100%', color: '#e69bc4' }],
-  [{ offset: '0%', color: '#ffe9f2' }, { offset: '100%', color: '#d873a8' }],
-];
-function PetalLayer({ density, speed, size }) {
-  const particles = React.useMemo(() => (
-    fallingParticles(density, speed).map((p, i) => ({ ...p, palette: PETAL_PALETTES[i % PETAL_PALETTES.length], scale: Math.random() * 0.3 }))
-  ), [density, speed]);
-  return particles.map((p, i) => svgParticle({
-    id: `petal-${i}`, p, size,
-    viewBox: '0 0 24 24', glow: 'rgba(245,130,176,0.35)', gradientStops: p.palette,
-    path: 'M12 2c4 2 6 6 4 10-2 4-6 4-8 0-2 4-6 4-8 0-2-4 0-8 4-10 2-1 6-1 8 0z',
-  }));
-}
+      sparks = sparks.filter((s) => {
+        s.life -= dt / 0.9; // ~0.9s fade
+        if (s.life <= 0) return false;
+        s.x += s.vx * dt;
+        s.y += s.vy * dt + (1 - s.life) * 45 * dt; // gentle gravity droop as it fades
+        s.vx *= 1 - dt * 1.1; // air drag
+        ctx.globalAlpha = Math.max(0, s.life);
+        ctx.fillStyle = `hsl(${s.hue}, 90%, 65%)`;
+        ctx.shadowColor = `hsl(${s.hue}, 90%, 65%)`;
+        ctx.shadowBlur = size * 0.35;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, size * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        return true;
+      });
 
-const HEART_PALETTES = [
-  [{ offset: '0%', color: '#ff9bb3' }, { offset: '100%', color: '#e8385c' }],
-  [{ offset: '0%', color: '#ffc2d1' }, { offset: '100%', color: '#c81e4a' }],
-  [{ offset: '0%', color: '#ff7a99' }, { offset: '100%', color: '#a01238' }],
-];
-function HeartLayer({ density, speed, size }) {
-  const particles = React.useMemo(() => (
-    fallingParticles(density, speed, 60).map((p, i) => ({ ...p, palette: HEART_PALETTES[i % HEART_PALETTES.length], scale: Math.random() * 0.35 }))
-  ), [density, speed]);
-  return particles.map((p, i) => svgParticle({
-    id: `heart-${i}`, p, size,
-    viewBox: '0 0 24 24', glow: 'rgba(232,56,92,0.4)', gradientStops: p.palette,
-    path: 'M12 21s-7.5-4.9-10.2-9.3C.2 8.7 1.6 5 5.2 5c2 0 3.4 1.1 4.1 2.3C10 6.1 11.4 5 13.4 5c3.6 0 5 3.7 3.4 6.7C19.5 16.1 12 21 12 21z',
-  }));
-}
-
-const SHAMROCK_PALETTES = [
-  [{ offset: '0%', color: '#8fe08f' }, { offset: '100%', color: '#1c7a3c' }],
-  [{ offset: '0%', color: '#b6f0a8' }, { offset: '100%', color: '#2e8b46' }],
-];
-function ShamrockLayer({ density, speed, size }) {
-  const particles = React.useMemo(() => (
-    fallingParticles(density, speed).map((p, i) => ({ ...p, palette: SHAMROCK_PALETTES[i % SHAMROCK_PALETTES.length], scale: Math.random() * 0.3 }))
-  ), [density, speed]);
-  return particles.map((p, i) => svgParticle({
-    id: `shamrock-${i}`, p, size,
-    viewBox: '0 0 24 24', glow: 'rgba(46,139,70,0.35)', gradientStops: p.palette,
-    path: 'M12 12c-2-3-2-6 0-8 2 2 2 5 0 8zm0 0c-3-2-6-2-8 0 2 2 5 2 8 0zm0 0c2-3 2-6 0-8-2 2-2 5 0 8zm0 0c3-2 6-2 8 0-2 2-5 2-8 0zm0 2v6',
-  }));
-}
-
-// Small mixed shapes (rectangle ribbon + circle + diamond) in random bright
-// hues, instead of a single repeating 🎉 emoji -- real confetti is many
-// different colored pieces of different shapes, not one icon falling
-// over and over.
-function ConfettiLayer({ density, speed, size }) {
-  const shapes = ['rect', 'circle', 'diamond'];
-  const particles = React.useMemo(() => (
-    fallingParticles(density, speed).map((p, i) => ({ ...p, hue: Math.round(Math.random() * 360), shape: shapes[i % shapes.length] }))
-  ), [density, speed]);
-  return particles.map((p) => {
-    const base = {
-      position: 'absolute', top: 0, left: `${p.left}%`,
-      background: `hsl(${p.hue} 85% 62%)`,
-      '--drift': `${p.drift}px`, '--spin': p.spin, '--peak': p.peak,
-      animation: `site-effect-sway ${p.duration * 0.7}s ease-in-out ${p.delay}s infinite`,
-      willChange: 'transform, opacity',
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(spawnTimer);
     };
-    if (p.shape === 'circle') return <span key={p.id} style={{ ...base, width: size * 0.4, height: size * 0.4, borderRadius: '50%' }} />;
-    if (p.shape === 'diamond') return <span key={p.id} style={{ ...base, width: size * 0.35, height: size * 0.35, transform: 'rotate(45deg)' }} />;
-    return <span key={p.id} style={{ ...base, width: size * 0.35, height: size * 0.75, borderRadius: 2 }} />;
-  });
+  }, [canvasRef, density, speed, size]);
 }
 
-// Floats upward with a soft rim-lit circle and a small secondary highlight
-// dot (the second highlight is what makes a bubble read as glassy/round
-// instead of a flat gradient blob), plus a gentle S-curve wobble on the way
-// up instead of a straight vertical rise.
-function BubbleLayer({ density, speed, size }) {
-  const particles = React.useMemo(() => (
-    Array.from({ length: density }, (_, i) => ({
-      id: i,
-      left: Math.random() * 100,
-      delay: Math.random() * 10,
-      duration: 15 - (speed / 100) * 8 + Math.random() * 4,
-      drift: Math.round((Math.random() - 0.5) * 70),
-      peak: 0.7 + Math.random() * 0.2,
-      dotSize: size * (0.5 + Math.random() * 0.7),
-    }))
-  ), [density, speed, size]);
-  return particles.map((p) => (
-    <span
-      key={p.id}
-      style={{
-        position: 'absolute', bottom: 0, left: `${p.left}%`, width: p.dotSize, height: p.dotSize, borderRadius: '50%',
-        background: `
-          radial-gradient(circle at 25% 22%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.95) 8%, transparent 12%),
-          radial-gradient(circle at 32% 30%, rgba(255,255,255,0.7), rgba(150,220,255,0.18) 65%, rgba(150,220,255,0.05) 100%)
-        `,
-        border: '1px solid rgba(255,255,255,0.45)',
-        '--drift': `${p.drift}px`, '--peak': p.peak,
-        animation: `site-effect-bubble ${p.duration}s ease-in-out ${p.delay}s infinite`,
-        willChange: 'transform, opacity',
-      }}
-    />
-  ));
-}
+function SiteEffectCanvas({ def, density, speed, size }) {
+  const canvasRef = React.useRef(null);
+  const isFirework = def.kind === 'firework';
 
-// Ambient twinkling 4-point "glint" stars scattered across the whole
-// viewport (not falling in from an edge like everything else) -- used for
-// Summer Sparkle, Fireflies, and Stars, distinguished by palette and by
-// `ambient` (fireflies also drift slowly in place, since real fireflies
-// wander rather than sitting still between twinkles).
-function SparkleLayer({ density, size, palette, ambient }) {
-  const particles = React.useMemo(() => (
-    Array.from({ length: Math.round(density * 0.55) }, (_, i) => ({
-      id: i,
-      top: Math.random() * 100,
-      left: Math.random() * 100,
-      delay: Math.random() * 4,
-      duration: 1.8 + Math.random() * 2.5,
-      dotSize: size * (0.4 + Math.random() * 0.5),
-      color: palette[i % palette.length],
-      driftx: Math.round((Math.random() - 0.5) * 60),
-      drifty: Math.round((Math.random() - 0.5) * 60),
-      driftDuration: 6 + Math.random() * 6,
-    }))
-  ), [density, size, palette]);
-  return particles.map((p) => (
-    <span
-      key={p.id}
-      style={{
-        position: 'absolute', top: `${p.top}%`, left: `${p.left}%`, width: p.dotSize, height: p.dotSize,
-        animation: ambient
-          ? `site-effect-drift ${p.driftDuration}s ease-in-out infinite, site-effect-twinkle ${p.duration}s ease-in-out ${p.delay}s infinite`
-          : `site-effect-twinkle ${p.duration}s ease-in-out ${p.delay}s infinite`,
-        '--driftx': `${p.driftx}px`, '--drifty': `${p.drifty}px`,
-        willChange: 'opacity, transform',
-      }}
-    >
-      <svg viewBox="0 0 24 24" width="100%" height="100%" style={{ filter: `drop-shadow(0 0 ${p.dotSize * 0.6}px ${p.color})` }}>
-        <path d="M12 0c.6 4.8 2.4 8.4 5.4 10.6C14.4 12.6 12.6 16.2 12 21c-.6-4.8-2.4-8.4-5.4-10.4C9.6 8.4 11.4 4.8 12 0z" fill={p.color} />
-      </svg>
-    </span>
-  ));
-}
-
-// Periodic radial bursts from random points -- a bright core flash that
-// expands and fades, plus a ring of glowing sparks flying outward and
-// drooping slightly as they fade (real fireworks trail off, they don't just
-// vanish in a straight line) -- a proper "fireworks" look, instead of a
-// single 🎆 emoji drifting down the screen like everything else. `density`
-// controls how many rays each burst has; speed controls how often a new
-// burst spawns (capped so this never gets so busy it reads as a solid
-// flashing layer).
-function FireworkLayer({ density, speed, size }) {
-  const [bursts, setBursts] = React.useState([]);
-  const rays = Math.max(10, Math.min(28, Math.round(density / 3.5)));
+  useFireworks(isFirework ? canvasRef : { current: null }, density, speed, size);
 
   React.useEffect(() => {
-    const intervalMs = Math.max(500, 2600 - (speed / 100) * 2000);
-    const id = setInterval(() => {
-      const burst = {
-        id: `${Date.now()}-${Math.random()}`,
-        x: 12 + Math.random() * 76,
-        y: 12 + Math.random() * 48,
-        hue: Math.round(Math.random() * 360),
-      };
-      setBursts((prev) => [...prev.slice(-3), burst]);
-      setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== burst.id)), 1300);
-    }, intervalMs);
-    return () => clearInterval(id);
-  }, [speed]);
+    if (isFirework) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const system = buildSystem(def, density, speed, size);
+    if (!system) return;
+    let particles = [];
+    let raf;
+    let last = performance.now();
 
-  return bursts.map((b) => (
-    <div key={b.id} style={{ position: 'absolute', top: `${b.y}%`, left: `${b.x}%`, width: 0, height: 0 }}>
-      <span
-        style={{
-          position: 'absolute', top: -size * 0.4, left: -size * 0.4, width: size * 0.8, height: size * 0.8, borderRadius: '50%',
-          background: `radial-gradient(circle, hsl(${b.hue} 100% 85%), hsl(${b.hue} 90% 60%) 60%, transparent 75%)`,
-          animation: 'site-effect-burst-core 0.6s ease-out forwards',
-        }}
-      />
-      {Array.from({ length: rays }, (_, i) => {
-        const angle = (i / rays) * Math.PI * 2 + Math.random() * 0.2;
-        const radius = size * (2.2 + Math.random() * 1.2);
-        return (
-          <span
-            key={i}
-            style={{
-              position: 'absolute', top: 0, left: 0, width: size * 0.16, height: size * 0.16, borderRadius: '50%',
-              background: `hsl(${b.hue} 90% 68%)`, boxShadow: `0 0 ${size * 0.35}px hsl(${b.hue} 90% 65%)`,
-              '--tx': `${Math.cos(angle) * radius}px`, '--ty': `${Math.sin(angle) * radius}px`,
-              animation: 'site-effect-burst-ray 1.15s ease-out forwards',
-            }}
-          />
-        );
-      })}
-    </div>
-  ));
+    function resize(spawnFull) {
+      const dpr = window.devicePixelRatio || 1;
+      const w = window.innerWidth, h = window.innerHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      particles = system.makeAll(w, h, spawnFull);
+    }
+    resize(true);
+    const onResize = () => resize(true);
+    window.addEventListener('resize', onResize);
+
+    function frame(now) {
+      const dt = Math.min(0.032, (now - last) / 1000);
+      last = now;
+      const w = window.innerWidth, h = window.innerHeight;
+      ctx.clearRect(0, 0, w, h);
+      for (const p of particles) {
+        const needsRespawn = system.step(p, dt, w, h);
+        if (needsRespawn) system.respawn(p, w, h);
+        system.draw(ctx, p);
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuilds the whole particle system on any of these changing, not per-frame
+  }, [def, density, speed, size, isFirework]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      style={{ position: 'fixed', inset: 0, zIndex: 400, pointerEvents: 'none' }}
+    />
+  );
 }
