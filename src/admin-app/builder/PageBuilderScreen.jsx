@@ -281,8 +281,27 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     }));
   }
 
+  // Uses the functional form of setBlocks (not updateBlocks(blocks.map(...))
+  // off the outer `blocks` closure) specifically because some callers fire
+  // this twice synchronously for two different keys on the same block --
+  // EditableFile's onChange after an upload does exactly that
+  // (onFieldChange('fileUrl', url) immediately followed by
+  // onFieldChange('fileName', name), see BackgroundMusicBlock.jsx/
+  // DownloadBlock.jsx). React batches both setState calls into the same
+  // render, so the outer `blocks` variable is still the PRE-upload array
+  // when the second call ran -- it would compute its update from that
+  // stale array, silently overwriting/losing whatever the first call had
+  // just set (confirmed live: uploading audio would appear to succeed --
+  // no error, briefly "Uploading…" -- then the fileUrl update vanished,
+  // leaving the block looking untouched). The functional form always
+  // starts from whatever the truly-latest state is, whether that's one
+  // update into the same tick or ten.
   function handleFieldChange(blockId, key, value) {
-    updateBlocks(blocks.map((b) => (b.id === blockId ? { ...b, props: { ...b.props, [key]: value } } : b)));
+    setBlocks((prev) => {
+      const next = prev.map((b) => (b.id === blockId ? { ...b, props: { ...b.props, [key]: value } } : b));
+      scheduleSave(next);
+      return next;
+    });
   }
 
   async function handlePublish() {
