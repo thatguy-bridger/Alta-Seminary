@@ -58,7 +58,11 @@ const PREVIEW_GLYPH = { snow: '❄️', rain: '🌧️', glint: '✨', bubble: '
 //     produce enough coverage to read as a solid layer.
 //   - Nothing here ever paints a background color/image across the canvas --
 //     only small individual particles on an otherwise fully transparent one.
-export function SiteEffectBlock({ preset = 'snow', customGlyph = '', density = 40, speed = 50, size = 24, editable }) {
+export function SiteEffectBlock({
+  preset = 'snow', customGlyph = '', density = 40, speed = 50, size = 24,
+  reverseDirection = false, wind = 0, opacity = 90, interactive = false,
+  editable,
+}) {
   const isCustom = preset === 'custom';
   const def = isCustom ? { kind: 'emoji', glyph: customGlyph || '✨', label: 'Custom' } : (SITE_EFFECT_PRESETS[preset] || SITE_EFFECT_PRESETS.snow);
   const previewGlyph = def.kind === 'emoji' ? def.glyph : PREVIEW_GLYPH[def.kind];
@@ -85,7 +89,14 @@ export function SiteEffectBlock({ preset = 'snow', customGlyph = '', density = 4
   const clampedDensity = Math.max(5, Math.min(120, density));
   const clampedSize = Math.max(10, Math.min(60, size));
   const clampedSpeed = Math.max(10, Math.min(100, speed));
-  return <SiteEffectCanvas def={def} density={clampedDensity} speed={clampedSpeed} size={clampedSize} />;
+  const clampedWind = Math.max(-100, Math.min(100, wind));
+  const clampedOpacity = Math.max(0.2, Math.min(1, opacity / 100));
+  return (
+    <SiteEffectCanvas
+      def={def} density={clampedDensity} speed={clampedSpeed} size={clampedSize}
+      reverseDirection={!!reverseDirection} wind={clampedWind} opacity={clampedOpacity} interactive={!!interactive}
+    />
+  );
 }
 
 function rand(min, max) { return min + Math.random() * (max - min); }
@@ -107,13 +118,24 @@ function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 // each frame as `baseX + sin(...)`, an OFFSET from a fixed anchor, not
 // accumulated by `+=` every frame -- accumulating it would have compounded
 // forever into runaway horizontal drift instead of a bounded side-to-side sway.
-function fallFactory({ speed, size, sway = 40, spin = true }) {
+// `wind` is a constant horizontal bias (px/second) on top of the sway --
+// tracked as its own accumulator (`windOffset`) separate from the sway
+// term, added together in the final x each frame, so it stacks cleanly
+// instead of fighting the sway's own oscillation.
+//
+// `held`/`repelX`/`repelY` are the interactive layer's doing (see
+// SiteEffectCanvas) -- grabbing a particle freezes its normal x/y formula
+// and lets the pointer drive it directly; repelX/Y is a decaying offset
+// added on release (a little "toss") or from ambient cursor avoidance.
+// Every factory below leaves room for both without needing to know
+// anything about interactivity itself.
+function fallFactory({ speed, size, sway = 40, spin = true, wind = 0 }) {
   return {
     make(w, h, spawnFull) {
       const duration = rand(9, 16) * (1 - (speed / 100) * 0.55); // seconds to cross the full height
       const baseX = rand(0, w);
       return {
-        baseX, x: baseX,
+        baseX, x: baseX, windOffset: 0,
         y: spawnFull ? rand(-size, h) : -rand(size, size * 2),
         vy: h / duration,
         swayAmp: rand(sway * 0.4, sway),
@@ -122,13 +144,15 @@ function fallFactory({ speed, size, sway = 40, spin = true }) {
         rot: rand(0, Math.PI * 2),
         rotSpeed: spin ? rand(-1.4, 1.4) : 0,
         scale: rand(0.7, 1.3),
-        t: 0,
+        t: 0, held: false, repelX: 0, repelY: 0,
       };
     },
     step(p, dt, w, h) {
+      if (p.held) return false; // pointer is driving x/y directly this frame
       p.t += dt;
       p.y += p.vy * dt;
-      p.x = p.baseX + Math.sin(p.t * p.swayFreq + p.phase) * p.swayAmp;
+      p.windOffset += wind * dt;
+      p.x = p.baseX + p.windOffset + Math.sin(p.t * p.swayFreq + p.phase) * p.swayAmp;
       p.rot += p.rotSpeed * dt;
       if (p.y > h + size * 2) return true; // needs respawn
       return false;
@@ -136,26 +160,29 @@ function fallFactory({ speed, size, sway = 40, spin = true }) {
   };
 }
 
-function riseFactory({ speed, size, sway = 30 }) {
+function riseFactory({ speed, size, sway = 30, wind = 0 }) {
   return {
     make(w, h, spawnFull) {
       const duration = rand(10, 16) * (1 - (speed / 100) * 0.5);
       const baseX = rand(0, w);
       return {
-        baseX, x: baseX,
+        baseX, x: baseX, windOffset: 0,
         y: spawnFull ? rand(0, h + size) : h + rand(size, size * 2),
         vy: -h / duration,
         swayAmp: rand(sway * 0.4, sway),
         swayFreq: rand(0.2, 0.6),
         phase: rand(0, Math.PI * 2),
         scale: rand(0.6, 1.3),
-        t: 0,
+        rot: rand(-0.3, 0.3), // a fixed gentle tilt (a rising balloon doesn't spin like a falling leaf)
+        t: 0, held: false, repelX: 0, repelY: 0,
       };
     },
     step(p, dt, w, h) {
+      if (p.held) return false;
       p.t += dt;
       p.y += p.vy * dt;
-      p.x = p.baseX + Math.sin(p.t * p.swayFreq + p.phase) * p.swayAmp;
+      p.windOffset += wind * dt;
+      p.x = p.baseX + p.windOffset + Math.sin(p.t * p.swayFreq + p.phase) * p.swayAmp;
       if (p.y < -size * 2) return true;
       return false;
     },
@@ -194,7 +221,8 @@ function ambientFactory({ drift = 0 }) {
 // not font glyphs -- this is what makes Leaves/Petals/Hearts/Shamrocks look
 // like a designed graphic instead of a repeated emoji.
 
-function drawLeaf(ctx, p, size) {
+function drawLeaf(ctx, p, size, opacity) {
+  ctx.globalAlpha = opacity;
   const s = size * p.scale;
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -220,7 +248,8 @@ function drawLeaf(ctx, p, size) {
   ctx.restore();
 }
 
-function drawPetal(ctx, p, size) {
+function drawPetal(ctx, p, size, opacity) {
+  ctx.globalAlpha = opacity;
   const s = size * p.scale;
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -239,7 +268,8 @@ function drawPetal(ctx, p, size) {
   ctx.restore();
 }
 
-function drawHeart(ctx, p, size) {
+function drawHeart(ctx, p, size, opacity) {
+  ctx.globalAlpha = opacity;
   const s = size * p.scale * (1 + Math.sin(p.t * 3) * 0.06);
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -258,7 +288,8 @@ function drawHeart(ctx, p, size) {
   ctx.restore();
 }
 
-function drawShamrock(ctx, p, size) {
+function drawShamrock(ctx, p, size, opacity) {
+  ctx.globalAlpha = opacity;
   const s = size * p.scale;
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -289,7 +320,8 @@ function drawShamrock(ctx, p, size) {
 // Two depth layers: crisp 6-branch crystal flakes up close, soft round
 // bokeh circles farther back -- the actual "designed" snow look, rather
 // than one repeated shape.
-function drawSnow(ctx, p, size) {
+function drawSnow(ctx, p, size, opacity) {
+  ctx.globalAlpha = opacity;
   const s = size * p.scale;
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -325,7 +357,8 @@ function drawSnow(ctx, p, size) {
   ctx.restore();
 }
 
-function drawRain(ctx, p, size) {
+function drawRain(ctx, p, size, opacity) {
+  ctx.globalAlpha = opacity;
   ctx.save();
   ctx.strokeStyle = p.far ? 'rgba(170,205,255,0.35)' : 'rgba(190,220,255,0.85)';
   ctx.lineWidth = p.far ? 1 : 1.8;
@@ -338,7 +371,8 @@ function drawRain(ctx, p, size) {
   ctx.restore();
 }
 
-function drawBubble(ctx, p, size) {
+function drawBubble(ctx, p, size, opacity) {
+  ctx.globalAlpha = opacity;
   const s = size * p.scale;
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -360,7 +394,8 @@ function drawBubble(ctx, p, size) {
   ctx.restore();
 }
 
-function drawConfetti(ctx, p, size) {
+function drawConfetti(ctx, p, size, opacity) {
+  ctx.globalAlpha = opacity;
   const s = size * p.scale;
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -386,12 +421,12 @@ function drawConfetti(ctx, p, size) {
 
 // A 4-point glint star drawn as two crossed diamonds -- used for Summer
 // Sparkle/Fireflies/Stars, distinguished by palette + whether they drift.
-function drawGlint(ctx, p) {
+function drawGlint(ctx, p, opacity) {
   const alpha = 0.15 + Math.abs(Math.sin(p.t * p.twinkleSpeed + p.twinklePhase)) * 0.85;
   const s = 10 * p.scale * (0.6 + alpha * 0.5);
   ctx.save();
   ctx.translate(p.x, p.y);
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = alpha * opacity;
   ctx.fillStyle = p.color;
   ctx.shadowColor = p.color;
   ctx.shadowBlur = s * 1.4;
@@ -405,8 +440,9 @@ function drawGlint(ctx, p) {
   ctx.restore();
 }
 
-function drawEmoji(ctx, p, glyph, size) {
+function drawEmoji(ctx, p, glyph, size, opacity) {
   ctx.save();
+  ctx.globalAlpha = opacity;
   ctx.translate(p.x, p.y);
   ctx.rotate(p.rot * 0.4);
   ctx.font = `${size * p.scale}px sans-serif`;
@@ -426,13 +462,27 @@ const CONFETTI_SHAPES = ['rect', 'circle', 'triangle'];
 // on `def.kind`. `resize` re-seeds every particle with spawnFull=true, so
 // the "instant, already-populated" scene holds true even if the browser
 // window is resized mid-effect, not just on first mount.
-function buildSystem(def, density, speed, size) {
+//
+// `grabbable`/`pop`/`attract` describe how the interactive layer (see
+// SiteEffectCanvas) should treat a hit on this kind's particles:
+//   - grabbable: click-and-drag picks one up and tosses it back on release
+//     (leaves, petals, hearts, shamrocks, confetti, snow, emoji all support
+//     this -- "grab a leaf" was the explicit ask).
+//   - pop: click removes it immediately with a little burst instead of
+//     grabbing (bubbles -- dragging a bubble doesn't make sense, popping does).
+//   - attract: ambient kinds (fireflies/sparkle/stars) are gently drawn
+//     TOWARD the cursor instead of avoiding it, like real fireflies curious
+//     about you, rather than skittish.
+// Rain has none of these (real rain is too fast/thin to meaningfully grab).
+function buildSystem(def, density, speed, size, reverseDirection, wind) {
   switch (def.kind) {
     case 'snow': {
-      const near = fallFactory({ speed, size, sway: 30 });
-      const far = fallFactory({ speed: speed * 1.4, size: size * 1.3, sway: 45 });
+      const factoryFor = (opts) => (reverseDirection ? riseFactory(opts) : fallFactory(opts));
+      const near = factoryFor({ speed, size, sway: 30, wind });
+      const far = factoryFor({ speed: speed * 1.4, size: size * 1.3, sway: 45, wind });
       const nearCount = Math.round(density * 0.4);
       return {
+        grabbable: true,
         makeAll(w, h, spawnFull) {
           return [
             ...Array.from({ length: nearCount }, () => ({ ...near.make(w, h, spawnFull), far: false, factory: near })),
@@ -441,12 +491,12 @@ function buildSystem(def, density, speed, size) {
         },
         step: (p, dt, w, h) => p.factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, p.factory.make(w, h, false), { far: p.far, factory: p.factory }),
-        draw: (ctx, p) => drawSnow(ctx, p, size),
+        draw: (ctx, p, opacity) => drawSnow(ctx, p, size, opacity),
       };
     }
     case 'rain': {
-      const near = fallFactory({ speed: speed * 2.2, size, sway: 3, spin: false });
-      const far = fallFactory({ speed: speed * 2.8, size: size * 0.8, sway: 2, spin: false });
+      const near = fallFactory({ speed: speed * 2.2, size, sway: 3, spin: false, wind: wind * 0.3 });
+      const far = fallFactory({ speed: speed * 2.8, size: size * 0.8, sway: 2, spin: false, wind: wind * 0.3 });
       const nearCount = Math.round(density * 0.45);
       return {
         makeAll(w, h, spawnFull) {
@@ -457,64 +507,69 @@ function buildSystem(def, density, speed, size) {
         },
         step: (p, dt, w, h) => p.factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, p.factory.make(w, h, false), { far: p.far, factory: p.factory }),
-        draw: (ctx, p) => drawRain(ctx, p, size),
+        draw: (ctx, p, opacity) => drawRain(ctx, p, size, opacity),
       };
     }
     case 'leaf':
     case 'petal':
     case 'heart':
     case 'shamrock': {
-      const factory = fallFactory({ speed, size, sway: 50 });
+      const factory = (reverseDirection ? riseFactory : fallFactory)({ speed, size, sway: 50, wind });
       const palette = { leaf: LEAF_PALETTES, petal: PETAL_PALETTES, heart: HEART_PALETTES, shamrock: SHAMROCK_PALETTES }[def.kind];
       const drawFn = { leaf: drawLeaf, petal: drawPetal, heart: drawHeart, shamrock: drawShamrock }[def.kind];
       return {
+        grabbable: true,
         makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => {
           const [c1, c2] = pick(palette);
           return { ...factory.make(w, h, spawnFull), c1, c2 };
         }),
         step: (p, dt, w, h) => factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false), { c1: p.c1, c2: p.c2 }),
-        draw: (ctx, p) => drawFn(ctx, p, size),
+        draw: (ctx, p, opacity) => drawFn(ctx, p, size, opacity),
       };
     }
     case 'confetti': {
-      const factory = fallFactory({ speed, size, sway: 55 });
+      const factory = (reverseDirection ? riseFactory : fallFactory)({ speed, size, sway: 55, wind });
       return {
+        grabbable: true,
         makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => ({
           ...factory.make(w, h, spawnFull), color: `hsl(${Math.round(rand(0, 360))} 85% 62%)`, shape: pick(CONFETTI_SHAPES),
         })),
         step: (p, dt, w, h) => factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false), { color: p.color, shape: p.shape }),
-        draw: (ctx, p) => drawConfetti(ctx, p, size),
+        draw: (ctx, p, opacity) => drawConfetti(ctx, p, size, opacity),
       };
     }
     case 'bubble': {
-      const factory = riseFactory({ speed, size, sway: 40 });
+      const factory = (reverseDirection ? fallFactory : riseFactory)({ speed, size, sway: 40, wind });
       return {
+        pop: true,
         makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => factory.make(w, h, spawnFull)),
         step: (p, dt, w, h) => factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false)),
-        draw: (ctx, p) => drawBubble(ctx, p, size),
+        draw: (ctx, p, opacity) => drawBubble(ctx, p, size, opacity),
       };
     }
     case 'glint': {
       const factory = ambientFactory({ drift: def.ambient ? 12 : 0 });
       return {
+        attract: true,
         makeAll: (w, h) => Array.from({ length: Math.round(density * 0.6) }, () => ({ ...factory.make(w, h), color: pick(def.palette) })),
         step: (p, dt, w, h) => factory.step(p, dt, w, h),
         respawn: () => {},
-        draw: (ctx, p) => drawGlint(ctx, p),
+        draw: (ctx, p, opacity) => drawGlint(ctx, p, opacity),
       };
     }
     case 'emoji': {
-      const factory = fallFactory({ speed, size, sway: 45 });
-      const riser = def.direction === 'up' ? riseFactory({ speed, size, sway: 35 }) : null;
-      const use = riser || factory;
+      const naturallyUp = def.direction === 'up';
+      const goesUp = naturallyUp !== reverseDirection; // reverseDirection flips whichever way it naturally goes
+      const factory = (goesUp ? riseFactory : fallFactory)({ speed, size, sway: goesUp ? 35 : 45, wind });
       return {
-        makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => use.make(w, h, spawnFull)),
-        step: (p, dt, w, h) => use.step(p, dt, w, h),
-        respawn: (p, w, h) => Object.assign(p, use.make(w, h, false)),
-        draw: (ctx, p) => drawEmoji(ctx, p, def.glyph, size),
+        grabbable: true,
+        makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => factory.make(w, h, spawnFull)),
+        step: (p, dt, w, h) => factory.step(p, dt, w, h),
+        respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false)),
+        draw: (ctx, p, opacity) => drawEmoji(ctx, p, def.glyph, size, opacity),
       };
     }
     default:
@@ -526,7 +581,7 @@ function buildSystem(def, density, speed, size) {
 // field like everything else, so they get their own standalone loop:
 // a rocket streak rises from the bottom leaving a fading trail, then bursts
 // at its apex into a ring of glowing, gravity-drooping sparks.
-function useFireworks(canvasRef, density, speed, size) {
+function useFireworks(canvasRef, density, speed, size, interactive, opacity) {
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -537,14 +592,37 @@ function useFireworks(canvasRef, density, speed, size) {
     let sparks = [];
     const rays = Math.max(14, Math.min(36, Math.round(density / 2.5)));
 
-    function spawnRocket() {
+    // The canvas element's CSS size follows `inset:0` just fine, but its
+    // actual pixel buffer (canvas.width/height) defaults to a fixed
+    // 300x150 regardless of that -- without setting it explicitly here,
+    // every rocket/spark draws into that tiny buffer and gets stretched
+    // blurry across the whole viewport by the browser.
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    function spawnRocket(atX) {
       const dpr = window.devicePixelRatio || 1;
       const w = canvas.width / dpr, h = canvas.height / dpr;
       rockets.push({
-        x: rand(w * 0.15, w * 0.85), y: h, targetY: rand(h * 0.15, h * 0.55),
+        x: atX ?? rand(w * 0.15, w * 0.85), y: h, targetY: rand(h * 0.15, h * 0.55),
         vy: -rand(260, 380), hue: Math.round(rand(0, 360)), trail: [],
       });
     }
+
+    // The charming interactive touch for fireworks: a click launches an
+    // extra rocket right there, on top of the automatic periodic ones.
+    function handleClick(e) {
+      spawnRocket(e.clientX);
+    }
+    if (interactive) window.addEventListener('pointerdown', handleClick);
 
     // Spark speed/decay are all px/second or 1/second now -- see the
     // dt-in-seconds note on fallFactory above for why that matters.
@@ -571,6 +649,7 @@ function useFireworks(canvasRef, density, speed, size) {
         r.trail.push({ x: r.x, y: r.y });
         if (r.trail.length > 8) r.trail.shift();
         r.y += r.vy * dt;
+        ctx.globalAlpha = opacity;
         ctx.strokeStyle = `hsla(${r.hue}, 90%, 70%, 0.6)`;
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -589,7 +668,7 @@ function useFireworks(canvasRef, density, speed, size) {
         s.x += s.vx * dt;
         s.y += s.vy * dt + (1 - s.life) * 45 * dt; // gentle gravity droop as it fades
         s.vx *= 1 - dt * 1.1; // air drag
-        ctx.globalAlpha = Math.max(0, s.life);
+        ctx.globalAlpha = Math.max(0, s.life) * opacity;
         ctx.fillStyle = `hsl(${s.hue}, 90%, 65%)`;
         ctx.shadowColor = `hsl(${s.hue}, 90%, 65%)`;
         ctx.shadowBlur = size * 0.35;
@@ -607,26 +686,40 @@ function useFireworks(canvasRef, density, speed, size) {
     return () => {
       cancelAnimationFrame(raf);
       clearInterval(spawnTimer);
+      window.removeEventListener('resize', resize);
+      if (interactive) window.removeEventListener('pointerdown', handleClick);
     };
-  }, [canvasRef, density, speed, size]);
+  }, [canvasRef, density, speed, size, interactive, opacity]);
 }
 
-function SiteEffectCanvas({ def, density, speed, size }) {
+// How close the pointer needs to be, in px, for the ambient
+// avoid/attract behavior or a click's grab/pop hit-test to notice a
+// particle -- shared by every kind so "how easy is this to touch" feels
+// consistent regardless of what's on screen.
+const TOUCH_RADIUS = 55;
+const AMBIENT_RADIUS = 90;
+
+function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, opacity, interactive }) {
   const canvasRef = React.useRef(null);
   const isFirework = def.kind === 'firework';
 
-  useFireworks(isFirework ? canvasRef : { current: null }, density, speed, size);
+  useFireworks(isFirework ? canvasRef : { current: null }, density, speed, size, interactive, opacity);
 
   React.useEffect(() => {
     if (isFirework) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const system = buildSystem(def, density, speed, size);
+    const system = buildSystem(def, density, speed, size, reverseDirection, wind);
     if (!system) return;
     let particles = [];
+    let pops = []; // little fading rings left behind by a popped bubble
     let raf;
     let last = performance.now();
+    const pointer = { x: -9999, y: -9999, active: false };
+    let held = null;
+    let heldOffsetX = 0, heldOffsetY = 0;
+    let recentPointer = []; // last few {x,y,t} samples, for a release "toss"
 
     function resize(spawnFull) {
       const dpr = window.devicePixelRatio || 1;
@@ -642,16 +735,127 @@ function SiteEffectCanvas({ def, density, speed, size }) {
     const onResize = () => resize(true);
     window.addEventListener('resize', onResize);
 
+    function popAt(x, y, color) {
+      pops.push({ x, y, life: 1, color: color || 'rgba(200,230,255,0.9)' });
+    }
+
+    // These three (move/down/up) are only ever attached when `interactive`
+    // is on, and always on `window` -- the canvas itself stays
+    // pointer-events:none no matter what, so a click always still reaches
+    // whatever's really underneath it; this just also lets the effect
+    // notice where the pointer is.
+    function onPointerMove(e) {
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
+      pointer.active = true;
+      const now = performance.now();
+      recentPointer.push({ x: e.clientX, y: e.clientY, t: now });
+      if (recentPointer.length > 5) recentPointer.shift();
+      if (held) {
+        held.x = e.clientX + heldOffsetX;
+        held.y = e.clientY + heldOffsetY;
+        held.baseX = held.x;
+        held.windOffset = 0;
+      }
+    }
+    function onPointerLeave() {
+      pointer.active = false;
+    }
+    function onPointerDown(e) {
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
+      pointer.active = true;
+      let closest = null, closestDist = TOUCH_RADIUS;
+      for (const p of particles) {
+        if (p.held) continue;
+        const d = Math.hypot(p.x - e.clientX, p.y - e.clientY);
+        if (d < closestDist) { closest = p; closestDist = d; }
+      }
+      if (!closest) return;
+      if (system.pop) {
+        popAt(closest.x, closest.y);
+        system.respawn(closest, window.innerWidth, window.innerHeight);
+      } else if (system.grabbable) {
+        held = closest;
+        held.held = true;
+        heldOffsetX = closest.x - e.clientX;
+        heldOffsetY = closest.y - e.clientY;
+        recentPointer = [{ x: e.clientX, y: e.clientY, t: performance.now() }];
+      }
+    }
+    function onPointerUp() {
+      if (!held) return;
+      // A little toss on release, based on how fast the pointer was moving
+      // just before letting go -- picking something up and flicking it
+      // is most of the charm; dropping it dead-still isn't.
+      const a = recentPointer[0], b = recentPointer[recentPointer.length - 1];
+      if (a && b && b.t > a.t) {
+        const dtRelease = (b.t - a.t) / 1000;
+        held.repelX = ((b.x - a.x) / dtRelease) * 0.12;
+        held.repelY = ((b.y - a.y) / dtRelease) * 0.12;
+      }
+      held.held = false;
+      held = null;
+    }
+    if (interactive) {
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerleave', onPointerLeave);
+      window.addEventListener('pointerdown', onPointerDown);
+      window.addEventListener('pointerup', onPointerUp);
+    }
+
     function frame(now) {
       const dt = Math.min(0.032, (now - last) / 1000);
       last = now;
       const w = window.innerWidth, h = window.innerHeight;
       ctx.clearRect(0, 0, w, h);
+
       for (const p of particles) {
         const needsRespawn = system.step(p, dt, w, h);
         if (needsRespawn) system.respawn(p, w, h);
-        system.draw(ctx, p);
+
+        if (interactive && !p.held) {
+          // Ambient hover response: most kinds gently swerve away from the
+          // cursor as it passes near (like wind, or a small creature
+          // stepping aside); ambient glints (fireflies/sparkle/stars) do
+          // the opposite and drift toward it, like they're curious.
+          if (pointer.active) {
+            const dx = p.x - pointer.x, dy = p.y - pointer.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            if (dist < AMBIENT_RADIUS) {
+              const push = (1 - dist / AMBIENT_RADIUS) * 70 * dt;
+              const dirX = system.attract ? -dx / dist : dx / dist;
+              const dirY = system.attract ? -dy / dist : dy / dist;
+              p.repelX = (p.repelX || 0) + dirX * push;
+              p.repelY = (p.repelY || 0) + dirY * push;
+            }
+          }
+          // Spring the toss/avoidance offset back to zero over time, same
+          // idea for every kind -- a temporary nudge, never a permanent
+          // change to where the particle "belongs".
+          p.repelX = (p.repelX || 0) * Math.max(0, 1 - dt * 2.2);
+          p.repelY = (p.repelY || 0) * Math.max(0, 1 - dt * 2.2);
+          p.x += p.repelX;
+          p.y += p.repelY;
+        }
+
+        system.draw(ctx, p, opacity);
       }
+
+      pops = pops.filter((pop) => {
+        pop.life -= dt / 0.4;
+        if (pop.life <= 0) return false;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, pop.life) * opacity;
+        ctx.strokeStyle = pop.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pop.x, pop.y, (1 - pop.life) * size * 1.4, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        return true;
+      });
+
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
@@ -659,9 +863,15 @@ function SiteEffectCanvas({ def, density, speed, size }) {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
+      if (interactive) {
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerleave', onPointerLeave);
+        window.removeEventListener('pointerdown', onPointerDown);
+        window.removeEventListener('pointerup', onPointerUp);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuilds the whole particle system on any of these changing, not per-frame
-  }, [def, density, speed, size, isFirework]);
+  }, [def, density, speed, size, isFirework, reverseDirection, wind, opacity, interactive]);
 
   return (
     <canvas

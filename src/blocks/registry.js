@@ -429,7 +429,10 @@ export const BLOCK_REGISTRY = {
     icon: 'sparkles',
     description: 'A festive animated overlay across the whole site -- falling snow, confetti, seasonal themes, and more. Purely decorative; never blocks clicking or reading the page.',
     chromeless: true,
-    defaultProps: { preset: 'snow', customGlyph: '', density: 40, speed: 50, size: 24 },
+    defaultProps: {
+      preset: 'snow', customGlyph: '', density: 40, speed: 50, size: 24,
+      reverseDirection: false, wind: 0, opacity: 90, interactive: false,
+    },
     fields: [
       { key: 'preset', kind: 'select', label: 'Effect', options: SITE_EFFECT_PRESET_OPTIONS },
       // Deliberately the ONLY visual input this block has -- see
@@ -439,6 +442,16 @@ export const BLOCK_REGISTRY = {
       { key: 'density', kind: 'range', label: 'Amount', min: 5, max: 120, step: 5 },
       { key: 'speed', kind: 'range', label: 'Speed', min: 10, max: 100, step: 5, unit: '%' },
       { key: 'size', kind: 'range', label: 'Size', min: 10, max: 60, step: 2, unit: 'px' },
+      { key: 'opacity', kind: 'range', label: 'Intensity', min: 20, max: 100, step: 5, unit: '%' },
+      { key: 'wind', kind: 'range', label: 'Wind (blows left/right)', min: -100, max: 100, step: 10 },
+      {
+        key: 'reverseDirection', kind: 'toggle', label: 'Float upward instead of falling',
+        showIf: (p) => !['rain', 'bubbles', 'fireworks', 'sparkle', 'fireflies', 'stars'].includes(p.preset),
+      },
+      {
+        key: 'interactive', kind: 'toggle',
+        label: 'Let visitors play with it (grab & toss, pop bubbles, fireflies drawn to your cursor, click for a bonus firework)',
+      },
     ],
   },
 };
