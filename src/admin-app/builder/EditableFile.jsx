@@ -19,6 +19,11 @@ export function EditableFile({ value, fileName, onChange, pathPrefix, accept = '
       const { url, name } = await uploadFn(file, pathPrefix);
       onChange(url, name);
     } catch (err) {
+      // Logged in full (not just err.message) so a vague on-screen message
+      // still has the real underlying cause available in devtools --
+      // Supabase storage/RLS errors often carry more detail (status code,
+      // a Postgres error code) on the object than the message string alone.
+      console.error('File upload failed:', err);
       setError(err.message || 'Upload failed.');
     } finally {
       setUploading(false);
@@ -36,7 +41,11 @@ export function EditableFile({ value, fileName, onChange, pathPrefix, accept = '
         {uploading ? 'Uploading…' : value ? `Replace ${label}${fileName ? ` (${fileName})` : ''}` : `Upload ${label}`}
       </button>
       <input ref={inputRef} type="file" accept={accept} style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files?.[0])} />
-      {error && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--color-error)', marginTop: 'var(--space-1)' }}>{error}</div>}
+      {error && (
+        <div style={{ marginTop: 'var(--space-2)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', background: 'var(--tint-error-bg)', border: '1px solid var(--color-error)', color: 'var(--color-error)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', fontWeight: 'var(--fw-bold)' }}>
+          {error}
+        </div>
+      )}
     </div>
   );
 }
