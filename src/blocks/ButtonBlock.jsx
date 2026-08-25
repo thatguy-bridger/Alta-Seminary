@@ -22,22 +22,35 @@ const ICONS = {
 
 // Renders as a styled <a>, not a nested <button> inside <a> (invalid HTML) --
 // reuses the exact same .btn/.btn-* classes Button.jsx applies to its <button>.
-// Every real (published) button gets its own random depth tier -- see
+// Every real (published) button gets its own depth tier -- see
 // SiteEffectBlock.jsx's SITE_EFFECT_DEPTH_TIERS, which this must stay in
-// sync with. Picked once per mount (not on every render, which would make a
-// button's stacking flicker/reshuffle on every re-render) via lazy useState
-// init. Only matters when a Site Effect block is also on the page (a
+// sync with. Only matters when a Site Effect block is also on the page (a
 // button with no such neighbor just gets an unused, harmless z-index) --
 // this is what lets a floating particle end up genuinely above one button
 // but below the next, not just uniformly in front of or behind ALL of them.
+//
+// Deliberately a deterministic hash of the button's own content, NOT
+// Math.random() -- this page is server-rendered (Astro SSR) and then
+// hydrated on the client, and Math.random() runs independently in each
+// place, so the server's picked tier and the client's picked tier for the
+// exact same button would almost never match. React does hydrate past a
+// prop/style mismatch, but it logs a loud "didn't match" warning for every
+// single button on the page (confirmed live) and "won't be patched up" --
+// harmless in effect here (it just keeps the client's value), but it's
+// real console noise for something that's supposed to look intentional.
+// Hashing the button's own label+href instead gives a value that's
+// identical whether it's computed during SSR or during hydration, since
+// both start from the exact same input.
 const DEPTH_TIERS = [1, 3, 5];
-function useDepthTier() {
-  const [tier] = React.useState(() => DEPTH_TIERS[Math.floor(Math.random() * DEPTH_TIERS.length)]);
-  return tier;
+function depthTierFor(label, href) {
+  const str = `${label || ''}|${href || ''}`;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  return DEPTH_TIERS[Math.abs(hash) % DEPTH_TIERS.length];
 }
 
 export function ButtonBlock({ label, href = '#', variant = 'primary', size = 'md', align = 'left', icon = 'none', fullWidth = false, newTab = false, labelStyle, editable, onFieldChange }) {
-  const depthTier = useDepthTier();
+  const depthTier = depthTierFor(label, href);
   if (!editable && !label) return null;
   const cls = ['btn', 'btn-' + variant, size === 'sm' ? 'btn-sm' : size === 'lg' ? 'btn-lg' : ''].filter(Boolean).join(' ');
   const content = editable ? (

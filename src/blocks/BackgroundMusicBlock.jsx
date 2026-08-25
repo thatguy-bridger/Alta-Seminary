@@ -10,20 +10,22 @@ const POSITION_STYLE = {
   'top-left': { top: 'var(--space-4)', left: 'var(--space-4)' },
 };
 
-// A Google Drive "share" link (drive.google.com/file/d/<id>/view?usp=sharing,
-// or the older open?id=<id> form) points at an HTML preview page, not the
-// actual audio bytes -- <audio src> just gets that HTML back and fails with
-// a format error. Rewriting it to Drive's own direct-content endpoint
-// (uc?export=download&id=<id>) is what actually serves the raw file instead,
-// and works for anything shared "Anyone with the link" without needing to be
-// public on the web. Content-Disposition: attachment on that response would
-// force a download for a clicked link/top-level navigation, but doesn't stop
-// a browser from loading it as a resource for an <audio> element the way it
-// would here. Anything that isn't a Drive link passes through untouched.
-function resolveAudioUrl(url) {
-  const trimmed = (url || '').trim();
-  const match = trimmed.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/);
-  return match ? `https://drive.google.com/uc?export=download&id=${match[1]}` : trimmed;
+// A Google Drive "share" link (drive.google.com/file/d/<id>/view?usp=sharing)
+// points at an HTML preview page, not the actual audio bytes -- <audio src>
+// just gets that HTML back and fails. A previous version of this rewrote it
+// to Drive's own direct-content endpoint (uc?export=download&id=<id>),
+// which DOES serve the real file (verified: curl gets back a real
+// audio/mpeg response with the right length) -- but that response also
+// carries `Cross-Origin-Resource-Policy: same-site`, which Google sets
+// specifically to block exactly this kind of cross-origin embedding.
+// Confirmed live: an <audio> element pointed at that URL fails with
+// MEDIA_ERR_SRC_NOT_SUPPORTED regardless of the rewrite, in every
+// Chromium-based browser, every time -- this is not something fixable with
+// a different URL shape or a client-side workaround. Drive links are left
+// completely untouched now; isGoogleDriveUrl below is only used to show an
+// honest warning instead of quietly shipping something that can't work.
+function isGoogleDriveUrl(url) {
+  return /drive\.google\.com\//.test((url || '').trim());
 }
 
 const PlayGlyph = () => (
@@ -44,7 +46,8 @@ export function BackgroundMusicBlock({
   volume = 40, loop = true, autoplay = false, showControls = true, position = 'bottom-right',
   editable, onFieldChange, pathPrefix,
 }) {
-  const src = resolveAudioUrl(sourceType === 'url' ? externalUrl : fileUrl);
+  const rawSrc = sourceType === 'url' ? externalUrl : fileUrl;
+  const src = isGoogleDriveUrl(rawSrc) ? '' : rawSrc;
 
   if (editable) {
     return (
@@ -77,6 +80,11 @@ export function BackgroundMusicBlock({
           {sourceType === 'url' && !externalUrl && (
             <div style={{ marginTop: 'var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--color-error)' }}>
               Add the audio file's URL in Settings.
+            </div>
+          )}
+          {sourceType === 'url' && isGoogleDriveUrl(externalUrl) && (
+            <div style={{ marginTop: 'var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--color-error)' }}>
+              Google Drive links can't be played here — Drive blocks other sites from embedding its files directly (a security setting on Google's end, not something fixable from here), regardless of sharing permissions. Switch "Audio source" to "Upload a file" instead.
             </div>
           )}
           {src && (

@@ -386,7 +386,7 @@ export const BLOCK_REGISTRY = {
       // bucket than the generic file-kind field would know how to use), so
       // this must NOT also show up in the generic settings panel.
       { key: 'fileUrl', kind: 'file', label: 'Audio file', showIf: (p) => p.sourceType !== 'url' },
-      { key: 'externalUrl', kind: 'text', label: 'Audio file URL (a direct mp3/etc link, or a Google Drive share link set to "Anyone with the link" -- not a YouTube/Spotify page)', inline: false, showIf: (p) => p.sourceType === 'url' },
+      { key: 'externalUrl', kind: 'text', label: 'Audio file URL (a direct mp3/etc link -- not a YouTube/Spotify/Google Drive page, none of which allow direct embedding)', inline: false, showIf: (p) => p.sourceType === 'url' },
       { key: 'volume', kind: 'range', label: 'Volume', min: 0, max: 100, unit: '%' },
       { key: 'loop', kind: 'toggle', label: 'Loop' },
       { key: 'showControls', kind: 'toggle', label: 'Show a play/pause + volume control to visitors' },
