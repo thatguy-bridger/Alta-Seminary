@@ -1,40 +1,45 @@
 import React from 'react';
 
-// Rendered on a single <canvas> (see SiteEffectLive below), not DOM+CSS
-// spans -- this rewrite followed a look at how real particle-effect
-// libraries actually do it (tsParticles' snow/fireworks presets,
-// canvas-confetti): canvas is what lets hundreds of particles move smoothly
-// with real glow/gradients, and -- the actual point of switching -- it's
-// what makes an "instant, already-populated" scene possible. The old
-// DOM/CSS-keyframe version always started every particle off-screen at one
-// edge with a random animation-delay, which reads as a slow "things
-// trickling in" loading moment before the effect looks full. Canvas
-// particles are seeded across the ENTIRE height on the very first frame
-// (see initParticles below) and just wrap around forever after that, so the
-// effect is fully there the instant it mounts.
+// Rendered on a single <canvas>, not DOM+CSS spans -- canvas is what lets
+// real glow/gradients/hundreds of particles move smoothly, and what makes an
+// "instant, already-populated" scene possible (every particle is seeded
+// across the FULL screen on the first frame, not spawned one edge at a time).
+//
+// Every preset is its own distinct mechanic, not a shared shape recolored --
+// that was a real complaint about an earlier version (Summer Sparkle,
+// Fireflies, and Stars all used the same twinkling-dot shape with just a
+// different palette, which reads as "one effect wearing three skins," not
+// three effects). Now: Stars twinkle in place, Fireflies wander with a
+// fading light trail, and Summer Sparkle is a rising warm shimmer with
+// occasional bright flares -- three actually different behaviors.
+//
+// Most presets also have a rare "signature moment": a bigger, more dramatic
+// full-screen burst that fires every 20-40s on top of the normal ambient
+// loop (a lightning flash + downpour for Rain, a confetti cannon, a
+// shooting star, a balloon release, ...) -- inspired by how FaceTime's
+// reaction effects work, and the direct answer to "I don't want them all to
+// seem the same with just a new skin": the ambient loop is quiet and
+// continuous, the signature moment is the one-off spectacle.
 export const SITE_EFFECT_PRESETS = {
   snow: { kind: 'snow', label: 'Snow' },
   rain: { kind: 'rain', label: 'Rain' },
   leaves: { kind: 'leaf', label: 'Autumn Leaves' },
   petals: { kind: 'petal', label: 'Spring Petals' },
-  sparkle: { kind: 'glint', palette: ['#fff6cf', '#ffe9a8', '#ffffff'], label: 'Summer Sparkle' },
+  sparkle: { kind: 'shimmer', label: 'Summer Sparkle' },
   bubbles: { kind: 'bubble', label: 'Bubbles' },
-  butterflies: { kind: 'emoji', glyph: '🦋', label: 'Butterflies' },
-  fireflies: { kind: 'glint', palette: ['#e8ff9e', '#c6f26a', '#fff9d0'], label: 'Fireflies', ambient: true },
+  butterflies: { kind: 'butterfly', label: 'Butterflies' },
+  fireflies: { kind: 'firefly', label: 'Fireflies' },
   confetti: { kind: 'confetti', label: 'Confetti' },
-  balloons: { kind: 'emoji', glyph: '🎈', label: 'Balloons', direction: 'up' },
+  balloons: { kind: 'balloon', label: 'Balloons', direction: 'up' },
   hearts: { kind: 'heart', label: "Hearts (Valentine's)" },
   shamrocks: { kind: 'shamrock', label: "Shamrocks (St. Patrick's)" },
-  eggs: { kind: 'emoji', glyph: '🥚', label: 'Easter Eggs' },
   fireworks: { kind: 'firework', label: 'Fireworks (4th of July)' },
-  stars: { kind: 'glint', palette: ['#ffffff', '#dfe7ff', '#c7d2ff'], label: 'Stars', ambient: true },
+  stars: { kind: 'glint', label: 'Stars' },
   pumpkins: { kind: 'emoji', glyph: '🎃', label: 'Pumpkins (Halloween)' },
-  bats: { kind: 'emoji', glyph: '🦇', label: 'Bats (Halloween)' },
-  ghosts: { kind: 'emoji', glyph: '👻', label: 'Ghosts (Halloween)' },
+  bats: { kind: 'bat', label: 'Bats (Halloween)' },
+  ghosts: { kind: 'ghost', label: 'Ghosts (Halloween)' },
   turkeys: { kind: 'emoji', glyph: '🦃', label: 'Turkeys (Thanksgiving)' },
   ornaments: { kind: 'emoji', glyph: '🎄', label: 'Christmas' },
-  santa: { kind: 'emoji', glyph: '🎅', label: 'Santa' },
-  hanukkah: { kind: 'emoji', glyph: '🕎', label: 'Hanukkah' },
   gradcaps: { kind: 'emoji', glyph: '🎓', label: 'Graduation' },
 };
 
@@ -43,21 +48,28 @@ export const SITE_EFFECT_PRESET_OPTIONS = [
   { value: 'custom', label: 'Custom emoji…' },
 ];
 
-const PREVIEW_GLYPH = { snow: '❄️', rain: '🌧️', glint: '✨', bubble: '🫧', confetti: '🎊', firework: '🎆', leaf: '🍂', petal: '🌸', heart: '💕', shamrock: '☘️' };
+const PREVIEW_GLYPH = {
+  snow: '❄️', rain: '🌧️', glint: '✨', bubble: '🫧', confetti: '🎊', firework: '🎆',
+  leaf: '🍂', petal: '🌸', heart: '💕', shamrock: '☘️', shimmer: '☀️', butterfly: '🦋',
+  firefly: '🌟', balloon: '🎈', ghost: '👻', bat: '🦇',
+};
 
 // Chromeless (registry.js) -- a purely decorative animated overlay across
 // the whole site. Deliberately built so an admin CAN'T turn this into a
 // full-bleed background image/video sitting on top of the page, which was
 // an explicit ask, not an oversight:
 //   - No image/video/file field exists on this block at all -- every preset
-//     is either an emoji glyph or one of a handful of hand-drawn canvas shapes.
+//     is either an emoji glyph or a hand-drawn canvas shape.
 //   - The canvas is always `pointer-events: none`, so it can never block a
 //     click or a tap regardless of any setting here.
 //   - Density and size are both hard-capped (see the clamps below)
 //     independent of whatever's actually stored, so a bad/stale value can't
-//     produce enough coverage to read as a solid layer.
-//   - Nothing here ever paints a background color/image across the canvas --
-//     only small individual particles on an otherwise fully transparent one.
+//     produce enough coverage to read as a solid layer. Signature moments
+//     are temporary and self-limiting (a few seconds, then gone) for the
+//     same reason -- never a permanent escalation.
+//   - Nothing here ever paints an opaque background across the canvas --
+//     only small individual particles (and brief, low-opacity flashes) on
+//     an otherwise transparent one.
 export function SiteEffectBlock({
   preset = 'snow', customGlyph = '', density = 40, speed = 50, size = 24,
   reverseDirection = false, wind = 0, opacity = 90, interactive = false,
@@ -103,36 +115,20 @@ function rand(min, max) { return min + Math.random() * (max - min); }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 // --- Per-kind particle factories -------------------------------------
-// Each returns { init(w,h,spawnFull), step(p,dt,w,h), draw(ctx,p) }.
-// `init`'s spawnFull=true (only used the very first time, and again after a
-// resize) seeds `p.y` (or `p.top`, for ambient kinds) anywhere across the
-// FULL height/viewport instead of just above it -- that's the whole fix for
-// "instant effects, no loading wait". Every subsequent respawn (wrapping
-// after leaving the screen) uses spawnFull=false, which puts it back at the
-// proper off-screen edge, exactly like real snow/rain/confetti continuously
-// replenishing itself.
-
-// `dt` throughout this file is in SECONDS (the RAF loops below convert once
-// per frame), so every velocity here is a plain px/second or radians/second
-// -- no ad-hoc per-frame fudge factors. Horizontal sway is computed fresh
-// each frame as `baseX + sin(...)`, an OFFSET from a fixed anchor, not
-// accumulated by `+=` every frame -- accumulating it would have compounded
-// forever into runaway horizontal drift instead of a bounded side-to-side sway.
-// `wind` is a constant horizontal bias (px/second) on top of the sway --
-// tracked as its own accumulator (`windOffset`) separate from the sway
-// term, added together in the final x each frame, so it stacks cleanly
-// instead of fighting the sway's own oscillation.
-//
-// `held`/`repelX`/`repelY` are the interactive layer's doing (see
-// SiteEffectCanvas) -- grabbing a particle freezes its normal x/y formula
-// and lets the pointer drive it directly; repelX/Y is a decaying offset
-// added on release (a little "toss") or from ambient cursor avoidance.
-// Every factory below leaves room for both without needing to know
-// anything about interactivity itself.
+// `dt` throughout this file is in SECONDS, so every velocity is a plain
+// px/second or radians/second -- no per-frame fudge factors. Horizontal
+// sway is computed fresh each frame as `baseX + sin(...)`, an OFFSET from a
+// fixed anchor, never accumulated by `+=` (that would compound into
+// runaway drift instead of a bounded wobble). `wind` is a separate
+// accumulator stacked on top of the sway. `held`/`repelX`/`repelY` are the
+// interactive layer's doing (see SiteEffectCanvas) -- grabbing a particle
+// freezes its normal x/y formula and lets the pointer drive it directly;
+// repelX/Y is a decaying offset from a release "toss" or ambient cursor
+// avoidance/attraction.
 function fallFactory({ speed, size, sway = 40, spin = true, wind = 0 }) {
   return {
     make(w, h, spawnFull) {
-      const duration = rand(9, 16) * (1 - (speed / 100) * 0.55); // seconds to cross the full height
+      const duration = rand(9, 16) * (1 - (speed / 100) * 0.55);
       const baseX = rand(0, w);
       return {
         baseX, x: baseX, windOffset: 0,
@@ -148,13 +144,13 @@ function fallFactory({ speed, size, sway = 40, spin = true, wind = 0 }) {
       };
     },
     step(p, dt, w, h) {
-      if (p.held) return false; // pointer is driving x/y directly this frame
+      if (p.held) return false;
       p.t += dt;
       p.y += p.vy * dt;
       p.windOffset += wind * dt;
       p.x = p.baseX + p.windOffset + Math.sin(p.t * p.swayFreq + p.phase) * p.swayAmp;
       p.rot += p.rotSpeed * dt;
-      if (p.y > h + size * 2) return true; // needs respawn
+      if (p.y > h + size * 2) return true;
       return false;
     },
   };
@@ -173,7 +169,7 @@ function riseFactory({ speed, size, sway = 30, wind = 0 }) {
         swayFreq: rand(0.2, 0.6),
         phase: rand(0, Math.PI * 2),
         scale: rand(0.6, 1.3),
-        rot: rand(-0.3, 0.3), // a fixed gentle tilt (a rising balloon doesn't spin like a falling leaf)
+        rot: rand(-0.3, 0.3),
         t: 0, held: false, repelX: 0, repelY: 0,
       };
     },
@@ -189,18 +185,17 @@ function riseFactory({ speed, size, sway = 30, wind = 0 }) {
   };
 }
 
+// Twinkles in place -- used only by Stars now (Fireflies/Summer Sparkle
+// each got their own distinct mechanic instead, see wanderFactory/shimmer below).
 function ambientFactory({ drift = 0 }) {
   return {
     make(w, h) {
       return {
-        x: rand(0, w),
-        y: rand(0, h),
-        vx: rand(-drift, drift),
-        vy: rand(-drift, drift),
-        twinklePhase: rand(0, Math.PI * 2),
-        twinkleSpeed: rand(0.6, 1.4),
-        scale: rand(0.6, 1.3),
-        t: rand(0, 10),
+        x: rand(0, w), y: rand(0, h),
+        vx: rand(-drift, drift), vy: rand(-drift, drift),
+        twinklePhase: rand(0, Math.PI * 2), twinkleSpeed: rand(0.6, 1.4),
+        scale: rand(0.6, 1.3), t: rand(0, 10),
+        held: false, repelX: 0, repelY: 0,
       };
     },
     step(p, dt, w, h) {
@@ -216,10 +211,53 @@ function ambientFactory({ drift = 0 }) {
   };
 }
 
+// Organic wandering flight -- picks a direction, holds it for a couple
+// seconds, then smoothly retargets to a new one, bouncing gently off the
+// edges of the screen instead of falling or rising in a straight line.
+// This is what makes Butterflies/Fireflies/Bats/Ghosts feel alive rather
+// than "an emoji falling with extra steps" -- they actually fly/float
+// around. `wingSpeed` (unused by Ghosts) drives the wing-flap animation in
+// their respective draw functions.
+function wanderFactory({ speedPx = 40 }) {
+  return {
+    make(w, h) {
+      const angle = rand(0, Math.PI * 2);
+      return {
+        x: rand(0, w), y: rand(0, h),
+        vx: Math.cos(angle) * speedPx, vy: Math.sin(angle) * speedPx,
+        turnT: rand(0.5, 2.5), turnEvery: rand(1.5, 3.5),
+        wingPhase: rand(0, Math.PI * 2), wingSpeed: rand(7, 11),
+        scale: rand(0.7, 1.3), t: rand(0, 10),
+        held: false, repelX: 0, repelY: 0,
+      };
+    },
+    step(p, dt, w, h) {
+      if (p.held) return false;
+      p.t += dt;
+      p.wingPhase += p.wingSpeed * dt;
+      p.turnT -= dt;
+      if (p.turnT <= 0) {
+        const currentAngle = Math.atan2(p.vy, p.vx);
+        const nextAngle = currentAngle + rand(-1.3, 1.3);
+        const spd = Math.hypot(p.vx, p.vy);
+        p.vx = Math.cos(nextAngle) * spd;
+        p.vy = Math.sin(nextAngle) * spd;
+        p.turnT = p.turnEvery;
+      }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.x < 20 || p.x > w - 20) p.vx *= -1;
+      if (p.y < 20 || p.y > h - 20) p.vy *= -1;
+      p.x = Math.max(0, Math.min(w, p.x));
+      p.y = Math.max(0, Math.min(h, p.y));
+      return false; // ambient -- never "leaves" the screen to respawn
+    },
+  };
+}
+
 // --- Drawing routines ---------------------------------------------------
 // Real vector shapes drawn with actual bezier curves + gradients + glow,
-// not font glyphs -- this is what makes Leaves/Petals/Hearts/Shamrocks look
-// like a designed graphic instead of a repeated emoji.
+// not font glyphs.
 
 function drawLeaf(ctx, p, size, opacity) {
   ctx.globalAlpha = opacity;
@@ -318,8 +356,7 @@ function drawShamrock(ctx, p, size, opacity) {
 }
 
 // Two depth layers: crisp 6-branch crystal flakes up close, soft round
-// bokeh circles farther back -- the actual "designed" snow look, rather
-// than one repeated shape.
+// bokeh circles farther back.
 function drawSnow(ctx, p, size, opacity) {
   ctx.globalAlpha = opacity;
   const s = size * p.scale;
@@ -357,6 +394,10 @@ function drawSnow(ctx, p, size, opacity) {
   ctx.restore();
 }
 
+// Two depth layers of tilted gradient streaks, same idea as snow's depth
+// trick. `p.splashAt` (set by SiteEffectCanvas the instant a near-layer drop
+// respawns) draws one quick expanding ring at the point it "hit the ground" --
+// the single biggest thing missing before that made rain look weightless.
 function drawRain(ctx, p, size, opacity) {
   ctx.globalAlpha = opacity;
   ctx.save();
@@ -367,6 +408,18 @@ function drawRain(ctx, p, size, opacity) {
   ctx.beginPath();
   ctx.moveTo(p.x, p.y);
   ctx.lineTo(p.x + len * 0.18, p.y + len);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSplash(ctx, p, size, opacity) {
+  const fade = Math.max(0, 1 - p.t / p.life);
+  ctx.save();
+  ctx.globalAlpha = fade * opacity * 0.8;
+  ctx.strokeStyle = 'rgba(200,225,255,0.9)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y, (1 - fade) * size * 0.9, (1 - fade) * size * 0.3, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
@@ -419,16 +472,16 @@ function drawConfetti(ctx, p, size, opacity) {
   ctx.restore();
 }
 
-// A 4-point glint star drawn as two crossed diamonds -- used for Summer
-// Sparkle/Fireflies/Stars, distinguished by palette + whether they drift.
-function drawGlint(ctx, p, opacity) {
+// Stars: the one preset left twinkling in place -- a 4-point glint drawn as
+// a pinched diamond.
+function drawGlint(ctx, p, opacity, color) {
   const alpha = 0.15 + Math.abs(Math.sin(p.t * p.twinkleSpeed + p.twinklePhase)) * 0.85;
   const s = 10 * p.scale * (0.6 + alpha * 0.5);
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.globalAlpha = alpha * opacity;
-  ctx.fillStyle = p.color;
-  ctx.shadowColor = p.color;
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
   ctx.shadowBlur = s * 1.4;
   ctx.beginPath();
   ctx.moveTo(0, -s);
@@ -440,11 +493,206 @@ function drawGlint(ctx, p, opacity) {
   ctx.restore();
 }
 
+// Fireflies: unlike Stars, these actually MOVE (wanderFactory) and leave a
+// short fading trail of where they just were -- that's the whole
+// distinction from a twinkling star, a real firefly is defined by its
+// meandering flight path as much as its glow.
+function drawFirefly(ctx, p, size, opacity) {
+  const pulse = 0.4 + Math.abs(Math.sin(p.t * 1.8)) * 0.6;
+  ctx.save();
+  if (p.trail && p.trail.length > 1) {
+    for (let i = 0; i < p.trail.length - 1; i++) {
+      const t = p.trail[i];
+      const age = i / p.trail.length;
+      ctx.globalAlpha = age * 0.3 * opacity;
+      ctx.fillStyle = '#d4ff7a';
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, size * 0.12 * age, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = pulse * opacity;
+  ctx.fillStyle = '#eaffb0';
+  ctx.shadowColor = '#d4ff7a';
+  ctx.shadowBlur = size * 0.9 * pulse;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, size * 0.16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Summer Sparkle: a warm haze rising slowly like heat shimmer, where each
+// particle occasionally "flares" brighter/bigger for a moment -- distinct
+// from both Stars (static twinkle) and Fireflies (moving glow + trail).
+function drawShimmer(ctx, p, size, opacity) {
+  const flare = p.flareT > 0 ? (p.flareT / p.flareDuration) : 0;
+  const s = size * p.scale * (0.6 + flare * 0.8);
+  const alpha = (0.25 + flare * 0.6) * opacity;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.globalAlpha = alpha;
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 0.6);
+  g.addColorStop(0, '#fff8dd');
+  g.addColorStop(0.5, 'rgba(255,224,150,0.5)');
+  g.addColorStop(1, 'rgba(255,224,150,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, s * 0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Butterflies: two gradient wings that actually flap (scaleX oscillates
+// with wingPhase), oriented to face the direction it's currently flying.
+function drawButterfly(ctx, p, size, opacity) {
+  const s = size * p.scale;
+  const flap = Math.max(0.15, Math.abs(Math.sin(p.wingPhase)));
+  const heading = Math.atan2(p.vy || 0, p.vx || 1);
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.translate(p.x, p.y);
+  ctx.rotate(heading + Math.PI / 2);
+  const g = ctx.createLinearGradient(-s / 2, 0, s / 2, 0);
+  g.addColorStop(0, p.c1);
+  g.addColorStop(1, p.c2);
+  ctx.fillStyle = g;
+  ctx.shadowColor = p.c2;
+  ctx.shadowBlur = s * 0.3;
+  for (const side of [-1, 1]) {
+    ctx.save();
+    ctx.scale(side * flap, 1);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(s * 0.6, -s * 0.5, s * 0.15, -s * 0.05);
+    ctx.quadraticCurveTo(s * 0.55, s * 0.3, 0, 0);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(40,30,20,0.8)';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, s * 0.04, s * 0.22, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Bats: angular dark wings that flap the same way butterflies' do, swooping
+// along their wander path instead of a straight fall.
+function drawBat(ctx, p, size, opacity) {
+  const s = size * p.scale;
+  const flap = Math.max(0.2, Math.abs(Math.sin(p.wingPhase)));
+  const heading = Math.atan2(p.vy || 0, p.vx || 1);
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.translate(p.x, p.y);
+  ctx.rotate(heading + Math.PI / 2);
+  const g = ctx.createLinearGradient(0, -s / 2, 0, s / 2);
+  g.addColorStop(0, '#2b1830');
+  g.addColorStop(1, '#0c0710');
+  ctx.fillStyle = g;
+  for (const side of [-1, 1]) {
+    ctx.save();
+    ctx.scale(side * flap, 1);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(s * 0.65, -s * 0.35);
+    ctx.lineTo(s * 0.45, -s * 0.05);
+    ctx.lineTo(s * 0.6, s * 0.05);
+    ctx.lineTo(s * 0.2, s * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.beginPath();
+  ctx.ellipse(0, 0, s * 0.09, s * 0.16, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#c23b3b';
+  ctx.shadowColor = '#c23b3b';
+  ctx.shadowBlur = s * 0.3;
+  ctx.beginPath();
+  ctx.arc(-s * 0.03, -s * 0.05, s * 0.02, 0, Math.PI * 2);
+  ctx.arc(s * 0.03, -s * 0.05, s * 0.02, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Ghosts: a rounded-top, scalloped-bottom silhouette (drawn, not an emoji),
+// translucent, gently bobbing as it drifts -- floating, never falling.
+function drawGhost(ctx, p, size, opacity) {
+  const s = size * p.scale;
+  const bob = Math.sin(p.t * 1.5) * s * 0.08;
+  ctx.save();
+  ctx.globalAlpha = 0.55 * opacity;
+  ctx.translate(p.x, p.y + bob);
+  const g = ctx.createLinearGradient(0, -s / 2, 0, s / 2);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(1, '#dfe6f2');
+  ctx.fillStyle = g;
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = s * 0.25;
+  ctx.beginPath();
+  ctx.arc(0, -s * 0.05, s * 0.4, Math.PI, 0);
+  ctx.lineTo(s * 0.4, s * 0.3);
+  const scallops = 4;
+  for (let i = 0; i < scallops; i++) {
+    const x0 = s * 0.4 - (i * (s * 0.8)) / scallops;
+    const x1 = s * 0.4 - ((i + 1) * (s * 0.8)) / scallops;
+    ctx.quadraticCurveTo((x0 + x1) / 2, s * 0.42, x1, s * 0.3);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(30,30,40,0.75)';
+  ctx.beginPath();
+  ctx.ellipse(-s * 0.13, -s * 0.05, s * 0.05, s * 0.07, 0, 0, Math.PI * 2);
+  ctx.ellipse(s * 0.13, -s * 0.05, s * 0.05, s * 0.07, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Balloons: a gradient oval body with a highlight and a thin dangling
+// string, in a randomized bright color per particle -- the explicit ask
+// was "just want color variation" (an emoji glyph is always one fixed color).
+function drawBalloon(ctx, p, size, opacity) {
+  ctx.globalAlpha = opacity;
+  const s = size * p.scale;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.rot);
+  const g = ctx.createRadialGradient(-s * 0.15, -s * 0.25, s * 0.05, 0, 0, s * 0.55);
+  g.addColorStop(0, p.c1);
+  g.addColorStop(1, p.c2);
+  ctx.fillStyle = g;
+  ctx.shadowColor = p.c2;
+  ctx.shadowBlur = s * 0.25;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, s * 0.38, s * 0.48, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.06, s * 0.44);
+  ctx.lineTo(s * 0.06, s * 0.44);
+  ctx.lineTo(0, s * 0.54);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = Math.max(1, s * 0.035);
+  ctx.beginPath();
+  ctx.moveTo(0, s * 0.56);
+  ctx.quadraticCurveTo(s * 0.08, s * 0.7, 0, s * 0.85);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.beginPath();
+  ctx.ellipse(-s * 0.13, -s * 0.2, s * 0.08, s * 0.14, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawEmoji(ctx, p, glyph, size, opacity) {
   ctx.save();
   ctx.globalAlpha = opacity;
   ctx.translate(p.x, p.y);
-  ctx.rotate(p.rot * 0.4);
+  ctx.rotate((p.rot || 0) * 0.4);
   ctx.font = `${size * p.scale}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -456,24 +704,43 @@ const LEAF_PALETTES = [['#f4a534', '#c1440e'], ['#e8c547', '#a6631a'], ['#d9713c
 const PETAL_PALETTES = [['#ffe3ee', '#f582b0'], ['#fff0f5', '#e69bc4'], ['#ffe9f2', '#d873a8']];
 const HEART_PALETTES = [['#ff9bb3', '#e8385c'], ['#ffc2d1', '#c81e4a'], ['#ff7a99', '#a01238']];
 const SHAMROCK_PALETTES = [['#8fe08f', '#1c7a3c'], ['#b6f0a8', '#2e8b46']];
+const BALLOON_PALETTES = [['#ff8fa3', '#d81159'], ['#8fd3ff', '#1976d2'], ['#ffe08f', '#e0930a'], ['#b39dff', '#6a3fd6'], ['#8fffb0', '#1f9e4a']];
+const BUTTERFLY_PALETTES = [['#ffb3de', '#a83279'], ['#8fd9ff', '#2472b8'], ['#fff2a8', '#d69f1c'], ['#c9a8ff', '#7a3fd1']];
 const CONFETTI_SHAPES = ['rect', 'circle', 'triangle'];
+
+// A generic "temporary extra particle" for signature moments -- gravity,
+// life, and fade are handled once here; each kind just supplies where it
+// starts, how fast it moves, and which draw function to reuse. Rendered and
+// stepped by SiteEffectCanvas's `extras` array alongside (not replacing)
+// the steady-state particles, then discarded once its life runs out --
+// self-limiting by construction, never a permanent escalation.
+function makeBurstParticle({ x, y, vx, vy, gravity = 0, life, draw, ...extra }) {
+  const p = { x, y, vx, vy, gravity, t: 0, life, ...extra };
+  return {
+    step(dt) {
+      p.t += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += p.gravity * dt;
+      if (p.rotSpeed) p.rot += p.rotSpeed * dt;
+      return p.t < p.life;
+    },
+    draw(ctx, opacity) {
+      const fade = Math.max(0, 1 - p.t / p.life);
+      draw(ctx, p, fade * opacity);
+    },
+  };
+}
 
 // Sets up (and later restores) one particle system per canvas mount, based
 // on `def.kind`. `resize` re-seeds every particle with spawnFull=true, so
-// the "instant, already-populated" scene holds true even if the browser
-// window is resized mid-effect, not just on first mount.
+// the "instant, already-populated" scene holds even after a resize.
 //
-// `grabbable`/`pop`/`attract` describe how the interactive layer (see
-// SiteEffectCanvas) should treat a hit on this kind's particles:
-//   - grabbable: click-and-drag picks one up and tosses it back on release
-//     (leaves, petals, hearts, shamrocks, confetti, snow, emoji all support
-//     this -- "grab a leaf" was the explicit ask).
-//   - pop: click removes it immediately with a little burst instead of
-//     grabbing (bubbles -- dragging a bubble doesn't make sense, popping does).
-//   - attract: ambient kinds (fireflies/sparkle/stars) are gently drawn
-//     TOWARD the cursor instead of avoiding it, like real fireflies curious
-//     about you, rather than skittish.
-// Rain has none of these (real rain is too fast/thin to meaningfully grab).
+// `grabbable`/`pop`/`attract` describe how the interactive layer treats a
+// hit on this kind's particles (drag-and-toss, pop-instead-of-drag, or
+// drawn-toward-cursor instead of avoiding it). `signature(w,h)` -- present
+// on most kinds -- returns `{ extras, flash }` for that kind's one-off
+// full-screen moment; SiteEffectCanvas calls it on its own random timer.
 function buildSystem(def, density, speed, size, reverseDirection, wind) {
   switch (def.kind) {
     case 'snow': {
@@ -492,6 +759,14 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
         step: (p, dt, w, h) => p.factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, p.factory.make(w, h, false), { far: p.far, factory: p.factory }),
         draw: (ctx, p, opacity) => drawSnow(ctx, p, size, opacity),
+        // A sudden flurry gust: a burst of extra fast-falling flakes.
+        signature: (w) => ({
+          extras: Array.from({ length: 30 }, () => makeBurstParticle({
+            x: rand(0, w), y: -20, vx: rand(60, 140), vy: rand(220, 340), life: rand(2, 3.5),
+            rot: rand(0, 6), scale: rand(0.6, 1.2), far: Math.random() > 0.5,
+            draw: (ctx, p, o) => drawSnow(ctx, p, size, o),
+          })),
+        }),
       };
     }
     case 'rain': {
@@ -508,15 +783,27 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
         step: (p, dt, w, h) => p.factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, p.factory.make(w, h, false), { far: p.far, factory: p.factory }),
         draw: (ctx, p, opacity) => drawRain(ctx, p, size, opacity),
+        // Every near-drop that lands gets a quick splash ring -- see
+        // SiteEffectCanvas, which calls this right before respawning a
+        // near-layer drop that just reached the bottom.
+        splashOnRespawn: true,
+        // Lightning: a bright flash, then a few seconds of much heavier rain.
+        signature: (w, h) => ({
+          flash: { color: 'rgba(230,240,255,0.85)', duration: 120 },
+          extras: Array.from({ length: 40 }, () => makeBurstParticle({
+            x: rand(0, w), y: -20, vx: rand(20, 40), vy: rand(900, 1200), life: rand(0.8, 1.3),
+            far: Math.random() > 0.4,
+            draw: (ctx, p, o) => drawRain(ctx, p, size * 1.1, o),
+          })),
+        }),
       };
     }
     case 'leaf':
     case 'petal':
-    case 'heart':
     case 'shamrock': {
       const factory = (reverseDirection ? riseFactory : fallFactory)({ speed, size, sway: 50, wind });
-      const palette = { leaf: LEAF_PALETTES, petal: PETAL_PALETTES, heart: HEART_PALETTES, shamrock: SHAMROCK_PALETTES }[def.kind];
-      const drawFn = { leaf: drawLeaf, petal: drawPetal, heart: drawHeart, shamrock: drawShamrock }[def.kind];
+      const palette = { leaf: LEAF_PALETTES, petal: PETAL_PALETTES, shamrock: SHAMROCK_PALETTES }[def.kind];
+      const drawFn = { leaf: drawLeaf, petal: drawPetal, shamrock: drawShamrock }[def.kind];
       return {
         grabbable: true,
         makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => {
@@ -526,6 +813,43 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
         step: (p, dt, w, h) => factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false), { c1: p.c1, c2: p.c2 }),
         draw: (ctx, p, opacity) => drawFn(ctx, p, size, opacity),
+        // A gust of wind: a wave of extra ones sweeping across at speed.
+        signature: (w, h) => ({
+          extras: Array.from({ length: 35 }, () => {
+            const [c1, c2] = pick(palette);
+            const fromLeft = Math.random() > 0.5;
+            return makeBurstParticle({
+              x: fromLeft ? -20 : w + 20, y: rand(0, h), vx: (fromLeft ? 1 : -1) * rand(180, 320), vy: rand(-30, 60),
+              life: rand(2, 3), rot: rand(0, 6), rotSpeed: rand(-4, 4), scale: rand(0.7, 1.3), c1, c2,
+              draw: (ctx, p, o) => drawFn(ctx, p, size, o),
+            });
+          }),
+        }),
+      };
+    }
+    case 'heart': {
+      const factory = (reverseDirection ? fallFactory : riseFactory)({ speed, size, sway: 50, wind });
+      return {
+        grabbable: true,
+        makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => {
+          const [c1, c2] = pick(HEART_PALETTES);
+          return { ...factory.make(w, h, spawnFull), c1, c2 };
+        }),
+        step: (p, dt, w, h) => factory.step(p, dt, w, h),
+        respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false), { c1: p.c1, c2: p.c2 }),
+        draw: (ctx, p, opacity) => drawHeart(ctx, p, size, opacity),
+        // A heart burst rising together across the whole width -- the
+        // classic FaceTime "hearts" reaction.
+        signature: (w, h) => ({
+          extras: Array.from({ length: 34 }, () => {
+            const [c1, c2] = pick(HEART_PALETTES);
+            return makeBurstParticle({
+              x: rand(0, w), y: h + rand(0, 60), vx: rand(-25, 25), vy: -rand(140, 220), life: rand(2.5, 3.5),
+              rot: rand(-0.3, 0.3), scale: rand(0.8, 1.4), c1, c2,
+              draw: (ctx, p, o) => drawHeart(ctx, p, size, o),
+            });
+          }),
+        }),
       };
     }
     case 'confetti': {
@@ -538,6 +862,50 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
         step: (p, dt, w, h) => factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false), { color: p.color, shape: p.shape }),
         draw: (ctx, p, opacity) => drawConfetti(ctx, p, size, opacity),
+        // A confetti cannon from both bottom corners -- gravity pulls each
+        // piece back down after it arcs up and out.
+        signature: (w, h) => ({
+          extras: [
+            ...Array.from({ length: 30 }, () => makeBurstParticle({
+              x: 0, y: h, vx: rand(160, 420), vy: -rand(420, 620), gravity: 700, life: rand(1.8, 2.6),
+              rot: rand(0, 6), rotSpeed: rand(-6, 6), scale: rand(0.8, 1.3),
+              color: `hsl(${Math.round(rand(0, 360))} 85% 62%)`, shape: pick(CONFETTI_SHAPES),
+              draw: (ctx, p, o) => drawConfetti(ctx, p, size, o),
+            })),
+            ...Array.from({ length: 30 }, () => makeBurstParticle({
+              x: w, y: h, vx: -rand(160, 420), vy: -rand(420, 620), gravity: 700, life: rand(1.8, 2.6),
+              rot: rand(0, 6), rotSpeed: rand(-6, 6), scale: rand(0.8, 1.3),
+              color: `hsl(${Math.round(rand(0, 360))} 85% 62%)`, shape: pick(CONFETTI_SHAPES),
+              draw: (ctx, p, o) => drawConfetti(ctx, p, size, o),
+            })),
+          ],
+        }),
+      };
+    }
+    case 'balloon': {
+      const naturallyUp = def.direction === 'up';
+      const goesUp = naturallyUp !== reverseDirection;
+      const factory = (goesUp ? riseFactory : fallFactory)({ speed, size, sway: 35, wind });
+      return {
+        grabbable: true,
+        makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => {
+          const [c1, c2] = pick(BALLOON_PALETTES);
+          return { ...factory.make(w, h, spawnFull), c1, c2 };
+        }),
+        step: (p, dt, w, h) => factory.step(p, dt, w, h),
+        respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false), { c1: p.c1, c2: p.c2 }),
+        draw: (ctx, p, opacity) => drawBalloon(ctx, p, size, opacity),
+        // A balloon release: a big cluster rising together.
+        signature: (w, h) => ({
+          extras: Array.from({ length: 26 }, () => {
+            const [c1, c2] = pick(BALLOON_PALETTES);
+            return makeBurstParticle({
+              x: rand(w * 0.2, w * 0.8), y: h + rand(0, 100), vx: rand(-15, 15), vy: -rand(90, 150), life: rand(3, 4.5),
+              rot: rand(-0.3, 0.3), scale: rand(0.9, 1.4), c1, c2,
+              draw: (ctx, p, o) => drawBalloon(ctx, p, size, o),
+            });
+          }),
+        }),
       };
     }
     case 'bubble': {
@@ -548,21 +916,188 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
         step: (p, dt, w, h) => factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false)),
         draw: (ctx, p, opacity) => drawBubble(ctx, p, size, opacity),
+        // A dense stream from one spot, like blowing a lot of bubbles at once.
+        signature: (w, h) => {
+          const fromX = rand(w * 0.2, w * 0.8);
+          return {
+            extras: Array.from({ length: 26 }, (_, i) => makeBurstParticle({
+              x: fromX + rand(-20, 20), y: h + rand(0, 20) + i * 4, vx: rand(-20, 20), vy: -rand(160, 260), life: rand(2.5, 3.5),
+              scale: rand(0.6, 1.2),
+              draw: (ctx, p, o) => drawBubble(ctx, p, size, o),
+            })),
+          };
+        },
       };
     }
     case 'glint': {
-      const factory = ambientFactory({ drift: def.ambient ? 12 : 0 });
+      const factory = ambientFactory({});
       return {
         attract: true,
-        makeAll: (w, h) => Array.from({ length: Math.round(density * 0.6) }, () => ({ ...factory.make(w, h), color: pick(def.palette) })),
+        makeAll: (w, h) => Array.from({ length: Math.round(density * 0.6) }, () => ({ ...factory.make(w, h), color: pick(['#ffffff', '#dfe7ff', '#c7d2ff']) })),
         step: (p, dt, w, h) => factory.step(p, dt, w, h),
         respawn: () => {},
-        draw: (ctx, p, opacity) => drawGlint(ctx, p, opacity),
+        draw: (ctx, p, opacity) => drawGlint(ctx, p, opacity, p.color),
+        // A shooting star: one bright streak flying diagonally with a
+        // fading trail -- the single most "FaceTime moment" of any of these.
+        signature: (w, h) => {
+          const fromLeft = Math.random() > 0.5;
+          const startX = fromLeft ? -40 : w + 40;
+          const vx = (fromLeft ? 1 : -1) * rand(700, 950);
+          const vy = rand(220, 340);
+          const startY = rand(0, h * 0.4);
+          const shooter = makeBurstParticle({
+            x: startX, y: startY, vx, vy, life: 1.4, trail: [],
+            draw: (ctx, p, o) => {
+              p.trail = p.trail || [];
+              p.trail.push({ x: p.x, y: p.y });
+              if (p.trail.length > 14) p.trail.shift();
+              ctx.save();
+              for (let i = 0; i < p.trail.length - 1; i++) {
+                const age = i / p.trail.length;
+                ctx.globalAlpha = age * 0.7 * o;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2 * age;
+                ctx.beginPath();
+                ctx.moveTo(p.trail[i].x, p.trail[i].y);
+                ctx.lineTo(p.trail[i + 1].x, p.trail[i + 1].y);
+                ctx.stroke();
+              }
+              ctx.globalAlpha = o;
+              ctx.fillStyle = '#fff';
+              ctx.shadowColor = '#dfe7ff';
+              ctx.shadowBlur = 10;
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            },
+          });
+          return { extras: [shooter] };
+        },
+      };
+    }
+    case 'firefly': {
+      const factory = wanderFactory({ speedPx: 35 });
+      return {
+        attract: true,
+        makeAll: (w, h) => Array.from({ length: Math.round(density * 0.5) }, () => ({ ...factory.make(w, h), trail: [] })),
+        step: (p, dt, w, h) => {
+          p.trail = p.trail || [];
+          p.trail.push({ x: p.x, y: p.y });
+          if (p.trail.length > 10) p.trail.shift();
+          return factory.step(p, dt, w, h);
+        },
+        respawn: () => {},
+        draw: (ctx, p, opacity) => drawFirefly(ctx, p, size, opacity),
+        // A gathering: a burst of extra fireflies drifting in together.
+        signature: (w, h) => ({
+          extras: Array.from({ length: 24 }, () => {
+            const angle = rand(0, Math.PI * 2);
+            const radius = Math.max(w, h) * 0.6;
+            const cx = w / 2 + Math.cos(angle) * radius, cy = h / 2 + Math.sin(angle) * radius;
+            const vx = ((w / 2) - cx) / 3, vy = ((h / 2) - cy) / 3;
+            return makeBurstParticle({
+              x: cx, y: cy, vx, vy, life: 4, trail: [],
+              draw: (ctx, p, o) => {
+                p.trail = p.trail || [];
+                p.trail.push({ x: p.x, y: p.y });
+                if (p.trail.length > 10) p.trail.shift();
+                drawFirefly(ctx, p, size, o);
+              },
+            });
+          }),
+        }),
+      };
+    }
+    case 'shimmer': {
+      return {
+        makeAll: (w, h) => Array.from({ length: Math.round(density * 0.7) }, () => ({
+          x: rand(0, w), y: rand(0, h), vy: -rand(6, 16), scale: rand(0.7, 1.4),
+          flareT: rand(-8, 0), flareDuration: rand(0.8, 1.4), flareEvery: rand(4, 9),
+        })),
+        step(p, dt, w, h) {
+          p.y += p.vy * dt;
+          if (p.y < -40) { p.y = h + 20; p.x = rand(0, w); }
+          p.flareT -= dt;
+          if (p.flareT < -p.flareEvery) p.flareT = p.flareDuration;
+          return false;
+        },
+        respawn: () => {},
+        draw: (ctx, p, opacity) => drawShimmer(ctx, p, size, opacity),
+        // A warm flare sweep across the whole screen.
+        signature: () => ({ flash: { color: 'rgba(255,240,190,0.3)', duration: 500 } }),
+      };
+    }
+    case 'butterfly': {
+      const factory = wanderFactory({ speedPx: 45 });
+      return {
+        grabbable: true,
+        makeAll: (w, h) => Array.from({ length: Math.round(density * 0.5) }, () => {
+          const [c1, c2] = pick(BUTTERFLY_PALETTES);
+          return { ...factory.make(w, h), c1, c2 };
+        }),
+        step: (p, dt, w, h) => factory.step(p, dt, w, h),
+        respawn: () => {},
+        draw: (ctx, p, opacity) => drawButterfly(ctx, p, size, opacity),
+        // A swarm sweeping in from one edge.
+        signature: (w, h) => {
+          const fromLeft = Math.random() > 0.5;
+          return {
+            extras: Array.from({ length: 20 }, () => {
+              const [c1, c2] = pick(BUTTERFLY_PALETTES);
+              return makeBurstParticle({
+                x: fromLeft ? -30 : w + 30, y: rand(0, h), vx: (fromLeft ? 1 : -1) * rand(60, 120), vy: rand(-40, 40),
+                life: rand(3, 4.5), wingPhase: rand(0, 6), wingSpeed: rand(7, 11), scale: rand(0.8, 1.3), c1, c2,
+                draw: (ctx, p, o) => { p.wingPhase += 0.15; drawButterfly(ctx, p, size, o); },
+              });
+            }),
+          };
+        },
+      };
+    }
+    case 'bat': {
+      const factory = wanderFactory({ speedPx: 70 });
+      return {
+        grabbable: true,
+        makeAll: (w, h) => Array.from({ length: Math.round(density * 0.5) }, () => factory.make(w, h)),
+        step: (p, dt, w, h) => factory.step(p, dt, w, h),
+        respawn: () => {},
+        draw: (ctx, p, opacity) => drawBat(ctx, p, size, opacity),
+        // A bat swarm + a brief darkening flash, for a real "haunted" jolt.
+        signature: (w, h) => {
+          const fromLeft = Math.random() > 0.5;
+          return {
+            flash: { color: 'rgba(15,8,20,0.35)', duration: 300 },
+            extras: Array.from({ length: 22 }, () => makeBurstParticle({
+              x: fromLeft ? -30 : w + 30, y: rand(0, h), vx: (fromLeft ? 1 : -1) * rand(140, 240), vy: rand(-60, 60),
+              life: rand(1.8, 2.6), wingPhase: rand(0, 6), wingSpeed: rand(9, 13), scale: rand(0.8, 1.3),
+              draw: (ctx, p, o) => { p.wingPhase += 0.2; drawBat(ctx, p, size, o); },
+            })),
+          };
+        },
+      };
+    }
+    case 'ghost': {
+      const factory = wanderFactory({ speedPx: 25 });
+      return {
+        grabbable: true,
+        makeAll: (w, h) => Array.from({ length: Math.round(density * 0.4) }, () => factory.make(w, h)),
+        step: (p, dt, w, h) => factory.step(p, dt, w, h),
+        respawn: () => {},
+        draw: (ctx, p, opacity) => drawGhost(ctx, p, size, opacity),
+        // A haunting: several extra ghosts drifting through + a cold flash.
+        signature: (w, h) => ({
+          flash: { color: 'rgba(60,50,90,0.25)', duration: 400 },
+          extras: Array.from({ length: 14 }, () => makeBurstParticle({
+            x: rand(0, w), y: h + rand(20, 80), vx: rand(-20, 20), vy: -rand(30, 60), life: 5,
+            draw: (ctx, p, o) => drawGhost(ctx, p, size, o),
+          })),
+        }),
       };
     }
     case 'emoji': {
       const naturallyUp = def.direction === 'up';
-      const goesUp = naturallyUp !== reverseDirection; // reverseDirection flips whichever way it naturally goes
+      const goesUp = naturallyUp !== reverseDirection;
       const factory = (goesUp ? riseFactory : fallFactory)({ speed, size, sway: goesUp ? 35 : 45, wind });
       return {
         grabbable: true,
@@ -570,6 +1105,13 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
         step: (p, dt, w, h) => factory.step(p, dt, w, h),
         respawn: (p, w, h) => Object.assign(p, factory.make(w, h, false)),
         draw: (ctx, p, opacity) => drawEmoji(ctx, p, def.glyph, size, opacity),
+        // A generic shower -- extra ones sweeping in from the top.
+        signature: (w) => ({
+          extras: Array.from({ length: 24 }, () => makeBurstParticle({
+            x: rand(0, w), y: -20, vx: rand(-30, 30), vy: rand(180, 280), life: rand(2, 3), rot: rand(0, 6), scale: rand(0.8, 1.3),
+            draw: (ctx, p, o) => drawEmoji(ctx, p, def.glyph, size, o),
+          })),
+        }),
       };
     }
     default:
@@ -578,9 +1120,12 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
 }
 
 // Fireworks are event-driven (periodic bursts), not a steady-state particle
-// field like everything else, so they get their own standalone loop:
-// a rocket streak rises from the bottom leaving a fading trail, then bursts
-// at its apex into a ring of glowing, gravity-drooping sparks.
+// field like everything else, so they get their own standalone loop: a
+// rocket streak rises from the bottom leaving a fading trail, then bursts
+// at its apex into a ring of glowing, gravity-drooping sparks. Three burst
+// STYLES (classic ring / willow trails / double crackle) are picked at
+// random per launch so consecutive fireworks don't all look identical --
+// the specific "more variation" ask.
 function useFireworks(canvasRef, density, speed, size, interactive, opacity) {
   React.useEffect(() => {
     const canvas = canvasRef.current;
@@ -592,11 +1137,6 @@ function useFireworks(canvasRef, density, speed, size, interactive, opacity) {
     let sparks = [];
     const rays = Math.max(14, Math.min(36, Math.round(density / 2.5)));
 
-    // The canvas element's CSS size follows `inset:0` just fine, but its
-    // actual pixel buffer (canvas.width/height) defaults to a fixed
-    // 300x150 regardless of that -- without setting it explicitly here,
-    // every rocket/spark draws into that tiny buffer and gets stretched
-    // blurry across the whole viewport by the browser.
     function resize() {
       const dpr = window.devicePixelRatio || 1;
       canvas.width = window.innerWidth * dpr;
@@ -617,26 +1157,58 @@ function useFireworks(canvasRef, density, speed, size, interactive, opacity) {
       });
     }
 
-    // The charming interactive touch for fireworks: a click launches an
-    // extra rocket right there, on top of the automatic periodic ones.
-    function handleClick(e) {
-      spawnRocket(e.clientX);
-    }
+    function handleClick(e) { spawnRocket(e.clientX); }
     if (interactive) window.addEventListener('pointerdown', handleClick);
 
-    // Spark speed/decay are all px/second or 1/second now -- see the
-    // dt-in-seconds note on fallFactory above for why that matters.
+    function addSpark(x, y, vx, vy, hue, willow) {
+      sparks.push({ x, y, vx, vy, hue, life: 1, willow });
+    }
+
+    // Classic: one even ring of sparks. Willow: fewer, slower, longer-lived
+    // sparks that droop more (the trailing "weeping willow" firework look).
+    // Crackle: a normal ring plus a tighter secondary burst a beat later.
     function burst(x, y, hue) {
-      for (let i = 0; i < rays; i++) {
-        const angle = (i / rays) * Math.PI * 2 + rand(-0.15, 0.15);
-        const v = rand(size * 6, size * 11);
-        sparks.push({ x, y, vx: Math.cos(angle) * v, vy: Math.sin(angle) * v, hue: hue + rand(-15, 15), life: 1 });
+      const style = pick(['classic', 'willow', 'crackle']);
+      if (style === 'classic' || style === 'crackle') {
+        for (let i = 0; i < rays; i++) {
+          const angle = (i / rays) * Math.PI * 2 + rand(-0.15, 0.15);
+          const v = rand(size * 6, size * 11);
+          addSpark(x, y, Math.cos(angle) * v, Math.sin(angle) * v, hue + rand(-15, 15), false);
+        }
+        if (style === 'crackle') {
+          setTimeout(() => {
+            for (let i = 0; i < Math.round(rays * 0.6); i++) {
+              const angle = (i / (rays * 0.6)) * Math.PI * 2 + rand(-0.2, 0.2);
+              const v = rand(size * 3, size * 5);
+              addSpark(x, y, Math.cos(angle) * v, Math.sin(angle) * v, hue + rand(-40, 40) + 180, false);
+            }
+          }, 220);
+        }
+      } else {
+        const willowRays = Math.round(rays * 0.7);
+        for (let i = 0; i < willowRays; i++) {
+          const angle = (i / willowRays) * Math.PI * 2 + rand(-0.15, 0.15);
+          const v = rand(size * 4, size * 7);
+          addSpark(x, y, Math.cos(angle) * v, Math.sin(angle) * v, hue, true);
+        }
       }
     }
 
     const intervalMs = Math.max(700, 3000 - (speed / 100) * 2200);
     const spawnTimer = setInterval(spawnRocket, intervalMs);
     spawnRocket();
+
+    // Finale: several rockets launched in quick succession -- Fireworks'
+    // own signature moment, on the same random timer every other kind uses
+    // (see SiteEffectCanvas -- fireworks runs its own loop, so it schedules
+    // this bit itself instead).
+    const signatureTimer = setInterval(() => {
+      let i = 0;
+      const id = setInterval(() => {
+        spawnRocket();
+        if (++i >= 5) clearInterval(id);
+      }, 180);
+    }, rand(20000, 38000));
 
     function frame(now) {
       const dt = Math.min(0.032, (now - last) / 1000);
@@ -663,11 +1235,12 @@ function useFireworks(canvasRef, density, speed, size, interactive, opacity) {
       });
 
       sparks = sparks.filter((s) => {
-        s.life -= dt / 0.9; // ~0.9s fade
+        const fadeRate = s.willow ? 1 / 1.6 : 1 / 0.9;
+        s.life -= dt * fadeRate;
         if (s.life <= 0) return false;
         s.x += s.vx * dt;
-        s.y += s.vy * dt + (1 - s.life) * 45 * dt; // gentle gravity droop as it fades
-        s.vx *= 1 - dt * 1.1; // air drag
+        s.y += s.vy * dt + (1 - s.life) * (s.willow ? 90 : 45) * dt;
+        s.vx *= 1 - dt * (s.willow ? 0.6 : 1.1);
         ctx.globalAlpha = Math.max(0, s.life) * opacity;
         ctx.fillStyle = `hsl(${s.hue}, 90%, 65%)`;
         ctx.shadowColor = `hsl(${s.hue}, 90%, 65%)`;
@@ -686,16 +1259,13 @@ function useFireworks(canvasRef, density, speed, size, interactive, opacity) {
     return () => {
       cancelAnimationFrame(raf);
       clearInterval(spawnTimer);
+      clearInterval(signatureTimer);
       window.removeEventListener('resize', resize);
       if (interactive) window.removeEventListener('pointerdown', handleClick);
     };
   }, [canvasRef, density, speed, size, interactive, opacity]);
 }
 
-// How close the pointer needs to be, in px, for the ambient
-// avoid/attract behavior or a click's grab/pop hit-test to notice a
-// particle -- shared by every kind so "how easy is this to touch" feels
-// consistent regardless of what's on screen.
 const TOUCH_RADIUS = 55;
 const AMBIENT_RADIUS = 90;
 
@@ -713,13 +1283,15 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
     const system = buildSystem(def, density, speed, size, reverseDirection, wind);
     if (!system) return;
     let particles = [];
+    let extras = []; // temporary signature-moment particles (see makeBurstParticle)
     let pops = []; // little fading rings left behind by a popped bubble
+    let flashAlpha = 0, flashColor = '', flashDuration = 1;
     let raf;
     let last = performance.now();
     const pointer = { x: -9999, y: -9999, active: false };
     let held = null;
     let heldOffsetX = 0, heldOffsetY = 0;
-    let recentPointer = []; // last few {x,y,t} samples, for a release "toss"
+    let recentPointer = [];
 
     function resize(spawnFull) {
       const dpr = window.devicePixelRatio || 1;
@@ -739,11 +1311,22 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
       pops.push({ x, y, life: 1, color: color || 'rgba(200,230,255,0.9)' });
     }
 
-    // These three (move/down/up) are only ever attached when `interactive`
-    // is on, and always on `window` -- the canvas itself stays
-    // pointer-events:none no matter what, so a click always still reaches
-    // whatever's really underneath it; this just also lets the effect
-    // notice where the pointer is.
+    // The rare full-screen "signature moment" -- every kind that defines
+    // one gets its own random 20-40s timer, independent of every other
+    // instance of this block on the page.
+    let signatureTimer;
+    function scheduleSignature() {
+      signatureTimer = setTimeout(() => {
+        if (system.signature) {
+          const { extras: newExtras, flash } = system.signature(window.innerWidth, window.innerHeight) || {};
+          if (newExtras) extras.push(...newExtras);
+          if (flash) { flashColor = flash.color; flashDuration = flash.duration; flashAlpha = 1; }
+        }
+        scheduleSignature();
+      }, rand(20000, 40000));
+    }
+    scheduleSignature();
+
     function onPointerMove(e) {
       pointer.x = e.clientX;
       pointer.y = e.clientY;
@@ -758,9 +1341,7 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
         held.windOffset = 0;
       }
     }
-    function onPointerLeave() {
-      pointer.active = false;
-    }
+    function onPointerLeave() { pointer.active = false; }
     function onPointerDown(e) {
       pointer.x = e.clientX;
       pointer.y = e.clientY;
@@ -785,9 +1366,6 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
     }
     function onPointerUp() {
       if (!held) return;
-      // A little toss on release, based on how fast the pointer was moving
-      // just before letting go -- picking something up and flicking it
-      // is most of the charm; dropping it dead-still isn't.
       const a = recentPointer[0], b = recentPointer[recentPointer.length - 1];
       if (a && b && b.t > a.t) {
         const dtRelease = (b.t - a.t) / 1000;
@@ -811,14 +1389,16 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
       ctx.clearRect(0, 0, w, h);
 
       for (const p of particles) {
+        const wasAboveGround = p.y <= h;
         const needsRespawn = system.step(p, dt, w, h);
-        if (needsRespawn) system.respawn(p, w, h);
+        if (needsRespawn) {
+          if (system.splashOnRespawn && !p.far && wasAboveGround) {
+            extras.push(makeBurstParticle({ x: p.x, y: h - 2, vx: 0, vy: 0, life: 0.35, draw: (ctx2, sp, o) => drawSplash(ctx2, sp, size, o) }));
+          }
+          system.respawn(p, w, h);
+        }
 
         if (interactive && !p.held) {
-          // Ambient hover response: most kinds gently swerve away from the
-          // cursor as it passes near (like wind, or a small creature
-          // stepping aside); ambient glints (fireflies/sparkle/stars) do
-          // the opposite and drift toward it, like they're curious.
           if (pointer.active) {
             const dx = p.x - pointer.x, dy = p.y - pointer.y;
             const dist = Math.hypot(dx, dy) || 1;
@@ -830,9 +1410,6 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
               p.repelY = (p.repelY || 0) + dirY * push;
             }
           }
-          // Spring the toss/avoidance offset back to zero over time, same
-          // idea for every kind -- a temporary nudge, never a permanent
-          // change to where the particle "belongs".
           p.repelX = (p.repelX || 0) * Math.max(0, 1 - dt * 2.2);
           p.repelY = (p.repelY || 0) * Math.max(0, 1 - dt * 2.2);
           p.x += p.repelX;
@@ -841,6 +1418,12 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
 
         system.draw(ctx, p, opacity);
       }
+
+      extras = extras.filter((e) => {
+        const alive = e.step(dt);
+        if (alive) e.draw(ctx, opacity);
+        return alive;
+      });
 
       pops = pops.filter((pop) => {
         pop.life -= dt / 0.4;
@@ -856,12 +1439,22 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
         return true;
       });
 
+      if (flashAlpha > 0) {
+        flashAlpha = Math.max(0, flashAlpha - dt * (1000 / flashDuration));
+        ctx.save();
+        ctx.globalAlpha = flashAlpha * opacity;
+        ctx.fillStyle = flashColor;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+      }
+
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
 
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(signatureTimer);
       window.removeEventListener('resize', onResize);
       if (interactive) {
         window.removeEventListener('pointermove', onPointerMove);
