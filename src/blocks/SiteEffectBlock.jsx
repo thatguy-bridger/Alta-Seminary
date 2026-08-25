@@ -71,7 +71,7 @@ const PREVIEW_GLYPH = {
 //     only small individual particles (and brief, low-opacity flashes) on
 //     an otherwise transparent one.
 export function SiteEffectBlock({
-  preset = 'snow', customGlyph = '', density = 40, speed = 50, size = 24,
+  preset = 'snow', customGlyph = '', density = 40, speed = 100, size = 24,
   reverseDirection = false, wind = 0, opacity = 90, interactive = false,
   editable,
 }) {
@@ -100,12 +100,17 @@ export function SiteEffectBlock({
   if (def.kind === 'emoji' && !def.glyph) return null;
   const clampedDensity = Math.max(5, Math.min(120, density));
   const clampedSize = Math.max(10, Math.min(60, size));
-  const clampedSpeed = Math.max(10, Math.min(100, speed));
+  // A genuine linear multiplier, not the old capped "duration *= (1 - x*0.55)"
+  // formula (which never actually reached "twice as fast" or "1/100th
+  // speed" no matter how far the slider moved) -- 100% is speedMul=1
+  // (whatever a kind's own baseline duration/velocity already looks like at
+  // rest), 200% is exactly twice that fast, 1% is 1/100th.
+  const speedMul = Math.max(1, Math.min(200, speed)) / 100;
   const clampedWind = Math.max(-100, Math.min(100, wind));
   const clampedOpacity = Math.max(0.2, Math.min(1, opacity / 100));
   return (
     <SiteEffectCanvas
-      def={def} density={clampedDensity} speed={clampedSpeed} size={clampedSize}
+      def={def} density={clampedDensity} speedMul={speedMul} size={clampedSize}
       reverseDirection={!!reverseDirection} wind={clampedWind} opacity={clampedOpacity} interactive={!!interactive}
     />
   );
@@ -125,10 +130,17 @@ function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 // freezes its normal x/y formula and lets the pointer drive it directly;
 // repelX/Y is a decaying offset from a release "toss" or ambient cursor
 // avoidance/attraction.
-function fallFactory({ speed, size, sway = 40, spin = true, wind = 0 }) {
+// `durationRange` is how long (in seconds) this kind takes to cross the
+// full screen height AT speedMul=1 -- its own intrinsic pace (rain is
+// inherently much faster than snow, so it gets a much shorter range), kept
+// completely separate from the user-facing speed dial. `speedMul` then
+// divides straight into that baseline: 1 = unchanged, 2 = half the time
+// (twice as fast), 0.01 = 100x the time (1/100th speed) -- linear the whole
+// way, not the old capped formula.
+function fallFactory({ speedMul, size, sway = 40, spin = true, wind = 0, durationRange = [9, 16] }) {
   return {
     make(w, h, spawnFull) {
-      const duration = rand(9, 16) * (1 - (speed / 100) * 0.55);
+      const duration = rand(durationRange[0], durationRange[1]) / speedMul;
       const baseX = rand(0, w);
       return {
         baseX, x: baseX, windOffset: 0,
@@ -156,10 +168,10 @@ function fallFactory({ speed, size, sway = 40, spin = true, wind = 0 }) {
   };
 }
 
-function riseFactory({ speed, size, sway = 30, wind = 0 }) {
+function riseFactory({ speedMul, size, sway = 30, wind = 0, durationRange = [10, 16] }) {
   return {
     make(w, h, spawnFull) {
-      const duration = rand(10, 16) * (1 - (speed / 100) * 0.5);
+      const duration = rand(durationRange[0], durationRange[1]) / speedMul;
       const baseX = rand(0, w);
       return {
         baseX, x: baseX, windOffset: 0,
@@ -187,13 +199,13 @@ function riseFactory({ speed, size, sway = 30, wind = 0 }) {
 
 // Twinkles in place -- used only by Stars now (Fireflies/Summer Sparkle
 // each got their own distinct mechanic instead, see wanderFactory/shimmer below).
-function ambientFactory({ drift = 0 }) {
+function ambientFactory({ drift = 0, speedMul = 1 }) {
   return {
     make(w, h) {
       return {
         x: rand(0, w), y: rand(0, h),
-        vx: rand(-drift, drift), vy: rand(-drift, drift),
-        twinklePhase: rand(0, Math.PI * 2), twinkleSpeed: rand(0.6, 1.4),
+        vx: rand(-drift, drift) * speedMul, vy: rand(-drift, drift) * speedMul,
+        twinklePhase: rand(0, Math.PI * 2), twinkleSpeed: rand(0.6, 1.4) * speedMul,
         scale: rand(0.6, 1.3), t: rand(0, 10),
         held: false, repelX: 0, repelY: 0,
       };
@@ -218,15 +230,16 @@ function ambientFactory({ drift = 0 }) {
 // than "an emoji falling with extra steps" -- they actually fly/float
 // around. `wingSpeed` (unused by Ghosts) drives the wing-flap animation in
 // their respective draw functions.
-function wanderFactory({ speedPx = 40 }) {
+function wanderFactory({ speedPx = 40, speedMul = 1 }) {
   return {
     make(w, h) {
       const angle = rand(0, Math.PI * 2);
+      const spd = speedPx * speedMul;
       return {
         x: rand(0, w), y: rand(0, h),
-        vx: Math.cos(angle) * speedPx, vy: Math.sin(angle) * speedPx,
-        turnT: rand(0.5, 2.5), turnEvery: rand(1.5, 3.5),
-        wingPhase: rand(0, Math.PI * 2), wingSpeed: rand(7, 11),
+        vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd,
+        turnT: rand(0.5, 2.5) / speedMul, turnEvery: rand(1.5, 3.5) / speedMul,
+        wingPhase: rand(0, Math.PI * 2), wingSpeed: rand(7, 11) * speedMul,
         scale: rand(0.7, 1.3), t: rand(0, 10),
         held: false, repelX: 0, repelY: 0,
       };
@@ -741,12 +754,12 @@ function makeBurstParticle({ x, y, vx, vy, gravity = 0, life, draw, ...extra }) 
 // drawn-toward-cursor instead of avoiding it). `signature(w,h)` -- present
 // on most kinds -- returns `{ extras, flash }` for that kind's one-off
 // full-screen moment; SiteEffectCanvas calls it on its own random timer.
-function buildSystem(def, density, speed, size, reverseDirection, wind) {
+function buildSystem(def, density, speedMul, size, reverseDirection, wind) {
   switch (def.kind) {
     case 'snow': {
       const factoryFor = (opts) => (reverseDirection ? riseFactory(opts) : fallFactory(opts));
-      const near = factoryFor({ speed, size, sway: 30, wind });
-      const far = factoryFor({ speed: speed * 1.4, size: size * 1.3, sway: 45, wind });
+      const near = factoryFor({ speedMul, size, sway: 30, wind });
+      const far = factoryFor({ speedMul, size: size * 1.3, sway: 45, wind, durationRange: [9 / 1.4, 16 / 1.4] });
       const nearCount = Math.round(density * 0.4);
       return {
         grabbable: true,
@@ -770,8 +783,8 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
       };
     }
     case 'rain': {
-      const near = fallFactory({ speed: speed * 2.2, size, sway: 3, spin: false, wind: wind * 0.3 });
-      const far = fallFactory({ speed: speed * 2.8, size: size * 0.8, sway: 2, spin: false, wind: wind * 0.3 });
+      const near = fallFactory({ speedMul, size, sway: 3, spin: false, wind: wind * 0.3, durationRange: [9 / 2.2, 16 / 2.2] });
+      const far = fallFactory({ speedMul, size: size * 0.8, sway: 2, spin: false, wind: wind * 0.3, durationRange: [9 / 2.8, 16 / 2.8] });
       const nearCount = Math.round(density * 0.45);
       return {
         makeAll(w, h, spawnFull) {
@@ -801,7 +814,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
     case 'leaf':
     case 'petal':
     case 'shamrock': {
-      const factory = (reverseDirection ? riseFactory : fallFactory)({ speed, size, sway: 50, wind });
+      const factory = (reverseDirection ? riseFactory : fallFactory)({ speedMul, size, sway: 50, wind });
       const palette = { leaf: LEAF_PALETTES, petal: PETAL_PALETTES, shamrock: SHAMROCK_PALETTES }[def.kind];
       const drawFn = { leaf: drawLeaf, petal: drawPetal, shamrock: drawShamrock }[def.kind];
       return {
@@ -828,7 +841,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
       };
     }
     case 'heart': {
-      const factory = (reverseDirection ? fallFactory : riseFactory)({ speed, size, sway: 50, wind });
+      const factory = (reverseDirection ? fallFactory : riseFactory)({ speedMul, size, sway: 50, wind });
       return {
         grabbable: true,
         makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => {
@@ -853,7 +866,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
       };
     }
     case 'confetti': {
-      const factory = (reverseDirection ? riseFactory : fallFactory)({ speed, size, sway: 55, wind });
+      const factory = (reverseDirection ? riseFactory : fallFactory)({ speedMul, size, sway: 55, wind });
       return {
         grabbable: true,
         makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => ({
@@ -885,7 +898,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
     case 'balloon': {
       const naturallyUp = def.direction === 'up';
       const goesUp = naturallyUp !== reverseDirection;
-      const factory = (goesUp ? riseFactory : fallFactory)({ speed, size, sway: 35, wind });
+      const factory = (goesUp ? riseFactory : fallFactory)({ speedMul, size, sway: 35, wind });
       return {
         grabbable: true,
         makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => {
@@ -909,7 +922,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
       };
     }
     case 'bubble': {
-      const factory = (reverseDirection ? fallFactory : riseFactory)({ speed, size, sway: 40, wind });
+      const factory = (reverseDirection ? fallFactory : riseFactory)({ speedMul, size, sway: 40, wind });
       return {
         pop: true,
         makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => factory.make(w, h, spawnFull)),
@@ -930,7 +943,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
       };
     }
     case 'glint': {
-      const factory = ambientFactory({});
+      const factory = ambientFactory({ speedMul });
       return {
         attract: true,
         makeAll: (w, h) => Array.from({ length: Math.round(density * 0.6) }, () => ({ ...factory.make(w, h), color: pick(['#ffffff', '#dfe7ff', '#c7d2ff']) })),
@@ -977,7 +990,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
       };
     }
     case 'firefly': {
-      const factory = wanderFactory({ speedPx: 35 });
+      const factory = wanderFactory({ speedPx: 35, speedMul });
       return {
         attract: true,
         makeAll: (w, h) => Array.from({ length: Math.round(density * 0.5) }, () => ({ ...factory.make(w, h), trail: [] })),
@@ -1012,8 +1025,8 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
     case 'shimmer': {
       return {
         makeAll: (w, h) => Array.from({ length: Math.round(density * 0.7) }, () => ({
-          x: rand(0, w), y: rand(0, h), vy: -rand(6, 16), scale: rand(0.7, 1.4),
-          flareT: rand(-8, 0), flareDuration: rand(0.8, 1.4), flareEvery: rand(4, 9),
+          x: rand(0, w), y: rand(0, h), vy: -rand(6, 16) * speedMul, scale: rand(0.7, 1.4),
+          flareT: rand(-8, 0) / speedMul, flareDuration: rand(0.8, 1.4), flareEvery: rand(4, 9) / speedMul,
         })),
         step(p, dt, w, h) {
           p.y += p.vy * dt;
@@ -1029,7 +1042,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
       };
     }
     case 'butterfly': {
-      const factory = wanderFactory({ speedPx: 45 });
+      const factory = wanderFactory({ speedPx: 45, speedMul });
       return {
         grabbable: true,
         makeAll: (w, h) => Array.from({ length: Math.round(density * 0.5) }, () => {
@@ -1056,7 +1069,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
       };
     }
     case 'bat': {
-      const factory = wanderFactory({ speedPx: 70 });
+      const factory = wanderFactory({ speedPx: 70, speedMul });
       return {
         grabbable: true,
         makeAll: (w, h) => Array.from({ length: Math.round(density * 0.5) }, () => factory.make(w, h)),
@@ -1078,7 +1091,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
       };
     }
     case 'ghost': {
-      const factory = wanderFactory({ speedPx: 25 });
+      const factory = wanderFactory({ speedPx: 25, speedMul });
       return {
         grabbable: true,
         makeAll: (w, h) => Array.from({ length: Math.round(density * 0.4) }, () => factory.make(w, h)),
@@ -1098,7 +1111,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
     case 'emoji': {
       const naturallyUp = def.direction === 'up';
       const goesUp = naturallyUp !== reverseDirection;
-      const factory = (goesUp ? riseFactory : fallFactory)({ speed, size, sway: goesUp ? 35 : 45, wind });
+      const factory = (goesUp ? riseFactory : fallFactory)({ speedMul, size, sway: goesUp ? 35 : 45, wind });
       return {
         grabbable: true,
         makeAll: (w, h, spawnFull) => Array.from({ length: density }, () => factory.make(w, h, spawnFull)),
@@ -1126,7 +1139,7 @@ function buildSystem(def, density, speed, size, reverseDirection, wind) {
 // STYLES (classic ring / willow trails / double crackle) are picked at
 // random per launch so consecutive fireworks don't all look identical --
 // the specific "more variation" ask.
-function useFireworks(canvasRef, density, speed, size, interactive, opacity) {
+function useFireworks(canvasRef, density, speedMul, size, interactive, opacity) {
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1153,7 +1166,7 @@ function useFireworks(canvasRef, density, speed, size, interactive, opacity) {
       const w = canvas.width / dpr, h = canvas.height / dpr;
       rockets.push({
         x: atX ?? rand(w * 0.15, w * 0.85), y: h, targetY: rand(h * 0.15, h * 0.55),
-        vy: -rand(260, 380), hue: Math.round(rand(0, 360)), trail: [],
+        vy: -rand(260, 380) * speedMul, hue: Math.round(rand(0, 360)), trail: [],
       });
     }
 
@@ -1194,7 +1207,7 @@ function useFireworks(canvasRef, density, speed, size, interactive, opacity) {
       }
     }
 
-    const intervalMs = Math.max(700, 3000 - (speed / 100) * 2200);
+    const intervalMs = 1500 / speedMul;
     const spawnTimer = setInterval(spawnRocket, intervalMs);
     spawnRocket();
 
@@ -1263,24 +1276,33 @@ function useFireworks(canvasRef, density, speed, size, interactive, opacity) {
       window.removeEventListener('resize', resize);
       if (interactive) window.removeEventListener('pointerdown', handleClick);
     };
-  }, [canvasRef, density, speed, size, interactive, opacity]);
+  }, [canvasRef, density, speedMul, size, interactive, opacity]);
 }
 
 const TOUCH_RADIUS = 55;
 const AMBIENT_RADIUS = 90;
 
-function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, opacity, interactive }) {
-  const canvasRef = React.useRef(null);
+// Roughly this share of particles render on the BACK canvas (see below) --
+// tuned so the depth effect reads clearly without half the effect
+// disappearing behind a busy page.
+const BACK_LAYER_SHARE = 0.35;
+function pickLayer() { return Math.random() < BACK_LAYER_SHARE ? 'back' : 'front'; }
+
+function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind, opacity, interactive }) {
+  const canvasRef = React.useRef(null); // front layer -- above all normal page content, same as before
+  const backCanvasRef = React.useRef(null); // back layer -- see its own z-index comment below
   const isFirework = def.kind === 'firework';
 
-  useFireworks(isFirework ? canvasRef : { current: null }, density, speed, size, interactive, opacity);
+  useFireworks(isFirework ? canvasRef : { current: null }, density, speedMul, size, interactive, opacity);
 
   React.useEffect(() => {
     if (isFirework) return;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const backCanvas = backCanvasRef.current;
+    if (!canvas || !backCanvas) return;
     const ctx = canvas.getContext('2d');
-    const system = buildSystem(def, density, speed, size, reverseDirection, wind);
+    const backCtx = backCanvas.getContext('2d');
+    const system = buildSystem(def, density, speedMul, size, reverseDirection, wind);
     if (!system) return;
     let particles = [];
     let extras = []; // temporary signature-moment particles (see makeBurstParticle)
@@ -1296,12 +1318,20 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
     function resize(spawnFull) {
       const dpr = window.devicePixelRatio || 1;
       const w = window.innerWidth, h = window.innerHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
+      for (const c of [canvas, backCanvas]) {
+        c.width = w * dpr;
+        c.height = h * dpr;
+        c.style.width = `${w}px`;
+        c.style.height = `${h}px`;
+      }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      particles = system.makeAll(w, h, spawnFull);
+      backCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Random z-depth: each particle is independently assigned to the back
+      // canvas (behind ordinary page content -- see its z-index below) or
+      // the front one (above everything, the original behavior) right here
+      // at creation, so the same preset simultaneously reads as floating
+      // both behind and in front of different things on the page.
+      particles = system.makeAll(w, h, spawnFull).map((p) => Object.assign(p, { layer: pickLayer() }));
     }
     resize(true);
     const onResize = () => resize(true);
@@ -1387,6 +1417,7 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
       last = now;
       const w = window.innerWidth, h = window.innerHeight;
       ctx.clearRect(0, 0, w, h);
+      backCtx.clearRect(0, 0, w, h);
 
       for (const p of particles) {
         const wasAboveGround = p.y <= h;
@@ -1396,6 +1427,7 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
             extras.push(makeBurstParticle({ x: p.x, y: h - 2, vx: 0, vy: 0, life: 0.35, draw: (ctx2, sp, o) => drawSplash(ctx2, sp, size, o) }));
           }
           system.respawn(p, w, h);
+          p.layer = pickLayer(); // re-roll depth each time it comes back around
         }
 
         if (interactive && !p.held) {
@@ -1416,7 +1448,7 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
           p.y += p.repelY;
         }
 
-        system.draw(ctx, p, opacity);
+        system.draw(p.layer === 'back' ? backCtx : ctx, p, opacity);
       }
 
       extras = extras.filter((e) => {
@@ -1464,13 +1496,31 @@ function SiteEffectCanvas({ def, density, speed, size, reverseDirection, wind, o
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuilds the whole particle system on any of these changing, not per-frame
-  }, [def, density, speed, size, isFirework, reverseDirection, wind, opacity, interactive]);
+  }, [def, density, speedMul, size, isFirework, reverseDirection, wind, opacity, interactive]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
-      style={{ position: 'fixed', inset: 0, zIndex: 400, pointerEvents: 'none' }}
-    />
+    <>
+      {/* A negative z-index puts this canvas behind ordinary in-flow page
+          content (headings, paragraphs, images, cards -- anything that
+          isn't itself explicitly positioned with its own z-index) while
+          still painting on top of the page's own solid background color,
+          per how CSS stacking order actually works: the root's
+          background/borders paint first, THEN negative-z-index
+          descendants, THEN normal in-flow content. Not rendered at all for
+          Fireworks (an aerial show reads as "in front of the whole scene"
+          regardless, so it keeps a single always-on-top canvas). */}
+      {!isFirework && (
+        <canvas
+          ref={backCanvasRef}
+          aria-hidden="true"
+          style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none' }}
+        />
+      )}
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        style={{ position: 'fixed', inset: 0, zIndex: 400, pointerEvents: 'none' }}
+      />
+    </>
   );
 }
