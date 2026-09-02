@@ -42,6 +42,22 @@ function escapeText(s) {
 function inlineStyleAttr(el) {
   const raw = el.getAttribute('style') || '';
   const decls = raw.split(';').map((d) => d.trim().replace(/\s+/g, ' ')).filter((d) => d && ALLOWED_STYLE_DECL.test(d));
+  // document.execCommand('justifyLeft'/'justifyCenter'/'justifyRight') --
+  // the toolbar's alignment buttons -- sets a legacy `align` HTML ATTRIBUTE
+  // on the block element in Chrome/WebKit, not a `style="text-align:..."`
+  // CSS declaration. This function only ever read the style attribute, so
+  // alignment applied that way looked correct in the live editor (the
+  // browser still honors a plain `align` attribute regardless) but vanished
+  // the moment the field was actually committed and re-sanitized for
+  // storage -- confirmed live: worked while editing, silently reverted to
+  // left in Preview/after publishing, since neither ever saw anything but
+  // this function's output. Folding a recognized `align` attribute in here
+  // as an equivalent text-align declaration (only when there isn't already
+  // an explicit style one) is what actually carries it through.
+  if (!decls.some((d) => d.startsWith('text-align'))) {
+    const align = (el.getAttribute('align') || '').toLowerCase();
+    if (align === 'left' || align === 'center' || align === 'right') decls.push(`text-align:${align}`);
+  }
   return decls.length ? ` style="${decls.join(';')}"` : '';
 }
 

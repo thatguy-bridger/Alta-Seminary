@@ -206,6 +206,27 @@ export function RichTextEditor({ value, onCommit, placeholder }) {
 
   function exec(command, arg) {
     document.execCommand(command, false, arg);
+    // execCommand('justifyLeft'/'justifyCenter'/'justifyRight') -- the
+    // toolbar's alignment buttons -- inconsistently apply the result as
+    // either a `style="text-align:..."` CSS declaration or a legacy
+    // `align="..."` HTML ATTRIBUTE on the affected block element, depending
+    // on the browser (and version). Both look identical while editing --
+    // the browser honors a plain `align` attribute visually regardless --
+    // but sanitizeRichHtml.js's serializer only ever read the style
+    // attribute, so alignment applied via the `align` form vanished the
+    // moment the field was committed and re-sanitized: worked live, quietly
+    // reverted to left in Preview/after publishing. Normalizing whichever
+    // form the browser just produced into the CSS style form immediately
+    // (sanitizeRichHtml.js now also understands the attribute form directly,
+    // as a second layer of the same fix) means this never depends on which
+    // representation happened to come out of execCommand in the first place.
+    if (command.startsWith('justify')) {
+      ref.current?.querySelectorAll('[align]').forEach((el) => {
+        const align = el.getAttribute('align');
+        el.removeAttribute('align');
+        if (align) el.style.textAlign = align;
+      });
+    }
     commit();
   }
 
