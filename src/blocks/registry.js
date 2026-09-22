@@ -67,7 +67,7 @@ export const BLOCK_REGISTRY = {
     category: 'Media',
     icon: 'image',
     description: 'A single photo, optionally with a caption and a link.',
-    defaultProps: { imageUrl: '', alt: '', caption: '', width: 'full', aspectRatio: 'auto', corners: 'rounded', border: false, shadow: true, lightbox: false, link: '' },
+    defaultProps: { imageUrl: '', alt: '', caption: '', width: 'full', outboundWidth: false, aspectRatio: 'auto', corners: 'rounded', border: false, shadow: true, lightbox: false, link: '' },
     fields: [
       { key: 'imageUrl', kind: 'image', label: 'Image' },
       // inline:false -- a 'text' field defaults to inline (click-to-edit
@@ -79,6 +79,14 @@ export const BLOCK_REGISTRY = {
       { key: 'caption', kind: 'text', label: 'Caption' },
       { key: 'link', kind: 'text', label: 'Link (optional -- makes the image clickable)', inline: false },
       { key: 'width', kind: 'select', label: 'Width', options: [{value:'full',label:'Full width'},{value:'contained',label:'Contained'}] },
+      // Breaks the image out past whatever contains it -- the page's own
+      // max-width, a "Contained" layout setting above, a parent column --
+      // all the way to the true browser viewport edge, using a viewport-
+      // relative (not parent-relative) width so it works no matter how deep
+      // this block is nested. See ImageBlock.jsx's own comment on why this
+      // never causes a horizontal scrollbar despite going edge-to-edge: the
+      // overflow is clipped locally, so it crops instead of scrolling.
+      { key: 'outboundWidth', kind: 'toggle', label: 'Flow past the page edges (full-bleed, cropped rather than scrolled)' },
       // The crop dialog (click the photo's own corner thumbnail) is the
       // primary way to set this now -- it shows all 4 classic ratios plus
       // Custom and re-fits the crop live. This select is a secondary path

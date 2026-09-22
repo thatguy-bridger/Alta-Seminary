@@ -30,7 +30,7 @@ function aspectRatioToPickerProps(value) {
 }
 
 export function ImageBlock({
-  imageUrl, alt = '', caption, width = 'full', aspectRatio = 'auto',
+  imageUrl, alt = '', caption, width = 'full', outboundWidth = false, aspectRatio = 'auto',
   corners = 'rounded', border = false, shadow = true, lightbox = false, link = '',
   captionStyle, editable, onFieldChange, pathPrefix, onAddImageBlocks,
 }) {
@@ -63,8 +63,8 @@ export function ImageBlock({
     <img src={imageUrl} alt={alt} loading="lazy" style={imgStyle} onClick={lightbox ? () => setOpen(true) : undefined} />
   );
 
-  return (
-    <figure style={{ margin: 0, maxWidth: width === 'contained' ? 640 : undefined, marginLeft: width === 'contained' ? 'auto' : undefined, marginRight: width === 'contained' ? 'auto' : undefined }}>
+  const figure = (
+    <figure style={{ margin: 0, maxWidth: !outboundWidth && width === 'contained' ? 640 : undefined, marginLeft: !outboundWidth && width === 'contained' ? 'auto' : undefined, marginRight: !outboundWidth && width === 'contained' ? 'auto' : undefined }}>
       {!editable && link ? <a href={link}>{img}</a> : img}
       {editable && imageUrl && !alt.trim() && (
         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--color-warning)', margin: 'var(--space-2) 0 0' }}>
@@ -93,5 +93,34 @@ export function ImageBlock({
         </div>
       )}
     </figure>
+  );
+
+  // Skipped in the admin's own edit canvas: unlike the Preview tab (its own
+  // real iframe/document, so 100vw there is that iframe's own width) and
+  // the public site, the edit canvas shares ONE browser window with the
+  // rest of the admin UI (the Style panel sidebar, etc) -- 100vw there
+  // would span the actual browser viewport and overlap that UI instead of
+  // "the page," which isn't what an admin dragging this toggle on would
+  // expect to see. Still shown contained-normally here; still breaks out
+  // for real on Preview/the live site.
+  if (!outboundWidth || editable) return figure;
+
+  // Breaks past every ancestor's max-width (the page's own contained
+  // column, a "Contained" width setting, a parent column) all the way to
+  // the real viewport edge -- `50vw` is relative to the VIEWPORT, not
+  // whatever's containing this block, so it works no matter how deep this
+  // is nested. The outer div's own width is a normal, parent-relative
+  // `100%` (never vw), so it clips anything the inner vw-based div pushes
+  // past the true edge -- including the 1-2px a browser's vw unit can run
+  // over by (some count the scrollbar's own reserved space in 100vw). That
+  // outer clip is what actually delivers "crops instead of scrolls":
+  // without it, this is the one CSS trick most prone to adding a
+  // horizontal scrollbar to the entire page over a couple stray pixels.
+  return (
+    <div style={{ width: '100%', overflow: 'hidden' }}>
+      <div style={{ width: '100vw', maxWidth: '100vw', marginLeft: 'calc(50% - 50vw)' }}>
+        {figure}
+      </div>
+    </div>
   );
 }
