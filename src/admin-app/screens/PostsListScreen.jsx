@@ -33,6 +33,10 @@ export function PostsListScreen() {
   // discoverable by opening every page and checking its block list.
   const [bannerInstances, setBannerInstances] = React.useState(null);
   const [popupInstances, setPopupInstances] = React.useState(null);
+  // Which page's banner/popup instances are shown -- same tab pattern as
+  // DirectoryScreen.jsx (one directory's entries at a time), just tabbed by
+  // PAGE here instead: 'all' shows everything ungrouped, same as before this existed.
+  const [activeAnnPage, setActiveAnnPage] = React.useState('all');
 
   async function load() {
     const { data } = await supabaseBrowser.from('blog_posts').select('*').order('created_at', { ascending: false });
@@ -134,6 +138,21 @@ export function PostsListScreen() {
     return <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>;
   }
 
+  // The tab set is every page that has at least one banner OR popup on it
+  // (a page with only one of the two still gets a tab -- the OTHER list
+  // just shows nothing under it) -- deduped by href since a page can have
+  // both a banner AND a popup instance.
+  const annPages = [];
+  const seenHrefs = new Set();
+  for (const inst of [...(bannerInstances || []), ...(popupInstances || [])]) {
+    if (seenHrefs.has(inst.pageHref)) continue;
+    seenHrefs.add(inst.pageHref);
+    annPages.push({ href: inst.pageHref, title: inst.pageTitle });
+  }
+  annPages.sort((a, b) => a.title.localeCompare(b.title));
+  const filteredBanners = activeAnnPage === 'all' ? bannerInstances : (bannerInstances || []).filter((i) => i.pageHref === activeAnnPage);
+  const filteredPopups = activeAnnPage === 'all' ? popupInstances : (popupInstances || []).filter((i) => i.pageHref === activeAnnPage);
+
   return (
     <Card title="Announcements">
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0, marginBottom: 0 }}>
@@ -215,17 +234,33 @@ export function PostsListScreen() {
         ))}
       </div>
 
-      <h3 style={{ fontFamily: 'var(--font-display)', margin: 'var(--space-8) 0 var(--space-2)' }}>Banner Announcements</h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
-        A dismissible bar an admin adds to any page (the "Announcement Banner" block) -- not one of the posts above, so it's listed here instead.
+      <h3 style={{ fontFamily: 'var(--font-display)', margin: 'var(--space-8) 0 var(--space-2)' }}>Other Announcement Types</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0, marginBottom: 'var(--space-4)' }}>
+        Banner and Timed Popup announcements aren't posts -- they're blocks an admin drops on any page, so there's nothing to create/delete here. Sorted by which page they're on, same as the Directories screen sorts by directory.
       </p>
-      <BlockInstanceList instances={bannerInstances} emptyLabel="No banner announcements on any page." preview={(block) => block.props?.message} />
 
-      <h3 style={{ fontFamily: 'var(--font-display)', margin: 'var(--space-8) 0 var(--space-2)' }}>One-Time Announcements</h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
-        A modal popup shown after a delay, once per visitor by default (the "Timed Popup" block) -- also not one of the posts above.
-      </p>
-      <BlockInstanceList instances={popupInstances} emptyLabel="No one-time announcements on any page." preview={(block) => block.props?.heading || block.props?.message} />
+      {bannerInstances !== null && popupInstances !== null && annPages.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+          <button onClick={() => setActiveAnnPage('all')} className={'tab' + (activeAnnPage === 'all' ? ' active' : '')}>
+            All pages
+          </button>
+          {annPages.map((p) => (
+            <button key={p.href} onClick={() => setActiveAnnPage(p.href)} className={'tab' + (activeAnnPage === p.href ? ' active' : '')}>
+              {p.title}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <h4 style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', margin: '0 0 var(--space-2)' }}>
+        Banner Announcements <span style={{ color: 'var(--text-muted)', fontWeight: 'var(--fw-regular)' }}>-- a dismissible bar</span>
+      </h4>
+      <BlockInstanceList instances={filteredBanners} emptyLabel={activeAnnPage === 'all' ? 'No banner announcements on any page.' : 'No banner announcement on this page.'} preview={(block) => block.props?.message} />
+
+      <h4 style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', margin: 'var(--space-6) 0 var(--space-2)' }}>
+        One-Time Announcements <span style={{ color: 'var(--text-muted)', fontWeight: 'var(--fw-regular)' }}>-- a modal popup, shown once per visitor by default</span>
+      </h4>
+      <BlockInstanceList instances={filteredPopups} emptyLabel={activeAnnPage === 'all' ? 'No one-time announcements on any page.' : 'No one-time announcement on this page.'} preview={(block) => block.props?.heading || block.props?.message} />
 
       <Dialog open={createOpen} title="New announcement" onClose={() => setCreateOpen(false)}>
         <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 320 }}>
