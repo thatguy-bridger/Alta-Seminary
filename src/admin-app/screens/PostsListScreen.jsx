@@ -11,6 +11,9 @@ import { withBase } from '../../lib/url.js';
 import { useConfirm } from '../ConfirmProvider.jsx';
 import { useBulkListShortcuts } from '../useBulkListShortcuts.js';
 import { useModKeyLabel } from '../useModKeyLabel.js';
+import { UsedOnLine } from '../UsedOnLine.jsx';
+import { findBlockInstances } from '../blockUsage.js';
+import { htmlToPlainText } from '../../lib/richTextHtml.js';
 
 export function PostsListScreen() {
   const confirm = useConfirm();
@@ -21,13 +24,26 @@ export function PostsListScreen() {
   const [creating, setCreating] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [selected, setSelected] = React.useState(() => new Set());
+  // The other 2 "kinds of announcement" on this site -- Announcement Banner
+  // and Timed Popup ("one-time") blocks -- aren't blog_posts at all, just
+  // props sitting on whatever page an admin dropped them on, with no list
+  // view of their own anywhere before this. Surfaced here so all 3 kinds
+  // are visible from one place, in the same row style as the real
+  // (blog_posts-backed) announcements above, instead of only being
+  // discoverable by opening every page and checking its block list.
+  const [bannerInstances, setBannerInstances] = React.useState(null);
+  const [popupInstances, setPopupInstances] = React.useState(null);
 
   async function load() {
     const { data } = await supabaseBrowser.from('blog_posts').select('*').order('created_at', { ascending: false });
     setPosts(data || []);
   }
+  async function loadBlockInstances() {
+    setBannerInstances(await findBlockInstances(['announcement-banner']));
+    setPopupInstances(await findBlockInstances(['timed-popup']));
+  }
 
-  React.useEffect(() => { load(); }, []);
+  React.useEffect(() => { load(); loadBlockInstances(); }, []);
 
   const filtered = React.useMemo(() => {
     if (!posts) return posts;
@@ -77,6 +93,13 @@ export function PostsListScreen() {
     setSelected(new Set());
     load();
   }
+  // Per-row unpublish -- previously the only way to unpublish an
+  // announcement was to select its checkbox and use the bulk bar above,
+  // easy to miss since there was no single-click affordance on the row itself.
+  async function handleUnpublish(row) {
+    await supabaseBrowser.from('blog_posts').update({ status: 'draft' }).eq('id', row.id);
+    load();
+  }
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -113,9 +136,13 @@ export function PostsListScreen() {
 
   return (
     <Card title="Announcements">
-      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
+      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0, marginBottom: 0 }}>
         Posts shown on the public Announcements page, newest first. Create, edit, copy, or delete below.
       </p>
+      {/* Individual announcements aren't referenced by a Recent
+          Announcements block -- it just shows the N most recent, generically
+          -- so this reports at that level: every page that has one at all. */}
+      <UsedOnLine predicate={(block) => block.type === 'posts-teaser'} />
       <div style={{ marginBottom: 'var(--space-4)', display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
         <Button variant="outline" onClick={() => setCreateOpen(true)}>+ New Announcement</Button>
         <div style={{ flex: 1, minWidth: 200 }}>
@@ -175,6 +202,9 @@ export function PostsListScreen() {
             <a href={withBase(`/admin/posts/edit?slug=${row.slug}`)} style={{ textDecoration: 'none' }}>
               <Button variant="primary" size="sm">Edit</Button>
             </a>
+            {row.status === 'published' && (
+              <Button variant="ghost" size="sm" onClick={() => handleUnpublish(row)}>Unpublish</Button>
+            )}
             <button onClick={() => handleCopy(row)} title="Copy this announcement" style={iconButtonStyle}>
               <CopyIcon />
             </button>
@@ -184,6 +214,18 @@ export function PostsListScreen() {
           </div>
         ))}
       </div>
+
+      <h3 style={{ fontFamily: 'var(--font-display)', margin: 'var(--space-8) 0 var(--space-2)' }}>Banner Announcements</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
+        A dismissible bar an admin adds to any page (the "Announcement Banner" block) -- not one of the posts above, so it's listed here instead.
+      </p>
+      <BlockInstanceList instances={bannerInstances} emptyLabel="No banner announcements on any page." preview={(block) => block.props?.message} />
+
+      <h3 style={{ fontFamily: 'var(--font-display)', margin: 'var(--space-8) 0 var(--space-2)' }}>One-Time Announcements</h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
+        A modal popup shown after a delay, once per visitor by default (the "Timed Popup" block) -- also not one of the posts above.
+      </p>
+      <BlockInstanceList instances={popupInstances} emptyLabel="No one-time announcements on any page." preview={(block) => block.props?.heading || block.props?.message} />
 
       <Dialog open={createOpen} title="New announcement" onClose={() => setCreateOpen(false)}>
         <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 320 }}>
@@ -199,3 +241,43 @@ export function PostsListScreen() {
 }
 
 const iconButtonStyle = { border: 'none', background: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' };
+
+// Same row look as the real (blog_posts-backed) announcements list above --
+// deliberately, so all 3 "kinds of announcement" on this page read as one
+// consistent list rather than a bespoke one-off widget bolted on for these
+// two. There's no separate edit UI for a block instance's props (message/
+// heading/etc) -- editing happens on the page it actually lives on, same as
+// clicking any other block on the canvas, so "Edit" here just navigates there.
+function BlockInstanceList({ instances, emptyLabel, preview }) {
+  if (instances === null) {
+    return <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-small)' }}>Loading…</p>;
+  }
+  if (instances.length === 0) {
+    return <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>{emptyLabel}</p>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+      {instances.map((inst) => (
+        <div
+          key={inst.key}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+            padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>
+              {htmlToPlainText(preview(inst.block)) || <span style={{ color: 'var(--text-muted)', fontWeight: 'var(--fw-regular)' }}>(empty)</span>}
+            </span>
+            <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+              on {inst.pageTitle}
+            </span>
+          </div>
+          <a href={inst.pageHref} style={{ textDecoration: 'none' }}>
+            <Button variant="primary" size="sm">Edit</Button>
+          </a>
+        </div>
+      ))}
+    </div>
+  );
+}

@@ -2,8 +2,32 @@ import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { EditableImage } from '../admin-app/builder/EditableImage.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
+import { RichText } from './richText.jsx';
 
-const RATIO = { '16:9': '16/9', '4:3': '4/3', '1:1': '1/1', auto: undefined };
+const RATIO_PRESET_KEYS = ['1:1', '4:3', '16:9', '9:16'];
+
+// aspectRatio is either 'auto', one of RATIO_PRESET_KEYS, or a custom
+// "W:H" string the admin typed into the crop dialog's picker (see
+// CropEditor.jsx) -- CSS's aspect-ratio property already accepts "W/H"
+// directly, so a custom value needs nothing beyond the same ':' -> '/' swap
+// the presets get.
+function cssAspectRatio(value) {
+  if (!value || value === 'auto') return undefined;
+  return value.replace(':', '/');
+}
+
+// The crop dialog's ratio picker (CropEditor.jsx) is keyed by 'auto' | one
+// of RATIO_PRESET_KEYS | 'custom' -- a custom "5:2" stored value needs
+// splitting back into that key + the {w,h} numbers the dialog's own inputs
+// show, so re-cropping opens exactly where the admin left it instead of
+// resetting to auto every time.
+function aspectRatioToPickerProps(value) {
+  if (!value || value === 'auto' || RATIO_PRESET_KEYS.includes(value)) {
+    return { initialAspectKey: value || 'auto' };
+  }
+  const [w, h] = value.split(':').map(Number);
+  return { initialAspectKey: 'custom', initialCustom: { w: w || 1, h: h || 1 } };
+}
 
 export function ImageBlock({
   imageUrl, alt = '', caption, width = 'full', aspectRatio = 'auto',
@@ -12,12 +36,13 @@ export function ImageBlock({
 }) {
   const [open, setOpen] = React.useState(false);
   if (!editable && !imageUrl) return null;
+  const cssRatio = cssAspectRatio(aspectRatio);
   const imgStyle = {
     width: '100%', display: 'block',
     borderRadius: corners === 'rounded' ? 'var(--radius-lg)' : 0,
     boxShadow: shadow ? 'var(--shadow-sm)' : 'none',
     border: border ? '1px solid var(--border-default)' : 'none',
-    aspectRatio: RATIO[aspectRatio], objectFit: 'cover',
+    aspectRatio: cssRatio, objectFit: 'cover',
     cursor: !editable && lightbox ? 'zoom-in' : undefined,
   };
 
@@ -29,7 +54,10 @@ export function ImageBlock({
       pathPrefix={pathPrefix}
       multiple={!!onAddImageBlocks}
       onExtraImages={onAddImageBlocks}
-      style={{ aspectRatio: RATIO[aspectRatio], boxShadow: shadow ? 'var(--shadow-sm)' : 'none', borderRadius: corners === 'rounded' ? 'var(--radius-lg)' : 0, border: border ? '1px solid var(--border-default)' : 'none' }}
+      aspectRatioKey={aspectRatioToPickerProps(aspectRatio).initialAspectKey}
+      aspectRatioCustom={aspectRatioToPickerProps(aspectRatio).initialCustom}
+      onAspectRatioChange={(key, ratioValue) => onFieldChange('aspectRatio', key === 'auto' ? 'auto' : ratioValue)}
+      style={{ aspectRatio: cssRatio, boxShadow: shadow ? 'var(--shadow-sm)' : 'none', borderRadius: corners === 'rounded' ? 'var(--radius-lg)' : 0, border: border ? '1px solid var(--border-default)' : 'none' }}
     />
   ) : (
     <img src={imageUrl} alt={alt} loading="lazy" style={imgStyle} onClick={lightbox ? () => setOpen(true) : undefined} />
@@ -53,7 +81,7 @@ export function ImageBlock({
               styleValue={captionStyle}
               onStyleChange={(s) => onFieldChange('captionStyle', s)}
             />
-          ) : <span style={textStyleToCss(captionStyle)}>{caption}</span>}
+          ) : <RichText inline text={caption} style={textStyleToCss(captionStyle)} />}
         </figcaption>
       )}
       {!editable && lightbox && open && (

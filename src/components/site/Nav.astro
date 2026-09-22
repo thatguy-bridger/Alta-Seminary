@@ -11,8 +11,24 @@ const links: NavLink[] = await getNavTree();
 const currentPath = Astro.url.pathname;
 ---
 
-<nav class="site-nav" aria-label="Main navigation">
-  <ul class="site-nav__list">
+<nav class="site-nav" aria-label="Main navigation" id="site-nav">
+  {/* Hidden by default (components below), shown only once the script
+      below measures the list wrapping to more than 2 rows -- see
+      measure() -- so a page count that fits fine never shows a hamburger
+      at all, on any viewport width. */}
+  <button
+    type="button"
+    class="site-nav__toggle"
+    id="site-nav-toggle"
+    aria-expanded="false"
+    aria-controls="site-nav-list"
+    aria-label="Toggle menu"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="20" height="20">
+      <line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line>
+    </svg>
+  </button>
+  <ul class="site-nav__list" id="site-nav-list">
     {links.map((link) => (
       <li class="site-nav__item">
         {link.children.length > 0 ? (
@@ -112,4 +128,100 @@ const currentPath = Astro.url.pathname;
   .site-nav__dropdown ul a:hover {
     background: var(--surface-sunken);
   }
+
+  /* Collapsed state: only ever applied by the script below, once the list
+     ACTUALLY wraps past 2 rows at the current viewport width -- there's no
+     fixed breakpoint here, since whether that happens depends on how many
+     pages exist, not just screen size. */
+  .site-nav {
+    position: relative;
+  }
+  .site-nav__toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .site-nav.is-collapsed .site-nav__toggle {
+    display: flex;
+  }
+  .site-nav.is-collapsed .site-nav__list {
+    display: none;
+  }
+  .site-nav.is-collapsed.is-open .site-nav__list {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: var(--space-2);
+    min-width: 220px;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: var(--space-3);
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 30;
+  }
+  .site-nav.is-collapsed.is-open .site-nav__item {
+    width: 100%;
+  }
+  .site-nav.is-collapsed.is-open .site-nav__dropdown ul {
+    position: static;
+    box-shadow: none;
+    border: none;
+    margin-top: 0;
+    padding-left: var(--space-3);
+  }
 </style>
+
+<script>
+  // Counts actual rendered rows (grouping list items by their offsetTop,
+  // since `flex-wrap` never tells you directly how many lines it wrapped
+  // to) rather than assuming a fixed viewport breakpoint -- the number of
+  // nav links is admin-controlled and varies site to site, so "does this
+  // wrap past 2 rows" genuinely depends on both viewport width AND how many
+  // pages currently show in the nav, not just one or the other.
+  function measure() {
+    const nav = document.getElementById('site-nav');
+    const list = document.getElementById('site-nav-list');
+    if (!nav || !list) return;
+    nav.classList.remove('is-collapsed', 'is-open');
+    const rowTops = new Set(Array.from(list.children).map((el) => (el instanceof HTMLElement ? el.offsetTop : 0)));
+    if (rowTops.size > 2) nav.classList.add('is-collapsed');
+  }
+
+  function toggleOpen() {
+    const nav = document.getElementById('site-nav');
+    const toggle = document.getElementById('site-nav-toggle');
+    if (!nav || !toggle) return;
+    const open = nav.classList.toggle('is-open');
+    toggle.setAttribute('aria-expanded', String(open));
+  }
+
+  function closeOnOutsideClick(e: MouseEvent) {
+    const nav = document.getElementById('site-nav');
+    if (nav && nav.classList.contains('is-open') && !nav.contains(e.target as Node)) {
+      nav.classList.remove('is-open');
+      document.getElementById('site-nav-toggle')?.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  document.getElementById('site-nav-toggle')?.addEventListener('click', toggleOpen);
+  document.addEventListener('click', closeOnOutsideClick);
+  window.addEventListener('resize', measure);
+  // Astro's view-transitions swap (if ever enabled) fire this instead of a
+  // real load -- measure() is cheap enough to just run on both.
+  document.addEventListener('astro:page-load', measure);
+  measure();
+</script>

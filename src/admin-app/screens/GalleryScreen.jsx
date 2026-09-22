@@ -11,6 +11,7 @@ import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
 import { useConfirm, useAlert } from '../ConfirmProvider.jsx';
 import { AllSiteImagesPanel } from './AllSiteImagesPanel.jsx';
+import { UsedOnLine } from '../UsedOnLine.jsx';
 
 // Photos with no album (e.g. left behind after their album was deleted --
 // gallery_photos.album_id is ON DELETE SET NULL) live under this pseudo-tab.
@@ -218,6 +219,18 @@ export function GalleryScreen() {
               />
               {uploadError && <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--color-error)' }}>{uploadError}</span>}
             </div>
+          )}
+          {/* Individual photos aren't referenced by a Gallery block -- it
+              points at a whole album (or "all albums") -- so this reports
+              at that level: which pages have a Gallery block set to THIS
+              album, or set to show every album. Not shown for the virtual
+              "Unsorted" bucket (activeAlbumId === null): it isn't a real
+              album a block's albumFilter can actually target. */}
+          {activeAlbumId && (
+            <UsedOnLine
+              predicate={(block) => block.type === 'gallery' && (block.props?.albumFilter === activeAlbumId || block.props?.albumFilter === 'all')}
+              deps={[activeAlbumId]}
+            />
           )}
 
           {photos === null ? (

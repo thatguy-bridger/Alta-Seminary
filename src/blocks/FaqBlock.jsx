@@ -29,7 +29,7 @@ export function FaqBlock({ heading, items, headingStyle, editable, onFieldChange
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-heading)', margin: '0 0 var(--space-5)', textAlign: 'center', color: 'var(--text-primary)', ...textStyleToCss(headingStyle) }}>
           {editable ? (
             <EditableText value={heading} onCommit={(v) => onFieldChange('heading', v)} placeholder="Heading (optional)" styleValue={headingStyle} onStyleChange={(s) => onFieldChange('headingStyle', s)} />
-          ) : heading}
+          ) : <RichText inline text={heading} />}
         </h2>
       )}
 
@@ -63,7 +63,7 @@ export function FaqBlock({ heading, items, headingStyle, editable, onFieldChange
                     fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)',
                   }}
                 >
-                  {item.question}
+                  <RichText inline text={item.question} />
                 </summary>
                 <div style={{ padding: '0 var(--space-4) var(--space-4)', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>
                   <RichText text={item.answer} />

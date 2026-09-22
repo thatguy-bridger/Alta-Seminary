@@ -11,6 +11,7 @@ import { ImageUploadField } from '../ImageUploadField.jsx';
 import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
 import { slugify, uniqueSlug } from '../slug.js';
 import { useConfirm } from '../ConfirmProvider.jsx';
+import { UsedOnLine } from '../UsedOnLine.jsx';
 
 const emptyEntry = (kind) => ({
   directory_kind: kind, name: '', photo_url: '', bio: '', extra_fields: {}, status: 'draft',
@@ -158,6 +159,11 @@ export function DirectoryScreen() {
       {activeDir && (
         <div style={{ margin: '0 0 var(--space-4)' }}>
           <Button variant="outline" onClick={() => setEditing(emptyEntry(kind))}>+ New {activeDir.singular_label || activeDir.name} Member</Button>
+          {/* Directory entries aren't individually referenced by a
+              directory-teaser block -- it points at a whole kind (e.g.
+              "staff"), so this reports at that level too: which pages/
+              announcements have a teaser block set to THIS directory. */}
+          <UsedOnLine predicate={(block) => block.type === 'directory-teaser' && block.props?.sourceType === kind} deps={[kind]} />
         </div>
       )}
       {entries === null ? (

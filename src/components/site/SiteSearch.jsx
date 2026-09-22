@@ -8,6 +8,16 @@ const SearchIcon = () => (
   </svg>
 );
 
+const TYPE_LABEL = {
+  page: 'Page', announcement: 'Announcement', directory: 'Directory',
+  event: 'Event', gallery: 'Gallery',
+};
+
+function formatDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export function SiteSearch() {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
@@ -39,8 +49,9 @@ export function SiteSearch() {
     const q = query.trim().toLowerCase();
     if (!q || !index) return [];
     return index
-      .filter((item) => item.title.toLowerCase().includes(q) || item.description.toLowerCase().includes(q))
-      .slice(0, 8);
+      .filter((item) => [item.title, item.description, item.location, formatDate(item.date)]
+        .some((field) => field && field.toLowerCase().includes(q)))
+      .slice(0, 10);
   }, [query, index]);
 
   return (
@@ -60,7 +71,7 @@ export function SiteSearch() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search pages and announcements…"
+          placeholder="Search pages, announcements, directory, events, gallery…"
           className="input"
           style={{ width: '100%', marginBottom: 'var(--space-4)' }}
         />
@@ -70,13 +81,25 @@ export function SiteSearch() {
           <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>No matches for "{query}".</p>
         ) : (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            {results.map((item) => (
-              <li key={item.path}>
+            {results.map((item, idx) => (
+              <li key={`${item.path}-${item.title}-${idx}`}>
                 <a
                   href={withBase(item.path)}
                   style={{ display: 'block', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', textDecoration: 'none' }}
                 >
-                  <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{item.title}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-3)' }}>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{item.title}</div>
+                    {TYPE_LABEL[item.type] && (
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-tiny, 0.75rem)', color: 'var(--text-muted)', flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        {TYPE_LABEL[item.type]}
+                      </span>
+                    )}
+                  </div>
+                  {(item.date || item.location) && (
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-link)', marginTop: 2 }}>
+                      {[formatDate(item.date), item.location].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
                   {item.description && (
                     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-muted)', marginTop: 2 }}>{item.description}</div>
                   )}

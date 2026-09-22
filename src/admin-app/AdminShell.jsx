@@ -1,6 +1,7 @@
 import React from 'react';
 import { supabaseBrowser } from '../lib/supabase/browser-client';
 import { ThemeToggle } from '../design-system/components/core/ThemeToggle.jsx';
+import { TextSizeToggle } from '../design-system/components/core/TextSizeToggle.jsx';
 import { ConfirmProvider } from './ConfirmProvider.jsx';
 import { withBase } from '../lib/url.js';
 import logo from '../assets/alta-seminary-logo.png';
@@ -21,6 +22,7 @@ const DISMISSED_KEY = 'alta-dismissed-deploy-error';
 
 export function AdminShell({ children, activePath }) {
   const [deployError, setDeployError] = React.useState(null);
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
   async function signOut() {
     await supabaseBrowser.auth.signOut();
@@ -58,60 +60,59 @@ export function AdminShell({ children, activePath }) {
     // shrink/wrap, which is what actually causes a page-wide horizontal
     // scrollbar (not fixable by clipping overflow at this level -- that
     // breaks position:sticky, see the Style panel sidebar).
-    <div style={{ minHeight: '100vh', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-      <header
+    <div className="admin-shell">
+      {/* Only visible below the 900px breakpoint (components.css) -- the
+          sidebar itself is always in the DOM, just off-screen (transform)
+          until this opens it, same off-canvas pattern as the page builder's
+          own mobile Style panel. */}
+      <button
+        className="admin-sidebar-toggle"
+        onClick={() => setMobileNavOpen(true)}
+        aria-label="Open admin menu"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 'var(--space-6)',
-          padding: 'var(--space-4) var(--space-6)',
-          borderBottom: '1px solid var(--border-subtle)',
-          background: 'var(--surface-card)',
-          flexWrap: 'wrap',
+          position: 'fixed', top: 'var(--space-3)', left: 'var(--space-3)', zIndex: 501,
+          width: 40, height: 40, alignItems: 'center', justifyContent: 'center',
+          border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)',
+          background: 'var(--surface-card)', color: 'var(--text-primary)', cursor: 'pointer',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-6)', flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            <img src={logo.src} alt="Alta Seminary" height={32} style={{ display: 'block', width: 'auto' }} />
-            <span
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 'var(--fs-caption)',
-                fontWeight: 'var(--fw-bold)',
-                letterSpacing: 'var(--ls-caption)',
-                textTransform: 'uppercase',
-                color: 'var(--text-on-secondary)',
-                background: 'var(--brand-secondary)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '3px 8px',
-              }}
-            >
-              Admin
-            </span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="20" height="20">
+          <line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="17" x2="20" y2="17" />
+        </svg>
+      </button>
+      <div className={`admin-sidebar-backdrop${mobileNavOpen ? ' is-open' : ''}`} onClick={() => setMobileNavOpen(false)} />
+
+      <aside className={`admin-sidebar${mobileNavOpen ? ' is-open' : ''}`}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <img src={logo.src} alt="Alta Seminary" height={32} style={{ display: 'block', width: 'auto' }} />
+          <span
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: 'var(--fs-caption)',
+              fontWeight: 'var(--fw-bold)',
+              letterSpacing: 'var(--ls-caption)',
+              textTransform: 'uppercase',
+              color: 'var(--text-on-secondary)',
+              background: 'var(--brand-secondary)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '3px 8px',
+            }}
+          >
+            Admin
           </span>
-          <nav style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
-            {NAV_ITEMS.map((item) => (
-              <a
-                key={item.href}
-                href={withBase(item.href)}
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 'var(--fs-small)',
-                  fontWeight: 'var(--fw-bold)',
-                  color: activePath === item.href ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  textDecoration: 'none',
-                  borderBottom: activePath === item.href ? '2px solid var(--brand-secondary)' : '2px solid transparent',
-                  paddingBottom: 2,
-                }}
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-          <ThemeToggle />
+        </span>
+        <nav className="admin-sidebar__nav" onClick={() => setMobileNavOpen(false)}>
+          {NAV_ITEMS.map((item) => (
+            <a key={item.href} href={withBase(item.href)} aria-current={activePath === item.href ? 'page' : undefined}>
+              {item.label}
+            </a>
+          ))}
+        </nav>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-around', gap: 'var(--space-2)' }}>
+            <TextSizeToggle />
+            <ThemeToggle />
+          </div>
           <button
             onClick={signOut}
             style={{
@@ -123,35 +124,39 @@ export function AdminShell({ children, activePath }) {
               fontSize: 'var(--fs-small)',
               padding: '6px 14px',
               cursor: 'pointer',
+              width: '100%',
             }}
           >
             Sign out
           </button>
         </div>
-      </header>
-      {deployError && (
-        <div
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)',
-            padding: 'var(--space-3) var(--space-6)', background: 'var(--tint-error-bg)', color: 'var(--color-error)',
-            fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', flexWrap: 'wrap',
-          }}
-        >
-          <span>
-            The site failed to deploy after your last publish.{' '}
-            <a href={withBase('/admin/history')} style={{ color: 'inherit', textDecoration: 'underline' }}>See details in History</a>.
-          </span>
-          <button
-            onClick={dismissDeployError}
-            style={{ border: 'none', background: 'transparent', color: 'inherit', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', padding: 0 }}
+      </aside>
+
+      <div className="admin-main-col">
+        {deployError && (
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)',
+              padding: 'var(--space-3) var(--space-6)', background: 'var(--tint-error-bg)', color: 'var(--color-error)',
+              fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', flexWrap: 'wrap',
+            }}
           >
-            Dismiss
-          </button>
-        </div>
-      )}
-      <main style={{ flex: 1, minWidth: 0, padding: 'var(--space-6)', background: 'var(--surface-page)' }}>
-        <ConfirmProvider>{children}</ConfirmProvider>
-      </main>
+            <span>
+              The site failed to deploy after your last publish.{' '}
+              <a href={withBase('/admin/history')} style={{ color: 'inherit', textDecoration: 'underline' }}>See details in History</a>.
+            </span>
+            <button
+              onClick={dismissDeployError}
+              style={{ border: 'none', background: 'transparent', color: 'inherit', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', padding: 0 }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        <main style={{ flex: 1, minWidth: 0, padding: 'var(--space-6)', background: 'var(--surface-page)' }}>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </main>
+      </div>
     </div>
   );
 }

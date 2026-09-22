@@ -1,5 +1,6 @@
 import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
+import { RichText } from './richText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 
 // See DirectoryTeaserBlock.jsx for the `items` pre-fetch-vs-client-fetch pattern.
@@ -26,7 +27,7 @@ export function GalleryBlock({ heading, albumFilter = 'all', columns = '3', coun
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-heading)', margin: '0 0 var(--space-5)', textAlign: 'center', color: 'var(--text-primary)', ...textStyleToCss(headingStyle) }}>
           {editable ? (
             <EditableText value={heading} onCommit={(v) => onFieldChange('heading', v)} placeholder="Heading" styleValue={headingStyle} onStyleChange={(s) => onFieldChange('headingStyle', s)} />
-          ) : heading}
+          ) : <RichText inline text={heading} />}
         </h2>
       )}
       {list === null ? (

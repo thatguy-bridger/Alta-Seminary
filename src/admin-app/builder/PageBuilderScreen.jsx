@@ -71,6 +71,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const modKeyLabel = useModKeyLabel();
   const [previewDevice, setPreviewDevice] = React.useState('Desktop');
   const [customPreviewWidth, setCustomPreviewWidth] = React.useState(null); // non-null while dragging the resize handle -- see the Preview tab below
+  const [resizingPreview, setResizingPreview] = React.useState(false); // true only while the handle below is actively being dragged
   const previewFrameRef = React.useRef(null);
   const previewFrameReady = React.useRef(false);
   const [publishMode, setPublishMode] = React.useState('now');
@@ -78,6 +79,16 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const [unpublishAt, setUnpublishAt] = React.useState('');
   const saveTimer = React.useRef(null);
   const isPost = table === 'blog_posts';
+  // Same toggle that gates the Pages list's health badges (see
+  // PagesListScreen.jsx / the Settings section on the Diagnostics screen) --
+  // the SEO details panel below is the same kind of "extra, not needed to
+  // just write and publish" surface, so turning warnings off hides both.
+  const [showHealthWarnings, setShowHealthWarnings] = React.useState(true);
+  React.useEffect(() => {
+    supabaseBrowser.from('site_settings').select('show_page_health_warnings').eq('id', true).maybeSingle().then(({ data }) => {
+      if (data) setShowHealthWarnings(data.show_page_health_warnings);
+    });
+  }, []);
 
   // Warn on navigating away mid-autosave -- the whole app has no client-side
   // router (every nav, including the Back link, is a real page load), so
@@ -378,6 +389,23 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     setTimeout(() => setToast(null), 4000);
   }
 
+  // Takes the page/post down immediately -- previously the only unpublish
+  // path from inside the editor was scheduling unpublish_at for LATER; there
+  // was no "do it now" button here at all. published_blocks is left alone
+  // so re-publishing needs no rework, same as the scheduled-unpublish sweep.
+  async function handleUnpublish() {
+    setPublishing(true);
+    const { error } = await supabaseBrowser.from(table).update({ status: 'draft' }).eq('id', row.id);
+    setPublishing(false);
+    if (error) {
+      setToast({ tone: 'error', text: 'Could not unpublish: ' + error.message });
+    } else {
+      setToast({ tone: 'success', text: 'Unpublished.' });
+      setRow((r) => ({ ...r, status: 'draft' }));
+    }
+    setTimeout(() => setToast(null), 4000);
+  }
+
   async function handleResetToPublished() {
     if (!row.published_blocks) return;
     updateBlocks(row.published_blocks);
@@ -433,6 +461,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
             </a>
           )}
           {row.published_blocks && <Button variant="ghost" size="sm" onClick={handleResetToPublished}>Reset to current setup - unedited</Button>}
+          {row.status === 'published' && <Button variant="ghost" size="sm" onClick={handleUnpublish}>Unpublish</Button>}
           <Button variant="primary" onClick={() => { setPublishMode('now'); setScheduleAt(''); setPublishOpen(true); }}>Publish</Button>
         </div>
       </div>
@@ -449,7 +478,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
         </div>
       )}
 
-      {!isPost && row.page_kind === 'builder' && (
+      {!isPost && row.page_kind === 'builder' && showHealthWarnings && (
         <div style={{ marginBottom: 'var(--space-6)' }}>
           <Card title="Page SEO details">
             {/* Collapsed by default -- these matter for search/social sharing
@@ -569,69 +598,106 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <div
-                style={{
-                  width: customPreviewWidth ?? (DEVICE_WIDTHS[previewDevice] || '100%'),
-                  maxWidth: '100%',
-                  position: 'relative',
-                  border: !customPreviewWidth && previewDevice === 'Desktop' ? '1px solid var(--border-subtle)' : '8px solid var(--text-primary)',
-                  borderRadius: !customPreviewWidth && previewDevice === 'Desktop' ? 'var(--radius-lg)' : 'var(--radius-xl, 32px)',
-                  background: 'var(--surface-page)',
-                  overflow: 'hidden',
-                  transition: customPreviewWidth ? 'none' : 'width var(--duration-standard)',
-                }}
-              >
-                {!customPreviewWidth && previewDevice === 'Mobile' && (
-                  <div style={{ height: 18, background: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ width: 60, height: 5, borderRadius: 3, background: 'var(--surface-page)' }} />
-                  </div>
-                )}
-                {/* A genuine <iframe>, not BlockRenderer re-rendered into a
-                    width-constrained div in this same document -- every
-                    block's fluid font-size is computed off `vw` units,
-                    which only ever measure the REAL browser viewport. A
-                    narrowed div never actually changed what `vw` resolved
-                    to, so text silently stayed desktop-sized (and overflowed)
-                    no matter which device preset was picked. An iframe has
-                    its OWN real viewport, so `vw`-based sizing responds
-                    exactly like it would on an actual phone -- see
-                    preview-frame.astro / DraftPreviewBody.jsx for the other
-                    half of this (it receives the current draft blocks over
-                    postMessage, not a database read, so it's always exactly
-                    up to date with what's on screen right now). */}
-                <iframe
-                  ref={previewFrameRef}
-                  src={withBase('/admin/preview-frame')}
-                  title="Page preview"
-                  onLoad={() => { previewFrameReady.current = false; }}
-                  style={{ width: '100%', height: '80vh', border: 'none', display: 'block', background: 'var(--surface-page)' }}
-                />
+              {/* Extra relative wrapper with right-side breathing room --
+                  the resize handle lives in that margin, past the iframe's
+                  edge, instead of overlapping it. That's necessary but not
+                  sufficient: this row is centered, so the box grows/shrinks
+                  from BOTH edges at once, and while dragging, a fast mouse
+                  move can still land on the iframe (its own document), which
+                  swallows pointermove/pointerup and freezes the resize until
+                  the cursor clears it again. The fixed full-screen overlay
+                  rendered below (only while resizingPreview) is what
+                  actually fixes that -- it sits above the iframe in z-order
+                  and intercepts the drag before the iframe ever sees it. */}
+              <div style={{ position: 'relative', maxWidth: '100%', paddingRight: 36 }}>
+                <div
+                  style={{
+                    width: customPreviewWidth ?? (DEVICE_WIDTHS[previewDevice] || '100%'),
+                    maxWidth: '100%',
+                    position: 'relative',
+                    border: !customPreviewWidth && previewDevice === 'Desktop' ? '1px solid var(--border-subtle)' : '8px solid var(--text-primary)',
+                    borderRadius: !customPreviewWidth && previewDevice === 'Desktop' ? 'var(--radius-lg)' : 'var(--radius-xl, 32px)',
+                    background: 'var(--surface-page)',
+                    overflow: 'hidden',
+                    transition: customPreviewWidth ? 'none' : 'width var(--duration-standard)',
+                  }}
+                >
+                  {!customPreviewWidth && previewDevice === 'Mobile' && (
+                    <div style={{ height: 18, background: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: 60, height: 5, borderRadius: 3, background: 'var(--surface-page)' }} />
+                    </div>
+                  )}
+                  {/* A genuine <iframe>, not BlockRenderer re-rendered into a
+                      width-constrained div in this same document -- every
+                      block's fluid font-size is computed off `vw` units,
+                      which only ever measure the REAL browser viewport. A
+                      narrowed div never actually changed what `vw` resolved
+                      to, so text silently stayed desktop-sized (and overflowed)
+                      no matter which device preset was picked. An iframe has
+                      its OWN real viewport, so `vw`-based sizing responds
+                      exactly like it would on an actual phone -- see
+                      preview-frame.astro / DraftPreviewBody.jsx for the other
+                      half of this (it receives the current draft blocks over
+                      postMessage, not a database read, so it's always exactly
+                      up to date with what's on screen right now). */}
+                  <iframe
+                    ref={previewFrameRef}
+                    src={withBase('/admin/preview-frame')}
+                    title="Page preview"
+                    onLoad={() => { previewFrameReady.current = false; }}
+                    style={{ width: '100%', height: '80vh', border: 'none', display: 'block', background: 'var(--surface-page)' }}
+                  />
+                </div>
                 <div
                   onPointerDown={(e) => {
                     e.preventDefault();
                     const startX = e.clientX;
-                    const frameEl = e.currentTarget.parentElement;
-                    const startWidth = customPreviewWidth ?? frameEl.getBoundingClientRect().width;
+                    const boxEl = e.currentTarget.previousSibling;
+                    const startWidth = customPreviewWidth ?? boxEl.getBoundingClientRect().width;
+                    setResizingPreview(true);
+                    // The row above centers the box, so growing it by ΔW
+                    // only moves the right edge (and the handle riding on
+                    // it) by ΔW/2 -- the left edge moves out to match. To
+                    // keep the handle glued to the cursor 1:1 instead of
+                    // drifting behind it, feed the width delta in at double
+                    // the mouse delta.
                     function onMove(ev) {
-                      setCustomPreviewWidth(Math.max(280, Math.min(1600, startWidth + (ev.clientX - startX))));
+                      setCustomPreviewWidth(Math.max(280, Math.min(1600, startWidth + 2 * (ev.clientX - startX))));
                     }
                     function onUp() {
                       window.removeEventListener('pointermove', onMove);
                       window.removeEventListener('pointerup', onUp);
+                      setResizingPreview(false);
                     }
                     window.addEventListener('pointermove', onMove);
                     window.addEventListener('pointerup', onUp);
                   }}
                   title="Drag to resize the preview to a custom width"
                   style={{
-                    position: 'absolute', top: 0, right: 0, bottom: 0, width: 14,
+                    position: 'absolute', top: 0, bottom: 0, right: 0, width: 36,
                     cursor: 'ew-resize', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'transparent',
+                    background: 'transparent', touchAction: 'none',
                   }}
                 >
-                  <div style={{ width: 4, height: 40, borderRadius: 2, background: 'var(--border-subtle)' }} />
+                  <div style={{
+                    width: 16, height: 56, borderRadius: 'var(--radius-pill)',
+                    background: '#fff', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-sm)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                  }}>
+                    <div style={{ width: 2, height: 20, borderRadius: 1, background: 'var(--border-default)' }} />
+                    <div style={{ width: 2, height: 20, borderRadius: 1, background: 'var(--border-default)' }} />
+                  </div>
                 </div>
               </div>
+              {/* Full-viewport transparent overlay, only mounted while
+                  actively dragging. Sitting above the iframe in z-order
+                  means every pointermove during the drag hits THIS element
+                  first, so the iframe's own document never gets a chance to
+                  swallow the event -- that's what was freezing the resize
+                  when the cursor crossed onto it. */}
+              {resizingPreview && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 9999, cursor: 'ew-resize' }} />
+              )}
             </div>
           </div>
         )}

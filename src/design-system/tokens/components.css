@@ -133,6 +133,44 @@ a:hover{color:var(--text-link-hover)}
    overlay covering the canvas instead -- @media, not @container, since this
    is genuinely about the admin's own browser window, not a simulated device
    frame (that's the separate Preview tab, which already uses @container). */
+/* Admin app shell (src/admin-app/AdminShell.jsx): a left sidebar, not a top
+   bar -- deliberately different chrome from the public site's Header.astro
+   (also a bar across the top with a similar nav-links layout), so the two
+   don't read as "the same page" when an admin is bouncing between an
+   editor-only admin screen and a live public one that just happens to look
+   similar content-wise. */
+.admin-shell{display:flex;min-height:100vh;min-width:0}
+.admin-sidebar{
+  width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:var(--space-6);
+  border-right:1px solid var(--border-subtle);background:var(--surface-card);
+  padding:var(--space-6) var(--space-4);
+  /* Pinned to the viewport at a fixed height, never its own scrollbar --
+     the page's main column scrolls past it instead of it scrolling with
+     (or independently of) the page. */
+  position:sticky;top:0;height:100vh;align-self:flex-start;overflow:hidden;
+}
+.admin-sidebar__nav{display:flex;flex-direction:column;gap:2px;flex:1;min-height:0}
+.admin-sidebar__nav a{
+  font-family:var(--font-sans);font-size:var(--fs-small);font-weight:var(--fw-bold);
+  color:var(--text-secondary);text-decoration:none;padding:var(--space-2) var(--space-3);
+  border-radius:var(--radius-sm);border-left:3px solid transparent;
+}
+.admin-sidebar__nav a:hover{background:var(--surface-sunken);color:var(--text-primary)}
+.admin-sidebar__nav a[aria-current="page"]{background:var(--tint-info-bg);color:var(--text-primary);border-left-color:var(--brand-secondary)}
+.admin-main-col{flex:1;min-width:0;display:flex;flex-direction:column}
+.admin-sidebar-toggle{display:none}
+.admin-sidebar-backdrop{display:none}
+@media (max-width:900px){
+  .admin-sidebar-toggle{display:flex}
+  .admin-sidebar{
+    position:fixed;top:0;left:0;bottom:0;z-index:500;
+    transform:translateX(-100%);transition:transform var(--duration-standard);
+    box-shadow:var(--shadow-lg);
+  }
+  .admin-sidebar.is-open{transform:translateX(0)}
+  .admin-sidebar-backdrop.is-open{display:block;position:fixed;inset:0;background:rgba(20,20,22,0.4);z-index:499}
+}
+
 .page-builder-sidebar-backdrop{display:none}
 @media (max-width: 900px){
   .page-builder-grid{grid-template-columns:1fr !important}

@@ -156,7 +156,7 @@ export function ColumnsBlock({
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', margin: '0 0 var(--space-2)', color: 'var(--text-primary)', ...textStyleToCss(col.props.headingStyle) }}>
                 {editable ? (
                   <EditableText value={col.props.heading} onCommit={(v) => updateColumnProps(i, { heading: v })} placeholder={`Column ${i + 1} heading`} styleValue={col.props.headingStyle} onStyleChange={(s) => updateColumnProps(i, { headingStyle: s })} />
-                ) : col.props.heading}
+                ) : <RichText inline text={col.props.heading} />}
               </h3>
             )}
             <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-body)', color: 'var(--text-secondary)', ...textStyleToCss(col.props.bodyStyle) }}>

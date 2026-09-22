@@ -21,7 +21,14 @@ import { useAlert } from '../ConfirmProvider.jsx';
 // `onExtraImages` for the caller to turn into more blocks/slides -- see
 // ImageBlock (duplicates itself per extra photo) and CarouselBlock's media
 // slide (adds one new slide per extra photo).
-export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLabel = 'Click to add image', aspect, multiple = false, onExtraImages, showCropThumbnail = true }) {
+export function EditableImage({
+  value, alt, onChange, pathPrefix, style, emptyLabel = 'Click to add image', aspect, multiple = false, onExtraImages, showCropThumbnail = true,
+  // Alternative to a locked `aspect`: lets the admin pick the ratio inside
+  // the crop dialog itself (ImageBlock's "Aspect ratio" field) -- see
+  // CropEditor's own comment. Omit both `aspect` and these two and the
+  // crop frame just matches whatever photo was picked, same as before this existed.
+  aspectRatioKey, aspectRatioCustom, onAspectRatioChange,
+}) {
   const alertUser = useAlert();
   const inputRef = React.useRef(null);
   const [uploading, setUploading] = React.useState(false);
@@ -165,6 +172,9 @@ export function EditableImage({ value, alt, onChange, pathPrefix, style, emptyLa
           <CropEditor
             src={cropSrc}
             aspect={aspect}
+            initialAspectKey={aspectRatioKey}
+            initialCustomRatio={aspectRatioCustom}
+            onAspectChange={onAspectRatioChange}
             onCancel={closeCropper}
             onConfirm={handleCropConfirm}
             onSwapFile={handleSwapFile}

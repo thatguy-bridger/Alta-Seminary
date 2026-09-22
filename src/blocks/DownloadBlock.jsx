@@ -2,6 +2,7 @@ import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { EditableFile } from '../admin-app/builder/EditableFile.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
+import { RichText } from './richText.jsx';
 
 const DownloadIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
@@ -44,7 +45,7 @@ export function DownloadBlock({ label, fileUrl, fileName, align = 'left', labelS
       ) : (
         <a href={downloadUrl(fileUrl, fileName)} download={fileName || undefined} className="btn btn-outline" style={textStyleToCss(labelStyle)}>
           <DownloadIcon />
-          {label || 'Download'}
+          {label ? <RichText inline text={label} /> : 'Download'}
         </a>
       )}
     </div>

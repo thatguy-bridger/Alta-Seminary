@@ -2,6 +2,8 @@ import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { EditableImage } from '../admin-app/builder/EditableImage.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
+import { RichText } from './richText.jsx';
+import { htmlToPlainText } from '../lib/richTextHtml.js';
 import { AddBlockButton } from '../admin-app/builder/AddBlockButton.jsx';
 import { BlockIcon } from '../admin-app/builder/blockIcons.jsx';
 import { Select } from '../design-system/components/forms/Select.jsx';
@@ -768,18 +770,18 @@ function MediaSlide({ image, heading, caption, headingStyle, captionStyle, link,
     if (!heading && !caption) return null;
     return (
       <MediaSlideLink link={link} style={{ width: '100%', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 'var(--space-6)', background: 'var(--surface-sunken)' }}>
-        {heading && <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', color: 'var(--text-primary)', ...textStyleToCss(headingStyle) }}>{heading}</div>}
-        {caption && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', marginTop: 'var(--space-2)', ...textStyleToCss(captionStyle) }}>{caption}</div>}
+        {heading && <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', color: 'var(--text-primary)', ...textStyleToCss(headingStyle) }}><RichText inline text={heading} /></div>}
+        {caption && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', marginTop: 'var(--space-2)', ...textStyleToCss(captionStyle) }}><RichText inline text={caption} /></div>}
       </MediaSlideLink>
     );
   }
   return (
     <MediaSlideLink link={link} style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <img src={image} alt={heading || ''} loading={eager ? 'eager' : 'lazy'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <img src={image} alt={htmlToPlainText(heading)} loading={eager ? 'eager' : 'lazy'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       {(heading || caption) && (
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 'var(--space-4)', background: 'linear-gradient(transparent, rgba(0,0,0,0.65))', color: '#fff' }}>
-          {heading && <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', ...textStyleToCss(headingStyle) }}>{heading}</div>}
-          {caption && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', opacity: 0.9, ...textStyleToCss(captionStyle) }}>{caption}</div>}
+          {heading && <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', ...textStyleToCss(headingStyle) }}><RichText inline text={heading} /></div>}
+          {caption && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', opacity: 0.9, ...textStyleToCss(captionStyle) }}><RichText inline text={caption} /></div>}
         </div>
       )}
     </MediaSlideLink>

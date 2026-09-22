@@ -79,18 +79,60 @@ export async function getNavTree() {
 // there, by SiteSearch.jsx's client-side filter. No server/DB round-trip at
 // search time -- the whole index is small enough to fetch once and filter
 // in the browser.
+// Directory kinds with a dedicated public page to deep-link a person into
+// (via ?person=<id>, opened by DirectoryTeaserBlock.jsx). Matches KIND_PATH there.
+const DIRECTORY_KIND_PATH = { staff: 'staff', council: 'council', missionary: 'missionaries' };
+
 export async function getSearchIndex() {
-  const [pagesResult, postsResult] = await Promise.all([
+  const [pagesResult, postsResult, directoryResult, eventsResult, galleryResult] = await Promise.all([
     supabaseBuild.from('public_pages').select('title, meta_description, route_path'),
     supabaseBuild.from('public_blog_posts').select('title, excerpt, slug'),
+    supabaseBuild.from('directory_entries').select('id, name, bio, extra_fields, directory_kind').eq('status', 'published'),
+    supabaseBuild.from('calendar_events').select('id, title, description, location, start_at').eq('status', 'published'),
+    supabaseBuild.from('gallery_photos').select('id, caption, alt_text, created_at, gallery_albums(name)').eq('status', 'published'),
   ]);
+
   const pages = (pagesResult.data || [])
     .filter((row) => row.route_path)
-    .map((row) => ({ title: row.title, description: row.meta_description || '', path: row.route_path }));
+    .map((row) => ({ type: 'page', title: row.title, description: row.meta_description || '', path: row.route_path }));
+
   const posts = (postsResult.data || []).map((row) => ({
-    title: row.title, description: row.excerpt || '', path: `/announcements/${row.slug}`,
+    type: 'announcement', title: row.title, description: row.excerpt || '', path: `/announcements/${row.slug}`,
   }));
-  return [...pages, ...posts];
+
+  // Only the 3 built-in kinds have a page to deep-link into; entries of any
+  // other kind still exist for admins but aren't publicly browsable, so skip them.
+  const directory = (directoryResult.data || [])
+    .filter((row) => DIRECTORY_KIND_PATH[row.directory_kind])
+    .map((row) => {
+      const extra = Object.values(row.extra_fields || {}).filter(Boolean).join(' · ');
+      return {
+        type: 'directory',
+        title: row.name,
+        description: [row.bio, extra].filter(Boolean).join(' · '),
+        path: `/directory/${DIRECTORY_KIND_PATH[row.directory_kind]}?person=${row.id}`,
+      };
+    });
+
+  const events = (eventsResult.data || []).map((row) => ({
+    type: 'event',
+    title: row.title,
+    description: [row.description, row.location].filter(Boolean).join(' · '),
+    date: row.start_at,
+    location: row.location || '',
+    path: '/events',
+  }));
+
+  const gallery = (galleryResult.data || []).map((row) => ({
+    type: 'gallery',
+    title: row.caption || row.gallery_albums?.name || 'Photo',
+    description: [row.alt_text, row.gallery_albums?.name].filter(Boolean).join(' · '),
+    date: row.created_at,
+    location: row.gallery_albums?.name || '',
+    path: '/gallery',
+  }));
+
+  return [...pages, ...posts, ...directory, ...events, ...gallery];
 }
 
 export async function getAllRoutes() {

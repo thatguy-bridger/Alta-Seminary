@@ -3,6 +3,7 @@ import { Badge } from '../design-system/components/core/Badge.jsx';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { EditableImage } from '../admin-app/builder/EditableImage.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
+import { RichText } from './richText.jsx';
 
 const HEADING_SIZE_VAR = { normal: 'var(--fs-display)', large: 'var(--fs-display-lg)', xlarge: 'calc(var(--fs-display-lg) * 1.15)' };
 const OVERLAY_ALPHA = { light: 0.25, medium: 0.45, dark: 0.65 };
@@ -60,7 +61,7 @@ export function HeroBlock({
                 styleValue={eyebrowStyle}
                 onStyleChange={(s) => onFieldChange('eyebrowStyle', s)}
               />
-            ) : <span style={textStyleToCss(eyebrowStyle)}>{eyebrow}</span>}
+            ) : <RichText inline text={eyebrow} style={textStyleToCss(eyebrowStyle)} />}
           </Badge>
         </div>
       )}
@@ -74,7 +75,7 @@ export function HeroBlock({
               styleValue={headingStyle}
               onStyleChange={(s) => onFieldChange('headingStyle', s)}
             />
-          ) : <span style={textStyleToCss(headingStyle)}>{heading}</span>}
+          ) : <RichText inline text={heading} style={textStyleToCss(headingStyle)} />}
         </h1>
       )}
       {(editable || subheading) && (
@@ -88,7 +89,7 @@ export function HeroBlock({
               styleValue={subheadingStyle}
               onStyleChange={(s) => onFieldChange('subheadingStyle', s)}
             />
-          ) : <span style={textStyleToCss(subheadingStyle)}>{subheading}</span>}
+          ) : <RichText inline text={subheading} style={textStyleToCss(subheadingStyle)} />}
         </p>
       )}
     </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
+import { RichText } from './richText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { Card } from '../design-system/components/core/Card.jsx';
 import { Badge } from '../design-system/components/core/Badge.jsx';
@@ -40,7 +41,7 @@ export function EventsTeaserBlock({ heading, count = '3', timeframe = 'upcoming'
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-heading)', margin: '0 0 var(--space-5)', textAlign: 'center', color: 'var(--text-primary)', ...textStyleToCss(headingStyle) }}>
           {editable ? (
             <EditableText value={heading} onCommit={(v) => onFieldChange('heading', v)} placeholder="Heading" styleValue={headingStyle} onStyleChange={(s) => onFieldChange('headingStyle', s)} />
-          ) : heading}
+          ) : <RichText inline text={heading} />}
         </h2>
       )}
       {list === null ? (

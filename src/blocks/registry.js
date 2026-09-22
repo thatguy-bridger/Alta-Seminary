@@ -47,7 +47,7 @@ export const BLOCK_REGISTRY = {
     ],
   },
   'rich-text': {
-    label: 'Rich Text',
+    label: 'Text',
     category: 'Informational',
     icon: 'align-left',
     description: 'A block of formatted text — headings, bold, links, and lists.',
@@ -79,7 +79,13 @@ export const BLOCK_REGISTRY = {
       { key: 'caption', kind: 'text', label: 'Caption' },
       { key: 'link', kind: 'text', label: 'Link (optional -- makes the image clickable)', inline: false },
       { key: 'width', kind: 'select', label: 'Width', options: [{value:'full',label:'Full width'},{value:'contained',label:'Contained'}] },
-      { key: 'aspectRatio', kind: 'select', label: 'Aspect ratio', options: [{value:'auto',label:'Auto'},{value:'16:9',label:'16:9'},{value:'4:3',label:'4:3'},{value:'1:1',label:'1:1'}] },
+      // The crop dialog (click the photo's own corner thumbnail) is the
+      // primary way to set this now -- it shows all 4 classic ratios plus
+      // Custom and re-fits the crop live. This select is a secondary path
+      // for the same 4 presets; picking Custom there in the crop dialog
+      // stores a raw "W:H" string this dropdown has no matching option
+      // for, so it shows blank until a preset is picked again here or there.
+      { key: 'aspectRatio', kind: 'select', label: 'Aspect ratio', options: [{value:'auto',label:'Auto'},{value:'1:1',label:'1:1'},{value:'4:3',label:'4:3'},{value:'16:9',label:'16:9'},{value:'9:16',label:'9:16'}] },
       { key: 'corners', kind: 'select', label: 'Corners', options: [{value:'sharp',label:'Sharp'},{value:'rounded',label:'Rounded'}] },
       { key: 'border', kind: 'toggle', label: 'Border' },
       { key: 'shadow', kind: 'toggle', label: 'Shadow' },

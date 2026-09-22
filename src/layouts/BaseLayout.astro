@@ -63,6 +63,8 @@ const organizationSchema = {
 
     <!-- Loaded before the stylesheet so data-theme is set with no flash of the wrong theme -->
     <script is:inline src={withBase('/theme-init.js')}></script>
+    <!-- Same reasoning as theme-init.js -- sets --text-scale before first paint so text doesn't visibly jump size on load -->
+    <script is:inline src={withBase('/text-size-init.js')}></script>
 
     {gaId && !noindex && (
       <>

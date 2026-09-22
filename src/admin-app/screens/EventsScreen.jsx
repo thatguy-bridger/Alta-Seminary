@@ -12,6 +12,7 @@ import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
 import { useConfirm } from '../ConfirmProvider.jsx';
 import { useBulkListShortcuts } from '../useBulkListShortcuts.js';
 import { useModKeyLabel } from '../useModKeyLabel.js';
+import { UsedOnLine } from '../UsedOnLine.jsx';
 
 const emptyEvent = () => ({
   title: '', description: '', location: '', start_at: '', end_at: '', all_day: false, status: 'draft',
@@ -123,9 +124,13 @@ export function EventsScreen() {
 
   return (
     <Card title="Events">
-      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
+      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0, marginBottom: 0 }}>
         Events shown on the public Events page. Add an "Events Teaser" block to any page to display upcoming events there too.
       </p>
+      {/* Individual events aren't referenced by an Events Teaser block --
+          it just shows "upcoming"/"all" events generically -- so this
+          reports at that level: every page that has one at all. */}
+      <UsedOnLine predicate={(block) => block.type === 'events-teaser'} />
       <div style={{ marginBottom: 'var(--space-4)', display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
         <Button variant="outline" onClick={() => setEditing(emptyEvent())}>+ New Event</Button>
         <div style={{ flex: 1, minWidth: 200 }}>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
+import { RichText } from './richText.jsx';
 import { Input } from '../design-system/components/forms/Input.jsx';
 import { Textarea } from '../design-system/components/forms/Textarea.jsx';
 import { Button } from '../design-system/components/forms/Button.jsx';
@@ -54,7 +55,7 @@ export function ContactFormBlock({ heading, successMessage, headingStyle, editab
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-heading)', margin: '0 0 var(--space-5)', textAlign: 'center', color: 'var(--text-primary)', ...textStyleToCss(headingStyle) }}>
           {editable ? (
             <EditableText value={heading} onCommit={(v) => onFieldChange('heading', v)} placeholder="Heading" styleValue={headingStyle} onStyleChange={(s) => onFieldChange('headingStyle', s)} />
-          ) : heading}
+          ) : <RichText inline text={heading} />}
         </h2>
       )}
 

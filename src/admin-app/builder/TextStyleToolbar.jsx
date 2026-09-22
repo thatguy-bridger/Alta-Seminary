@@ -10,7 +10,12 @@ import { TEXT_COLOR_TOKENS } from '../../lib/richTextTokens.js';
 // rect captured on focus (see EditableText) rather than tracked continuously,
 // so it can drift slightly if the page scrolls mid-edit -- an acceptable
 // trade for not wiring scroll/resize listeners for a rare edge case.
-export function TextStyleToolbar({ toolbarRef, anchorRect, value, onChange }) {
+// onMark (optional): {bold,italic,underline,link} exec callbacks -- shows a
+// small per-selection formatting cluster (Bold/Italic/Underline/Link) ahead
+// of the whole-field color/size/font controls below. Only EditableText.jsx
+// passes this (its own inline rich-text marks); RichTextBlock's separate
+// RichTextEditor.jsx has its own full toolbar and never renders this one.
+export function TextStyleToolbar({ toolbarRef, anchorRect, value, onChange, onMark }) {
   if (!anchorRect) return null;
   const current = value || {};
 
@@ -33,6 +38,17 @@ export function TextStyleToolbar({ toolbarRef, anchorRect, value, onChange }) {
         zIndex: 2000, whiteSpace: 'nowrap',
       }}
     >
+      {onMark && (
+        <>
+          <div style={{ display: 'flex', gap: 2 }}>
+            <button type="button" title="Bold" onMouseDown={(e) => e.preventDefault()} onClick={onMark.bold} style={{ ...markBtnStyle, fontWeight: 700 }}>B</button>
+            <button type="button" title="Italic" onMouseDown={(e) => e.preventDefault()} onClick={onMark.italic} style={{ ...markBtnStyle, fontStyle: 'italic' }}>I</button>
+            <button type="button" title="Underline" onMouseDown={(e) => e.preventDefault()} onClick={onMark.underline} style={{ ...markBtnStyle, textDecoration: 'underline' }}>U</button>
+            <button type="button" title="Link" onMouseDown={(e) => e.preventDefault()} onClick={onMark.link} style={markBtnStyle}>🔗</button>
+          </div>
+          <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border-subtle)' }} />
+        </>
+      )}
       {/* The same 6 curated color tokens as the rich text editor's swatches
           (richTextTokens.js) -- every token maps to one of the site's own
           design-system CSS variables, which already have separate light/
@@ -88,3 +104,5 @@ export function TextStyleToolbar({ toolbarRef, anchorRect, value, onChange }) {
     document.body
   );
 }
+
+const markBtnStyle = { border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, padding: '3px 6px', borderRadius: 4, color: 'var(--text-primary)' };

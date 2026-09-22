@@ -28,7 +28,23 @@ function renderInline(text, keyPrefix) {
   return parts;
 }
 
-export function RichText({ text, style, firstLineHeading = false }) {
+// `inline` (used by EditableText.jsx-backed fields -- headings, buttons,
+// badges, captions, ...): renders a single <span>, never the <div>/<p>/<ul>
+// wrapping below. Safe because EditableText.jsx's own sanitize pass already
+// guarantees inline-only content (text/strong/em/u/a/span/br) for anything
+// stored through it -- see that file's own comment. Legacy plain values
+// (never edited since before rich text existed) get the same **bold**/
+// *italic*/[link](url) parsing as the block-level path, just without ever
+// splitting on blank lines into multiple paragraphs.
+export function RichText({ text, style, firstLineHeading = false, inline = false }) {
+  if (inline) {
+    if (!text) return null;
+    if (looksLikeHtml(text)) {
+      return <span style={style} dangerouslySetInnerHTML={{ __html: text }} />;
+    }
+    return <span style={style}>{renderInline(text, 'inline')}</span>;
+  }
+
   // Real HTML written by RichTextEditor.jsx -- already sanitized at commit
   // time (see admin-app/builder/sanitizeRichHtml.js), so it's trusted here
   // the same way the rest of this admin's authored content is trusted.

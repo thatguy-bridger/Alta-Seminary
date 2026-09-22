@@ -41,7 +41,7 @@ export function ImageTextBlock({
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-heading)', margin: '0 0 var(--space-3)', color: 'var(--text-primary)', ...textStyleToCss(headingStyle) }}>
           {editable ? (
             <EditableText value={heading} onCommit={(v) => onFieldChange('heading', v)} placeholder="Heading" styleValue={headingStyle} onStyleChange={(s) => onFieldChange('headingStyle', s)} />
-          ) : heading}
+          ) : <RichText inline text={heading} />}
         </h2>
       )}
       <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-body)', lineHeight: 'var(--lh-body)', color: 'var(--text-secondary)', ...textStyleToCss(bodyStyle) }}>

@@ -4,6 +4,7 @@ import { Card } from '../../design-system/components/core/Card.jsx';
 import { Badge } from '../../design-system/components/core/Badge.jsx';
 import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Toast } from '../../design-system/components/core/Toast.jsx';
+import { Switch } from '../../design-system/components/forms/Switch.jsx';
 import { withBase } from '../../lib/url.js';
 
 const GITHUB_OWNER = 'thatguy-bridger';
@@ -28,6 +29,18 @@ export function DiagnosticsScreen() {
   const [scanResult, setScanResult] = React.useState(null);
   const [scanning, setScanning] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
+  const [showHealthWarnings, setShowHealthWarnings] = React.useState(true);
+
+  React.useEffect(() => {
+    supabaseBrowser.from('site_settings').select('show_page_health_warnings').eq('id', true).maybeSingle().then(({ data }) => {
+      if (data) setShowHealthWarnings(data.show_page_health_warnings);
+    });
+  }, []);
+
+  async function toggleHealthWarnings(checked) {
+    setShowHealthWarnings(checked); // optimistic -- a failed write here just means the Pages list disagrees until the next reload, not worth blocking the switch on
+    await supabaseBrowser.from('site_settings').update({ show_page_health_warnings: checked }).eq('id', true);
+  }
 
   function setCheck(id, patch) {
     setChecks((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -260,6 +273,19 @@ export function DiagnosticsScreen() {
           id="site" check={checks.site} title="Site reachability"
           explanation="A live check, right now, that the public homepage actually responds. Confirms the last successful deploy is actually being served."
         />
+      </div>
+
+      <h3 style={{ fontFamily: 'var(--font-display)', margin: 'var(--space-8) 0 var(--space-3)' }}>Settings</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
+            <div>
+              <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)' }}>Show page health warnings</div>
+              <InfoToggle text="The badges on the Pages list (Unpublished changes, Empty, Missing meta description, Image missing alt text) AND the page editor's “Page SEO details” panel. Turn this off if they're more noise than help -- pages themselves are unaffected either way, this only controls whether these call attention to themselves." />
+            </div>
+            <Switch checked={showHealthWarnings} onChange={(e) => toggleHealthWarnings(e.target.checked)} label="Show page health warnings" />
+          </div>
+        </Card>
       </div>
 
       <h3 style={{ fontFamily: 'var(--font-display)', margin: 'var(--space-8) 0 var(--space-3)' }}>Tools</h3>

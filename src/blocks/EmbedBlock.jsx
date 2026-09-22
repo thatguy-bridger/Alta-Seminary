@@ -2,6 +2,8 @@ import React from 'react';
 import { isAllowedEmbedUrl, normalizeEmbedUrl } from './registry.js';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
+import { RichText } from './richText.jsx';
+import { htmlToPlainText } from '../lib/richTextHtml.js';
 
 const RATIO = { '16:9': '56.25%', '4:3': '75%', '1:1': '100%' };
 
@@ -25,7 +27,7 @@ export function EmbedBlock({ embedType = 'youtube', url, caption, aspectRatio = 
         {valid && (loaded || editable) ? (
           <iframe
             src={embedUrl}
-            title={caption || PROVIDER_LABEL[embedType]}
+            title={htmlToPlainText(caption) || PROVIDER_LABEL[embedType]}
             loading="lazy"
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
             allowFullScreen
@@ -50,7 +52,7 @@ export function EmbedBlock({ embedType = 'youtube', url, caption, aspectRatio = 
         <figcaption style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', marginTop: 'var(--space-2)', textAlign: 'center', ...textStyleToCss(captionStyle) }}>
           {editable ? (
             <EditableText value={caption} onCommit={(v) => onFieldChange('caption', v)} placeholder="Caption (optional)" styleValue={captionStyle} onStyleChange={(s) => onFieldChange('captionStyle', s)} />
-          ) : caption}
+          ) : <RichText inline text={caption} />}
         </figcaption>
       )}
     </figure>

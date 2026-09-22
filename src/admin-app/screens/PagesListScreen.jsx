@@ -6,7 +6,7 @@ import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Input } from '../../design-system/components/forms/Input.jsx';
 import { Select } from '../../design-system/components/forms/Select.jsx';
 import { Dialog } from '../../design-system/components/core/Dialog.jsx';
-import { EyeIcon, EyeOffIcon, CopyIcon, TrashIcon } from '../icons.jsx';
+import { EyeIcon, EyeOffIcon, CopyIcon, TrashIcon, PencilIcon } from '../icons.jsx';
 import { slugify, uniqueSlug } from '../slug.js';
 import { withBase } from '../../lib/url.js';
 import { useConfirm } from '../ConfirmProvider.jsx';
@@ -103,6 +103,16 @@ export function PagesListScreen() {
   const [newTitle, setNewTitle] = React.useState('');
   const [newParentId, setNewParentId] = React.useState('');
   const [creating, setCreating] = React.useState(false);
+  // Gates the health badges in computeHealth() below -- see the Settings
+  // toggle in DiagnosticsScreen.jsx. Defaults to true (today's behavior)
+  // until the real value loads.
+  const [showHealthWarnings, setShowHealthWarnings] = React.useState(true);
+
+  React.useEffect(() => {
+    supabaseBrowser.from('site_settings').select('show_page_health_warnings').eq('id', true).maybeSingle().then(({ data }) => {
+      if (data) setShowHealthWarnings(data.show_page_health_warnings);
+    });
+  }, []);
 
   // Plain refetch -- used after every mutation (delete/create/copy/reorder).
   // Deliberately does NOT re-seed DEFAULT_BUILDER_PAGES: this used to be one
@@ -130,6 +140,40 @@ export function PagesListScreen() {
 
   async function toggleVisible(row) {
     await supabaseBrowser.from('pages').update({ show_in_nav: !row.show_in_nav }).eq('id', row.id);
+    fetchPages();
+  }
+
+  // Takes a published builder page down immediately. There was previously no
+  // way to do this at all outside the page editor's own scheduling field --
+  // the eye icon here only ever toggled show_in_nav (nav visibility), which
+  // does nothing to public_pages' `where status = 'published'` filter, so a
+  // "hidden" page was still live at its URL. Unlike handlePublish (in
+  // PageBuilderScreen.jsx), this deliberately leaves published_blocks alone
+  // so re-publishing later needs no rework -- same as the unpublish_at sweep.
+  async function unpublish(row) {
+    await supabaseBrowser.from('pages').update({ status: 'draft' }).eq('id', row.id);
+    fetchPages();
+  }
+
+  // The counterpart to unpublish() above -- shown instead of it once a page
+  // IS in draft. Mirrors PostsListScreen's handleBulkPublish: a page that's
+  // never been published yet has no published_blocks at all, so this has to
+  // actually set them from draft_blocks, not just flip the status flag.
+  async function publish(row) {
+    await supabaseBrowser.from('pages')
+      .update({ published_blocks: row.draft_blocks, status: 'published', published_at: new Date().toISOString() })
+      .eq('id', row.id);
+    fetchPages();
+  }
+
+  // Title-only -- nav_label (what actually shows in the site nav) is a
+  // separate field with its own edit path already (the page editor's own
+  // settings), so a typo fix here doesn't silently also change what
+  // visitors see in the nav unless that's separately edited too.
+  async function rename(row, title) {
+    const trimmed = title.trim();
+    if (!trimmed || trimmed === row.title) return;
+    await supabaseBrowser.from('pages').update({ title: trimmed }).eq('id', row.id);
     fetchPages();
   }
 
@@ -206,7 +250,7 @@ export function PagesListScreen() {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         {tree.map((row) => (
-          <PageRow key={row.id} row={row} siblings={tree} onToggle={toggleVisible} onMove={move} onCopy={handleCopy} onDelete={handleDelete} depth={0} />
+          <PageRow key={row.id} row={row} siblings={tree} onToggle={toggleVisible} onUnpublish={unpublish} onPublish={publish} onRename={rename} onMove={move} onCopy={handleCopy} onDelete={handleDelete} depth={0} showHealthWarnings={showHealthWarnings} />
         ))}
       </div>
 
@@ -224,27 +268,100 @@ export function PagesListScreen() {
   );
 }
 
-function PageRow({ row, siblings, onToggle, onMove, onCopy, onDelete, depth }) {
+function PageRow({ row, siblings, onToggle, onUnpublish, onPublish, onRename, onMove, onCopy, onDelete, depth, showHealthWarnings }) {
   const isBuilder = row.page_kind === 'builder';
-  const healthFlags = computeHealth(row);
+  const healthFlags = showHealthWarnings ? computeHealth(row) : [];
+  const [renaming, setRenaming] = React.useState(false);
+  const [draftTitle, setDraftTitle] = React.useState(row.title);
+  const clickTimer = React.useRef(null);
+  const inputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (renaming) inputRef.current?.select();
+  }, [renaming]);
+
+  function startRename() {
+    setDraftTitle(row.title);
+    setRenaming(true);
+  }
+  function commitRename() {
+    setRenaming(false);
+    onRename(row, draftTitle);
+  }
+
+  // A single click on the name jumps straight into the page editor (builder
+  // pages only -- a route-kind row like "Gallery" has no such editor, see
+  // the Edit button's own isBuilder guard below); a double-click renames
+  // instead. Both fire on a real double-click (browsers dispatch click,
+  // click, then dblclick), so the single click's own action is delayed just
+  // long enough to cancel it if a second click follows -- the standard way
+  // to tell the two apart without actually waiting for dblclick to prove it
+  // WASN'T one, which would make every single click feel laggy.
+  function handleNameClick() {
+    if (renaming) return;
+    clearTimeout(clickTimer.current);
+    clickTimer.current = setTimeout(() => {
+      if (isBuilder) window.location.href = withBase(`/admin/pages/edit?slug=${row.slug}`);
+    }, 300);
+  }
+  function handleNameDoubleClick() {
+    clearTimeout(clickTimer.current);
+    startRename();
+  }
+
   return (
     <div>
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap',
-          padding: 'var(--space-3)', paddingLeft: `calc(var(--space-3) + ${depth * 24}px)`,
-          borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
+          padding: 'var(--space-3)', paddingLeft: depth > 0 ? 'var(--space-6)' : 'var(--space-3)', marginLeft: depth * 28,
+          // A sub-page reads as genuinely nested INSIDE its parent, not just
+          // a sibling row shoved rightward: a sunken tint + a left accent
+          // border (instead of the full all-around border every top-level
+          // row gets), so it visually hangs off that border rather than
+          // floating as its own separate card.
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-subtle)',
+          borderLeft: depth > 0 ? '3px solid var(--brand-secondary)' : undefined,
+          background: depth > 0 ? 'var(--surface-sunken)' : undefined,
           opacity: row.show_in_nav ? 1 : 0.55,
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <button onClick={() => onMove(siblings, row, -1)} title="Move up" style={arrowStyle}>▲</button>
-          <button onClick={() => onMove(siblings, row, 1)} title="Move down" style={arrowStyle}>▼</button>
-        </div>
+        {depth === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <button onClick={() => onMove(siblings, row, -1)} title="Move up" style={arrowStyle}>▲</button>
+            <button onClick={() => onMove(siblings, row, 1)} title="Move down" style={arrowStyle}>▼</button>
+          </div>
+        )}
 
         <div style={{ flex: 1, minWidth: 160 }}>
           <div>
-            <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{row.title}</span>
+            {depth > 0 && (
+              <span aria-hidden="true" style={{ color: 'var(--text-muted)', marginRight: 'var(--space-2)', fontFamily: 'var(--font-sans)' }}>↳</span>
+            )}
+            {renaming ? (
+              <input
+                ref={inputRef}
+                autoFocus
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+                  else if (e.key === 'Escape') { setRenaming(false); }
+                }}
+                style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: '2px 6px', background: 'var(--surface-page)' }}
+              />
+            ) : (
+              <span
+                onClick={handleNameClick}
+                onDoubleClick={handleNameDoubleClick}
+                title={isBuilder ? 'Click to edit this page — double-click to rename' : 'Double-click to rename'}
+                style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)', cursor: 'pointer' }}
+              >
+                {row.title}
+              </span>
+            )}
             {!isBuilder && row.route_path && (
               <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>{row.route_path}</span>
             )}
@@ -274,6 +391,15 @@ function PageRow({ row, siblings, onToggle, onMove, onCopy, onDelete, depth }) {
             <CopyIcon />
           </button>
         )}
+        {isBuilder && row.status === 'published' && (
+          <Button variant="ghost" size="sm" onClick={() => onUnpublish(row)}>Unpublish</Button>
+        )}
+        {isBuilder && row.status === 'draft' && (
+          <Button variant="ghost" size="sm" onClick={() => onPublish(row)}>Publish</Button>
+        )}
+        <button onClick={startRename} title="Rename this page" style={iconButtonStyle}>
+          <PencilIcon />
+        </button>
         <button onClick={() => onDelete(row)} title="Delete this page" style={{ ...iconButtonStyle, color: 'var(--color-error)' }}>
           <TrashIcon />
         </button>
@@ -288,7 +414,7 @@ function PageRow({ row, siblings, onToggle, onMove, onCopy, onDelete, depth }) {
       {row.children.length > 0 && (
         <div style={{ marginTop: 'var(--space-2)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           {row.children.map((child) => (
-            <PageRow key={child.id} row={child} siblings={row.children} onToggle={onToggle} onMove={onMove} onCopy={onCopy} onDelete={onDelete} depth={depth + 1} />
+            <PageRow key={child.id} row={child} siblings={row.children} onToggle={onToggle} onUnpublish={onUnpublish} onPublish={onPublish} onRename={onRename} onMove={onMove} onCopy={onCopy} onDelete={onDelete} depth={depth + 1} showHealthWarnings={showHealthWarnings} />
           ))}
         </div>
       )}

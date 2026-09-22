@@ -1,6 +1,7 @@
 import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
+import { RichText } from './richText.jsx';
 
 const ICONS = {
   arrow: (
@@ -55,7 +56,7 @@ export function ButtonBlock({ label, href = '#', variant = 'primary', size = 'md
   const cls = ['btn', 'btn-' + variant, size === 'sm' ? 'btn-sm' : size === 'lg' ? 'btn-lg' : ''].filter(Boolean).join(' ');
   const content = editable ? (
     <EditableText value={label} onCommit={(v) => onFieldChange('label', v)} placeholder="Button label" styleValue={labelStyle} onStyleChange={(s) => onFieldChange('labelStyle', s)} />
-  ) : label;
+  ) : <RichText inline text={label} />;
   const iconEl = icon !== 'none' ? ICONS[icon] : null;
 
   const style = { textDecoration: 'none', width: fullWidth ? '100%' : undefined, justifyContent: fullWidth ? 'center' : undefined, ...textStyleToCss(labelStyle) };

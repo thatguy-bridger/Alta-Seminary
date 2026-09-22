@@ -1,6 +1,7 @@
 import React from 'react';
 import { EditableText } from '../admin-app/builder/EditableText.jsx';
 import { BlockIcon } from '../admin-app/builder/blockIcons.jsx';
+import { RichText } from './richText.jsx';
 
 const TONE_FG = { info: 'var(--color-info)', success: 'var(--color-success)', warning: 'var(--color-warning)', error: 'var(--color-error)' };
 
@@ -86,11 +87,11 @@ function LiveTimedPopup({ heading, message, tone, link, linkLabel, delaySeconds,
         </button>
         {heading && (
           <h3 style={{ margin: '0 0 var(--space-2)', fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', color: TONE_FG[tone] || TONE_FG.info }}>
-            {heading}
+            <RichText inline text={heading} />
           </h3>
         )}
         <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-body)', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
-          {message}
+          <RichText inline text={message} />
         </p>
         {link && linkLabel && (
           <a href={link} className="btn btn-primary btn-sm" style={{ marginTop: 'var(--space-4)', display: 'inline-block' }}>

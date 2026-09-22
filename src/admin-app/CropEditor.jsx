@@ -16,6 +16,21 @@ const MAX_ZOOM = 2;
 const FRAME_SIZE = 360; // on-screen crop frame size (long edge), in css px
 const MAX_OUTPUT = 1200; // cap on the exported crop's long edge, to match uploadImageFile's downscale ceiling
 
+// The 4 "classic" ratios + a free-form custom one, offered as a picker
+// inside the crop dialog itself (see aspectKey below) -- separate from the
+// `aspect` prop, which is how a caller with one fixed known shape (a
+// carousel slide is always 16:9) locks the frame WITHOUT showing this
+// picker at all.
+export const ASPECT_RATIO_OPTIONS = [
+  { key: 'auto', label: 'Auto (photo’s own shape)' },
+  { key: '1:1', label: '1:1' },
+  { key: '4:3', label: '4:3' },
+  { key: '16:9', label: '16:9' },
+  { key: '9:16', label: '9:16' },
+  { key: 'custom', label: 'Custom' },
+];
+const RATIO_PRESETS = { '1:1': 1, '4:3': 4 / 3, '16:9': 16 / 9, '9:16': 9 / 16 };
+
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
 }
@@ -28,35 +43,73 @@ function clamp(n, min, max) {
 // which Supabase's public "images" bucket does.
 //
 // `aspect` is optional -- pass it when the caller renders at one fixed, known
-// ratio (a carousel slide is always 16:9, a gallery tile is always square).
-// Leave it unset and the frame matches the photo's OWN aspect ratio instead,
-// so cropping can be the default step on every upload without ever forcing a
-// crop the caller didn't ask for: at zoom 1 the whole photo is visible
-// (nothing trimmed), and zooming in is still there for whoever wants it.
+// ratio the visitor never chooses (a carousel slide is always 16:9, a
+// gallery tile is always square). It LOCKS the frame and hides the ratio
+// picker below entirely.
+//
+// Leave `aspect` unset for callers that let an admin pick the ratio
+// themselves (see ASPECT_RATIO_OPTIONS/ImageBlock's own `aspectRatio` field)
+// -- this then shows that picker, seeded from `initialAspectKey`
+// ('auto' | '1:1' | '4:3' | '16:9' | '9:16' | 'custom'), and reports back
+// through `onAspectChange(key, ratioValue)` whenever the admin changes it so
+// the caller can persist the choice (ratioValue is null for 'auto', since
+// that one deliberately has no fixed number -- it just matches whatever
+// photo is loaded). 'auto' matches the photo's own shape (nothing trimmed
+// at zoom 1); 'custom' shows two plain width/height number inputs.
 // onSwapFile/onSwapUrl/onSwapExisting (all optional): when passed, shows a
 // "Change image" control that lets the photo being cropped be swapped for a
 // different one without closing this dialog first -- callers that don't
 // need that (re-cropping is the only entry point for them) simply omit all
 // three and the control doesn't render.
-export function CropEditor({ src, aspect, title = 'Crop photo', onCancel, onConfirm, onSwapFile, onSwapUrl, onSwapExisting }) {
+export function CropEditor({
+  src, aspect, initialAspectKey = 'auto', initialCustomRatio = { w: 1, h: 1 }, onAspectChange,
+  title = 'Crop photo', onCancel, onConfirm, onSwapFile, onSwapUrl, onSwapExisting,
+}) {
   const [ready, setReady] = React.useState(false);
   const [natural, setNatural] = React.useState({ w: 0, h: 0 });
   const [zoom, setZoom] = React.useState(1);
   const [pos, setPos] = React.useState({ left: 0, top: 0 });
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [aspectKey, setAspectKey] = React.useState(initialAspectKey);
+  const [customRatio, setCustomRatio] = React.useState(initialCustomRatio);
   const imgRef = React.useRef(null);
   const dragRef = React.useRef(null);
+  const pickerShown = aspect == null;
 
   // Fall back to a square frame only until the photo's real dimensions are
   // known (the <img> itself stays hidden until then, so this is never seen).
-  const effectiveAspect = aspect || (natural.w && natural.h ? natural.w / natural.h : 1);
+  const naturalRatio = natural.w && natural.h ? natural.w / natural.h : 1;
+  const customValue = customRatio.w > 0 && customRatio.h > 0 ? customRatio.w / customRatio.h : naturalRatio;
+  const effectiveAspect = aspect
+    ?? (aspectKey === 'auto' ? naturalRatio : aspectKey === 'custom' ? customValue : RATIO_PRESETS[aspectKey]);
   const frameW = effectiveAspect >= 1 ? FRAME_SIZE : FRAME_SIZE * effectiveAspect;
   const frameH = effectiveAspect >= 1 ? FRAME_SIZE / effectiveAspect : FRAME_SIZE;
   const scale0 = natural.w ? Math.max(frameW / natural.w, frameH / natural.h) : 1;
   const scale = scale0 * zoom;
   const dispW = natural.w * scale;
   const dispH = natural.h * scale;
+
+  // Re-fits the photo (zoom back to 1, centered) whenever the frame's own
+  // shape changes after it's already loaded -- picking a different ratio
+  // (or typing new custom numbers) mid-dialog, same as the initial fit
+  // handleImgLoad below does for the frame shape the dialog OPENED with.
+  React.useEffect(() => {
+    if (!ready || !natural.w) return;
+    const fitScale = Math.max(frameW / natural.w, frameH / natural.h);
+    setZoom(1);
+    setPos({ left: (frameW - natural.w * fitScale) / 2, top: (frameH - natural.h * fitScale) / 2 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fit when the FRAME shape changes, not on every zoom/pos update
+  }, [frameW, frameH]);
+
+  function selectAspectKey(key) {
+    setAspectKey(key);
+    onAspectChange?.(key, key === 'auto' ? null : key === 'custom' ? `${customRatio.w}:${customRatio.h}` : key);
+  }
+  function updateCustomRatio(next) {
+    setCustomRatio(next);
+    if (aspectKey === 'custom') onAspectChange?.('custom', `${next.w}:${next.h}`);
+  }
 
   // When zoomed below the "cover" fit, the photo can be smaller than the
   // frame on one or both axes -- clamp to keep it fully inside the frame
@@ -72,7 +125,14 @@ export function CropEditor({ src, aspect, title = 'Crop photo', onCancel, onConf
 
   function handleImgLoad(e) {
     const w = e.target.naturalWidth, h = e.target.naturalHeight;
-    const effAspect = aspect || w / h;
+    // Can't reuse `effectiveAspect`/`naturalRatio` here -- they're still
+    // computed off the PREVIOUS natural.{w,h} (0 before this load), one
+    // render behind the values this same handler is about to set. Redoing
+    // the 'auto' case inline with this load event's own w/h keeps the
+    // very first fit correct; the [frameW, frameH] effect above takes over
+    // for every fit after this one (ratio changed, or a re-crop reopens
+    // with different natural dimensions).
+    const effAspect = aspect ?? (aspectKey === 'auto' ? w / h : aspectKey === 'custom' ? customValue : RATIO_PRESETS[aspectKey]);
     const fW = effAspect >= 1 ? FRAME_SIZE : FRAME_SIZE * effAspect;
     const fH = effAspect >= 1 ? FRAME_SIZE / effAspect : FRAME_SIZE;
     const fitScale = Math.max(fW / w, fH / h);
@@ -215,6 +275,43 @@ export function CropEditor({ src, aspect, title = 'Crop photo', onCancel, onConf
         <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', textAlign: 'center' }}>
           Drag the photo to reposition it, use the slider to zoom in or out.
         </p>
+
+        {pickerShown && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+              {ASPECT_RATIO_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => selectAspectKey(opt.key)}
+                  style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', padding: '4px 10px',
+                    borderRadius: 'var(--radius-pill)', border: '1px solid var(--border-default)', cursor: 'pointer',
+                    background: aspectKey === opt.key ? 'var(--text-primary)' : 'var(--surface-card)',
+                    color: aspectKey === opt.key ? 'var(--surface-page)' : 'var(--text-primary)',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {aspectKey === 'custom' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+                <input
+                  type="number" min={1} value={customRatio.w}
+                  onChange={(e) => updateCustomRatio({ ...customRatio, w: Number(e.target.value) || 1 })}
+                  style={{ width: 48, textAlign: 'center', fontSize: 12, padding: '3px 2px', borderRadius: 4, border: '1px solid var(--border-default)', background: 'var(--surface-page)', color: 'var(--text-primary)' }}
+                />
+                <span>:</span>
+                <input
+                  type="number" min={1} value={customRatio.h}
+                  onChange={(e) => updateCustomRatio({ ...customRatio, h: Number(e.target.value) || 1 })}
+                  style={{ width: 48, textAlign: 'center', fontSize: 12, padding: '3px 2px', borderRadius: 4, border: '1px solid var(--border-default)', background: 'var(--surface-page)', color: 'var(--text-primary)' }}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {error && <p style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-error)' }}>{error}</p>}
 

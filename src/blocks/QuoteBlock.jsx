@@ -51,7 +51,7 @@ export function QuoteBlock({
             <cite style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', fontStyle: 'normal', ...textStyleToCss(citationStyle) }}>
               {editable ? (
                 <EditableText value={citation} onCommit={(v) => onFieldChange('citation', v)} placeholder="Citation" styleValue={citationStyle} onStyleChange={(s) => onFieldChange('citationStyle', s)} />
-              ) : citation}
+              ) : <RichText inline text={citation} />}
             </cite>
           )}
         </div>

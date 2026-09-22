@@ -7,6 +7,18 @@ export function looksLikeHtml(value) {
   return typeof value === 'string' && /<\/?[a-z][\s\S]*>/i.test(value);
 }
 
+// For the handful of places a rich-text-capable field's value is ALSO read
+// as plain text -- an iframe/image `title`/`alt`, `aria-label`, a <select>'s
+// visible option text -- where literal "<strong>" tags showing up would be
+// worse than just dropping the formatting. Good enough for that (not a
+// generalized HTML-to-text converter): strips tags, doesn't decode entities
+// beyond the handful escapeHtml() above ever produces.
+export function htmlToPlainText(value) {
+  if (!value) return '';
+  if (!looksLikeHtml(value)) return value;
+  return value.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim();
+}
+
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
