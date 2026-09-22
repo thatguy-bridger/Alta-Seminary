@@ -154,14 +154,20 @@ export function PostsListScreen() {
   const filteredPopups = activeAnnPage === 'all' ? popupInstances : (popupInstances || []).filter((i) => i.pageHref === activeAnnPage);
 
   return (
-    <Card title="Announcements">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+      {/* Individual announcements aren't referenced by a Recent
+          Announcements block -- it just shows the N most recent, generically
+          -- so this reports at that level: every page that has one at all.
+          Its own card, separate from the Announcements list below, so it
+          doesn't read as part of that list's own description text. */}
+      <Card title="Where Announcements Show">
+        <UsedOnLine predicate={(block) => block.type === 'posts-teaser'} />
+      </Card>
+
+      <Card title="Announcements">
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0, marginBottom: 0 }}>
         Posts shown on the public Announcements page, newest first. Create, edit, copy, or delete below.
       </p>
-      {/* Individual announcements aren't referenced by a Recent
-          Announcements block -- it just shows the N most recent, generically
-          -- so this reports at that level: every page that has one at all. */}
-      <UsedOnLine predicate={(block) => block.type === 'posts-teaser'} />
       <div style={{ marginBottom: 'var(--space-4)', display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
         <Button variant="outline" onClick={() => setCreateOpen(true)}>+ New Announcement</Button>
         <div style={{ flex: 1, minWidth: 200 }}>
@@ -271,7 +277,8 @@ export function PostsListScreen() {
           </div>
         </form>
       </Dialog>
-    </Card>
+      </Card>
+    </div>
   );
 }
 
