@@ -166,14 +166,19 @@ export function PagesListScreen() {
     fetchPages();
   }
 
-  // Title-only -- nav_label (what actually shows in the site nav) is a
-  // separate field with its own edit path already (the page editor's own
-  // settings), so a typo fix here doesn't silently also change what
-  // visitors see in the nav unless that's separately edited too.
+  // Updates the page's title, AND nav_label along with it as long as
+  // nav_label hasn't been separately customized (still equal to the old
+  // title) -- nav_label is what actually renders in the site's nav/header,
+  // so a rename that left it untouched looked like it "didn't do anything"
+  // on the public site even though the admin list itself updated fine. If
+  // an admin previously gave the nav label its own distinct text (via the
+  // page editor's settings), that customization is left alone here.
   async function rename(row, title) {
     const trimmed = title.trim();
     if (!trimmed || trimmed === row.title) return;
-    await supabaseBrowser.from('pages').update({ title: trimmed }).eq('id', row.id);
+    const patch = { title: trimmed };
+    if (!row.nav_label || row.nav_label === row.title) patch.nav_label = trimmed;
+    await supabaseBrowser.from('pages').update(patch).eq('id', row.id);
     fetchPages();
   }
 
