@@ -444,7 +444,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', margin: 'var(--space-3) 0 var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-            <h2 style={{ fontFamily: 'var(--font-display)', margin: 0 }}>{row.title}</h2>
+            <h2 className="page-editor-title" style={{ fontFamily: 'var(--font-display)', margin: 0, transition: 'color var(--duration-fast)' }}>{row.title}</h2>
             <Badge tone={row.status === 'published' ? 'success' : row.status === 'scheduled' ? 'warning' : 'neutral'}>{row.status}</Badge>
             <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
               {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Draft saved' : ''}

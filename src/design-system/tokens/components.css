@@ -106,6 +106,13 @@ a:hover{color:var(--text-link-hover)}
 .editable-text:empty{display:inline-block;min-width:1ch}
 .editable-text:empty:before{content:attr(data-placeholder);color:var(--text-muted)}
 .editable-text:hover{background:var(--tint-info-bg);border-radius:var(--radius-sm);box-shadow:0 0 0 2px var(--tint-info-bg)}
+
+/* Admin page editor (PageBuilderScreen.jsx): the page/post title heading at
+   the top -- purely a visual hover cue (this title isn't click-to-rename
+   here, unlike PagesListScreen.jsx's list rows; renaming happens via the
+   Title field in the settings panel below), same accent color as other
+   hover/active affordances across the admin. */
+.page-editor-title:hover{color:var(--brand-secondary)}
 .editable-text:focus{background:var(--surface-card);border-radius:var(--radius-sm);box-shadow:0 0 0 2px var(--brand-secondary)}
 .editable-image-overlay{opacity:0}
 .editable-image:hover .editable-image-overlay{opacity:1}
