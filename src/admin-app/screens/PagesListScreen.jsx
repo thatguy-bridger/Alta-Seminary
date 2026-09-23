@@ -362,6 +362,7 @@ function PageRow({ row, siblings, onToggle, onUnpublish, onPublish, onRename, on
                 onClick={handleNameClick}
                 onDoubleClick={handleNameDoubleClick}
                 title={isBuilder ? 'Click to edit this page — double-click to rename' : 'Double-click to rename'}
+                className="page-list-name"
                 style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)', cursor: 'pointer' }}
               >
                 {row.title}

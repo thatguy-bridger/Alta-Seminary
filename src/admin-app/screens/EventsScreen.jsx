@@ -13,10 +13,8 @@ import { useConfirm } from '../ConfirmProvider.jsx';
 import { useBulkListShortcuts } from '../useBulkListShortcuts.js';
 import { useModKeyLabel } from '../useModKeyLabel.js';
 import { UsedOnLine } from '../UsedOnLine.jsx';
-import { slugify, uniqueSlug } from '../slug.js';
-import { withBase } from '../../lib/url.js';
-import { linkContent } from '../contentLinks.js';
 import { LinkedContentPanel } from '../LinkedContentPanel.jsx';
+import { CrossCreateButtons } from '../CrossCreateButtons.jsx';
 
 const emptyEvent = () => ({
   title: '', description: '', location: '', start_at: '', end_at: '', all_day: false, status: 'draft',
@@ -60,50 +58,6 @@ export function EventsScreen() {
     if (!highlightId || !events) return;
     document.getElementById(`event-${highlightId}`)?.scrollIntoView({ block: 'center' });
   }, [highlightId, events]);
-
-  // Prefills a sensible starting point: the event's own title/timing as a
-  // Hero heading+subheading, and -- the actual point of this button --
-  // unpublish_at defaulted to when the event itself ends (or starts, if no
-  // end time), so the announcement doesn't just sit there advertising an
-  // event that already happened. `?schedule=1` on the redirect opens the
-  // editor straight into "Schedule for later" so the admin is immediately
-  // asked for a PUBLISH time too, same turn -- nothing here guesses that
-  // one, since "announce it now" vs "announce it a week before" is a real
-  // choice only the admin can make. The new post is linked back to this
-  // event through content_links (contentLinks.js) -- the same generic
-  // link every OTHER pair of event/announcement/album uses, so it shows up
-  // identically via LinkedContentPanel on either side.
-  async function createAnnouncementForEvent(row) {
-    const slug = await uniqueSlug('blog_posts', slugify(row.title));
-    const when = new Date(row.start_at).toLocaleString(undefined, row.all_day
-      ? { month: 'long', day: 'numeric', year: 'numeric' }
-      : { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-    const subheading = row.location ? `${when} · ${row.location}` : when;
-    const { data: post } = await supabaseBrowser.from('blog_posts').insert({
-      slug, title: row.title, excerpt: subheading, status: 'draft',
-      draft_blocks: [{
-        id: crypto.randomUUID(), type: 'hero',
-        props: { heading: row.title, subheading, align: 'center', background: 'none', headingSize: 'normal', overlayOpacity: 'medium', textColor: 'auto' },
-      }],
-      unpublish_at: row.end_at || row.start_at,
-    }).select().single();
-    if (!post) return;
-    await linkContent('event', row.id, 'announcement', post.id);
-    window.location.href = withBase(`/admin/posts/edit?slug=${post.slug}&schedule=1`);
-  }
-
-  // Same idea, for the other half of "tie it all together": a dedicated
-  // album an admin can drop event photos into as they come in (during/after
-  // the event), already linked back to it. Starts as an ordinary draft
-  // album -- nothing here assumes the photos exist yet.
-  async function createAlbumForEvent(row) {
-    const { data: album } = await supabaseBrowser.from('gallery_albums').insert({
-      name: `${row.title} Photos`, status: 'draft', sort_order: 0,
-    }).select().single();
-    if (!album) return;
-    await linkContent('event', row.id, 'album', album.id);
-    window.location.href = withBase(`/admin/gallery?album=${album.id}`);
-  }
 
   const filtered = React.useMemo(() => {
     if (!events) return events;
@@ -254,10 +208,7 @@ export function EventsScreen() {
               <div style={{ marginTop: 'var(--space-2)' }}>
                 <LinkedContentPanel kind="event" id={row.id} title={row.title} />
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', marginTop: 'var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)' }}>
-                <button onClick={() => createAnnouncementForEvent(row)} style={linkBtnStyle}>+ Create &amp; link a new Announcement</button>
-                <button onClick={() => createAlbumForEvent(row)} style={linkBtnStyle}>+ Create &amp; link a new Photo Album</button>
-              </div>
+              <CrossCreateButtons sourceKind="event" sourceRow={row} onCreated={load} />
             </div>
             <Badge tone={row.status === 'published' ? 'success' : 'neutral'}>{row.status}</Badge>
             <Button variant="primary" size="sm" onClick={() => setEditing({
@@ -334,4 +285,3 @@ function EventDialog({ event, saving, onCancel, onSave }) {
 }
 
 const iconButtonStyle = { border: 'none', background: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' };
-const linkBtnStyle = { border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-link)', fontFamily: 'inherit', fontSize: 'inherit' };

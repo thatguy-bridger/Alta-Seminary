@@ -113,6 +113,10 @@ a:hover{color:var(--text-link-hover)}
    Title field in the settings panel below), same accent color as other
    hover/active affordances across the admin. */
 .page-editor-title:hover{color:var(--brand-secondary)}
+/* Same idea for each page's own name in the Pages list (PagesListScreen.jsx)
+   -- it's clickable/double-clickable (open editor / rename) but had no hover
+   feedback at all, so nothing hinted that. */
+.page-list-name:hover{color:var(--brand-secondary)}
 .editable-text:focus{background:var(--surface-card);border-radius:var(--radius-sm);box-shadow:0 0 0 2px var(--brand-secondary)}
 .editable-image-overlay{opacity:0}
 .editable-image:hover .editable-image-overlay{opacity:1}

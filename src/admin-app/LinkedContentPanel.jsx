@@ -8,7 +8,13 @@ import { linkContent, unlinkContent, fetchLinkedItems, fetchAllOfKind, CONTENT_K
 // linked to THIS item (from either direction) as removable chips, plus a
 // picker to link an existing item of either other kind. `kind`/`id` are
 // this item's own; `title` is only used in the unlink confirm.
-export function LinkedContentPanel({ kind, id, title }) {
+// `refreshToken` (optional): bump it from outside to force a re-fetch of
+// this item's links without remounting the whole panel (and losing the
+// picker's own open state) -- needed because CrossCreateButtons.jsx links a
+// new item from a SIBLING component, which this panel has no other way to
+// find out about; its own load() only ever re-runs on kind/id changing or
+// its own link/unlink actions.
+export function LinkedContentPanel({ kind, id, title, refreshToken }) {
   const [linked, setLinked] = React.useState(null);
   const otherKinds = CONTENT_KINDS.filter((k) => k !== kind);
   const [pickerKind, setPickerKind] = React.useState(otherKinds[0]);
@@ -18,7 +24,7 @@ export function LinkedContentPanel({ kind, id, title }) {
   async function load() {
     setLinked(await fetchLinkedItems(kind, id));
   }
-  React.useEffect(() => { load(); }, [kind, id]);
+  React.useEffect(() => { load(); }, [kind, id, refreshToken]);
 
   React.useEffect(() => {
     setPickerOptions(null);

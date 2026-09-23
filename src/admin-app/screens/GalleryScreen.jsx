@@ -13,6 +13,7 @@ import { useConfirm, useAlert } from '../ConfirmProvider.jsx';
 import { AllSiteImagesPanel } from './AllSiteImagesPanel.jsx';
 import { UsedOnLine } from '../UsedOnLine.jsx';
 import { LinkedContentPanel } from '../LinkedContentPanel.jsx';
+import { CrossCreateButtons } from '../CrossCreateButtons.jsx';
 
 // Photos with no album (e.g. left behind after their album was deleted --
 // gallery_photos.album_id is ON DELETE SET NULL) live under this pseudo-tab.
@@ -33,6 +34,10 @@ export function GalleryScreen() {
   const [pendingIndex, setPendingIndex] = React.useState(0);
   const [cropSrc, setCropSrc] = React.useState(null);
   const [view, setView] = React.useState('albums'); // 'albums' | 'all-images'
+  // Same reasoning as PostsListScreen.jsx's linkVersion -- CrossCreateButtons
+  // linking a new EVENT to the active album has no page to navigate away to,
+  // so this forces LinkedContentPanel to re-fetch and show it.
+  const [linkVersion, setLinkVersion] = React.useState(0);
   const fileInputRef = React.useRef(null);
   const nextSortRef = React.useRef(0);
 
@@ -244,7 +249,8 @@ export function GalleryScreen() {
               it isn't a real row anything could link to. */}
           {activeAlbumId && (
             <div style={{ margin: '0 0 var(--space-4)' }}>
-              <LinkedContentPanel kind="album" id={activeAlbumId} title={activeAlbum.name} />
+              <LinkedContentPanel kind="album" id={activeAlbumId} title={activeAlbum.name} refreshToken={linkVersion} />
+              <CrossCreateButtons sourceKind="album" sourceRow={activeAlbum} onCreated={() => setLinkVersion((v) => v + 1)} />
             </div>
           )}
 

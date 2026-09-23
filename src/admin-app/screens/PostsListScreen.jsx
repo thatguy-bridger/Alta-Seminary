@@ -14,6 +14,7 @@ import { useModKeyLabel } from '../useModKeyLabel.js';
 import { UsedOnLine } from '../UsedOnLine.jsx';
 import { findBlockInstances } from '../blockUsage.js';
 import { LinkedContentPanel } from '../LinkedContentPanel.jsx';
+import { CrossCreateButtons } from '../CrossCreateButtons.jsx';
 import { htmlToPlainText } from '../../lib/richTextHtml.js';
 
 export function PostsListScreen() {
@@ -38,6 +39,11 @@ export function PostsListScreen() {
   // DirectoryScreen.jsx (one directory's entries at a time), just tabbed by
   // PAGE here instead: 'all' shows everything ungrouped, same as before this existed.
   const [activeAnnPage, setActiveAnnPage] = React.useState('all');
+  // Bumped whenever CrossCreateButtons links a new EVENT to an announcement
+  // (the one cross-create direction with no page to navigate away to
+  // afterward) -- forces each row's LinkedContentPanel to re-fetch so the
+  // new link shows up without a full remount. See LinkedContentPanel.jsx.
+  const [linkVersion, setLinkVersion] = React.useState(0);
 
   async function load() {
     const { data } = await supabaseBrowser.from('blog_posts').select('*').order('created_at', { ascending: false });
@@ -225,8 +231,9 @@ export function PostsListScreen() {
                   EventsScreen.jsx/GalleryScreen.jsx) -- an announcement can
                   link to the event it's about and/or the album with its photos. */}
               <div style={{ marginTop: 4 }}>
-                <LinkedContentPanel kind="announcement" id={row.id} title={row.title} />
+                <LinkedContentPanel kind="announcement" id={row.id} title={row.title} refreshToken={linkVersion} />
               </div>
+              <CrossCreateButtons sourceKind="announcement" sourceRow={row} onCreated={() => setLinkVersion((v) => v + 1)} />
             </div>
             <Badge tone={row.status === 'published' ? 'success' : row.status === 'scheduled' ? 'warning' : 'neutral'}>
               {row.status === 'scheduled' && row.publish_at
