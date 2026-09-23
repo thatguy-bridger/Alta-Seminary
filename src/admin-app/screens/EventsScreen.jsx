@@ -13,6 +13,8 @@ import { useConfirm } from '../ConfirmProvider.jsx';
 import { useBulkListShortcuts } from '../useBulkListShortcuts.js';
 import { useModKeyLabel } from '../useModKeyLabel.js';
 import { UsedOnLine } from '../UsedOnLine.jsx';
+import { slugify, uniqueSlug } from '../slug.js';
+import { withBase } from '../../lib/url.js';
 
 const emptyEvent = () => ({
   title: '', description: '', location: '', start_at: '', end_at: '', all_day: false, status: 'draft',
@@ -43,13 +45,70 @@ export function EventsScreen() {
   const [saving, setSaving] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [selected, setSelected] = React.useState(() => new Set());
+  // Titles for whatever an event's announcement_post_id/gallery_album_id
+  // point at -- looked up separately (not a postgrest embed) since this
+  // admin's supabase-js client only has anon-level access, same reasoning
+  // as everywhere else in this file. Keyed by id for O(1) lookup per row.
+  const [linkedPosts, setLinkedPosts] = React.useState({});
+  const [linkedAlbums, setLinkedAlbums] = React.useState({});
 
   async function load() {
     const { data } = await supabaseBrowser.from('calendar_events').select('*').order('start_at', { ascending: false });
     setEvents(data || []);
+    const postIds = [...new Set((data || []).map((e) => e.announcement_post_id).filter(Boolean))];
+    const albumIds = [...new Set((data || []).map((e) => e.gallery_album_id).filter(Boolean))];
+    if (postIds.length) {
+      const { data: posts } = await supabaseBrowser.from('blog_posts').select('id, title, slug').in('id', postIds);
+      setLinkedPosts(Object.fromEntries((posts || []).map((p) => [p.id, p])));
+    }
+    if (albumIds.length) {
+      const { data: albums } = await supabaseBrowser.from('gallery_albums').select('id, name').in('id', albumIds);
+      setLinkedAlbums(Object.fromEntries((albums || []).map((a) => [a.id, a])));
+    }
   }
 
   React.useEffect(() => { load(); }, []);
+
+  // Prefills a sensible starting point: the event's own title/timing as a
+  // Hero heading+subheading, and -- the actual point of this button --
+  // unpublish_at defaulted to when the event itself ends (or starts, if no
+  // end time), so the announcement doesn't just sit there advertising an
+  // event that already happened. `?schedule=1` on the redirect opens the
+  // editor straight into "Schedule for later" so the admin is immediately
+  // asked for a PUBLISH time too, same turn -- nothing here guesses that
+  // one, since "announce it now" vs "announce it a week before" is a real
+  // choice only the admin can make.
+  async function createAnnouncementForEvent(row) {
+    const slug = await uniqueSlug('blog_posts', slugify(row.title));
+    const when = new Date(row.start_at).toLocaleString(undefined, row.all_day
+      ? { month: 'long', day: 'numeric', year: 'numeric' }
+      : { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const subheading = row.location ? `${when} · ${row.location}` : when;
+    const { data: post } = await supabaseBrowser.from('blog_posts').insert({
+      slug, title: row.title, excerpt: subheading, status: 'draft',
+      draft_blocks: [{
+        id: crypto.randomUUID(), type: 'hero',
+        props: { heading: row.title, subheading, align: 'center', background: 'none', headingSize: 'normal', overlayOpacity: 'medium', textColor: 'auto' },
+      }],
+      unpublish_at: row.end_at || row.start_at,
+    }).select().single();
+    if (!post) return;
+    await supabaseBrowser.from('calendar_events').update({ announcement_post_id: post.id }).eq('id', row.id);
+    window.location.href = withBase(`/admin/posts/edit?slug=${post.slug}&schedule=1`);
+  }
+
+  // Same idea, for the other half of "tie it all together": a dedicated
+  // album an admin can drop event photos into as they come in (during/after
+  // the event), already linked back to it. Starts as an ordinary draft
+  // album -- nothing here assumes the photos exist yet.
+  async function createAlbumForEvent(row) {
+    const { data: album } = await supabaseBrowser.from('gallery_albums').insert({
+      name: `${row.title} Photos`, status: 'draft', sort_order: 0,
+    }).select().single();
+    if (!album) return;
+    await supabaseBrowser.from('calendar_events').update({ gallery_album_id: album.id }).eq('id', row.id);
+    window.location.href = withBase(`/admin/gallery?album=${album.id}`);
+  }
 
   const filtered = React.useMemo(() => {
     if (!events) return events;
@@ -175,11 +234,32 @@ export function EventsScreen() {
           >
             <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleSelected(row.id)} aria-label={`Select ${row.title}`} />
             <div style={{ flex: 1 }}>
-              <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{row.title}</span>
-              <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
-                {new Date(row.start_at).toLocaleString(undefined, row.all_day ? { month: 'short', day: 'numeric', year: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                {row.location ? ` · ${row.location}` : ''}
-              </span>
+              <div>
+                <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{row.title}</span>
+                <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+                  {new Date(row.start_at).toLocaleString(undefined, row.all_day ? { month: 'short', day: 'numeric', year: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  {row.location ? ` · ${row.location}` : ''}
+                </span>
+              </div>
+              {/* Ties this event to an announcement post + a photo album --
+                  either not made yet (a button that makes and links one),
+                  or already linked (a plain link straight to it). */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', marginTop: 4, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)' }}>
+                {row.announcement_post_id && linkedPosts[row.announcement_post_id] ? (
+                  <a href={withBase(`/admin/posts/edit?slug=${linkedPosts[row.announcement_post_id].slug}`)} style={{ color: 'var(--text-link)' }}>
+                    📣 {linkedPosts[row.announcement_post_id].title}
+                  </a>
+                ) : (
+                  <button onClick={() => createAnnouncementForEvent(row)} style={linkBtnStyle}>+ Create Announcement</button>
+                )}
+                {row.gallery_album_id && linkedAlbums[row.gallery_album_id] ? (
+                  <a href={withBase(`/admin/gallery?album=${row.gallery_album_id}`)} style={{ color: 'var(--text-link)' }}>
+                    🖼 {linkedAlbums[row.gallery_album_id].name}
+                  </a>
+                ) : (
+                  <button onClick={() => createAlbumForEvent(row)} style={linkBtnStyle}>+ Create Photo Album</button>
+                )}
+              </div>
             </div>
             <Badge tone={row.status === 'published' ? 'success' : 'neutral'}>{row.status}</Badge>
             <Button variant="primary" size="sm" onClick={() => setEditing({
@@ -256,3 +336,4 @@ function EventDialog({ event, saving, onCancel, onSave }) {
 }
 
 const iconButtonStyle = { border: 'none', background: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' };
+const linkBtnStyle = { border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-link)', fontFamily: 'inherit', fontSize: 'inherit' };

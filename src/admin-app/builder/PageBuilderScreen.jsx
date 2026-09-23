@@ -111,6 +111,15 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
       setRow(data);
       setBlocks(Array.isArray(data.draft_blocks) ? data.draft_blocks : []);
       setUnpublishAt(toLocalInputValue(data.unpublish_at));
+      // ?schedule=1 -- set by EventsScreen.jsx's "Create Announcement" --
+      // opens straight into "Schedule for later" so a publish TIME is the
+      // very next thing asked for, same visit the announcement was created
+      // in, rather than a silent draft the admin has to remember to come
+      // back and actually publish.
+      if (new URLSearchParams(window.location.search).get('schedule') === '1') {
+        setPublishMode('schedule');
+        setPublishOpen(true);
+      }
     });
     return () => { active = false; };
   }, [slug, table]);
@@ -723,7 +732,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
               onChange={(e) => setScheduleAt(e.target.value)}
             />
             <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-caption)', marginTop: 'var(--space-2)' }}>
-              Goes live automatically at this time, using whatever your draft looks like when it fires — checked every 15 minutes.
+              Goes live automatically at this time, using whatever your draft looks like when it fires.
             </p>
           </div>
         )}

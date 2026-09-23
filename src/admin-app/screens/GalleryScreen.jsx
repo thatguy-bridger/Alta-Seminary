@@ -52,7 +52,12 @@ export function GalleryScreen() {
     else if (activeAlbumId === undefined) setActiveAlbumId(data?.length ? data[0].id : null);
   }
 
-  React.useEffect(() => { loadAlbums(); }, []);
+  // ?album=<id> (set by EventsScreen.jsx's "Create Photo Album"/existing-
+  // album link) opens straight into that album instead of the first one.
+  React.useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('album');
+    loadAlbums(requested || undefined);
+  }, []);
 
   async function handleCreateAlbum(name) {
     const { data } = await supabaseBrowser
