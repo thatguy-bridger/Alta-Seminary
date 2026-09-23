@@ -16,7 +16,15 @@ import { withBase } from '../../lib/url.js';
     <SiteSearch client:idle />
   </div>
   <Nav />
-  <div style="display: flex; align-items: center; gap: var(--space-3);">
+  {/* margin-left: auto (not the header's own justify-content: space-between,
+      removed below) -- with 3 flex children, space-between stretched a gap
+      between the MIDDLE one (Nav) and this group regardless of how narrow
+      Nav actually was, so once Nav collapsed to just its hamburger button
+      (see Nav.astro), that gap turned into a huge, obviously-broken-looking
+      dead zone. flex-start + auto-margin on just this last group keeps the
+      logo/search/nav cluster together on the left and pushes only this
+      group flush right, with no awkward middle gap at any nav width. */}
+  <div style="display: flex; align-items: center; gap: var(--space-3); margin-left: auto;">
     <TextSizeToggle client:idle />
     <ThemeToggle client:idle />
   </div>
@@ -26,7 +34,6 @@ import { withBase } from '../../lib/url.js';
   .site-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: var(--space-6);
     padding: var(--space-4) var(--space-6);
     border-bottom: 1px solid var(--border-subtle);
