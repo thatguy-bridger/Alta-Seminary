@@ -178,6 +178,22 @@ export function PagesListScreen() {
     if (!trimmed || trimmed === row.title) return;
     const patch = { title: trimmed };
     if (!row.nav_label || row.nav_label === row.title) patch.nav_label = trimmed;
+    // A renamed page's URL didn't change along with it -- "About" renamed
+    // to "Info" stayed reachable at /about, and /info simply didn't exist,
+    // which reads as the rename not having really worked. Only safe for a
+    // real builder page (page_kind === 'builder'): its route_path is just
+    // "/" + its own slug, resolved at request time by the catch-all route
+    // (see src/pages/[...path].astro) -- unlike Announcements/Directory/
+    // Gallery/Events/Contact/Makeup Work, which are fixed feature routes
+    // backed by their OWN dedicated Astro page file under a hardcoded path
+    // that renaming here has no way to move. The home page (route_path
+    // "/") is also left alone -- there's no "/home" to move it to that
+    // would make sense.
+    if (row.page_kind === 'builder' && row.route_path && row.route_path !== '/') {
+      const slug = await uniqueSlug('pages', slugify(trimmed));
+      patch.slug = slug;
+      patch.route_path = `/${slug}`;
+    }
     await supabaseBrowser.from('pages').update(patch).eq('id', row.id);
     fetchPages();
   }

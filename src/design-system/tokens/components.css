@@ -39,20 +39,32 @@ a:hover{color:var(--text-link-hover)}
    TOP of the label, not behind it. */
 .btn::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--btn-glow-tint);clip-path:circle(0% at var(--btn-glow-x,50%) var(--btn-glow-y,50%));transition:clip-path 0.5s var(--ease-standard)}
 .btn:hover::after{clip-path:circle(140% at var(--btn-glow-x,50%) var(--btn-glow-y,50%))}
-.btn-primary{background:var(--brand-primary);color:var(--text-on-primary);--btn-glow-tint:rgba(255,255,255,0.18)}
+/* --brand-primary is near-black in light mode but near-WHITE in dark mode
+   (see colors.css) -- the plain white glow this started with was invisible
+   there (white on white), so primary uses the same brand-accent tint as
+   outline/ghost instead of a fixed white, which reads fine against either
+   of its two real background colors. */
+.btn-primary{background:var(--brand-primary);color:var(--text-on-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 20%, transparent)}
 .btn-primary:hover{background:var(--brand-primary-hover)}
 .btn-secondary{background:var(--brand-secondary);color:var(--text-on-secondary);--btn-glow-tint:rgba(255,255,255,0.18)}
-.btn-secondary:hover{background:var(--brand-secondary-hover)}
+/* Inverts to black-on-white -- er, black-with-white-text -- on hover rather
+   than just a slightly darker shade of the same red: a deliberate opposite
+   of its own resting color (red bg / white text) for maximum contrast,
+   same reasoning as the white-button text staying black above. Fixed
+   values, not theme-aware tokens, since "black" is the point regardless of
+   light/dark mode. */
+.btn-secondary:hover{background:var(--color-neutral-900);color:var(--color-neutral-0)}
 /* Outline/ghost start from a transparent/neutral background, so a white
-   glow would barely read -- a faint tint of the brand accent instead,
-   paired with the label itself easing toward that same accent color on
-   hover so the whole button (fill AND text) reads as one cohesive "you're
-   about to click this" state, and the text never sits at a fixed color
-   against a background that's shifting underneath it. */
+   glow would barely read -- a faint tint of the brand accent instead. The
+   label stays on var(--text-primary) through hover rather than switching
+   to the accent color: these two variants are white/near-white
+   backgrounds in light mode, and plain black (text-primary's light-mode
+   value) reads far more reliably there than a mid-tone crimson does,
+   while still adapting to dark mode's own light text color automatically. */
 .btn-outline{background:transparent;border-color:var(--border-strong);color:var(--text-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 14%, transparent)}
-.btn-outline:hover{background:var(--surface-sunken);color:var(--brand-secondary)}
+.btn-outline:hover{background:var(--surface-sunken)}
 .btn-ghost{background:transparent;color:var(--text-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 14%, transparent)}
-.btn-ghost:hover{background:var(--surface-sunken);color:var(--brand-secondary)}
+.btn-ghost:hover{background:var(--surface-sunken)}
 .btn:disabled{opacity:0.45;cursor:not-allowed}
 .btn:disabled::after{display:none}
 .btn-sm{padding:6px 14px;font-size:var(--fs-small)}
