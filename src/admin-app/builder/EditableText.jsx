@@ -136,11 +136,19 @@ export function EditableText({ value, onCommit, as: Tag = 'span', multiline = fa
     commitIfChanged();
   }
 
-  function handleLink() {
+  // Called by TextStyleToolbar.jsx's own inline popover, at the moment its
+  // "Add" button is actually clicked -- restoreSelection() here (not
+  // earlier) is what makes this reliable: the popover's input necessarily
+  // stole focus (and with it, window.getSelection()) away from this field
+  // the moment it opened, so re-establishing the saved range right before
+  // execCommand runs is the only way createLink has anything valid to
+  // apply to. This replaced a window.prompt()-based version that restored
+  // the selection BEFORE opening that blocking dialog -- by the time the
+  // admin actually typed a URL and confirmed, the selection could already
+  // be gone depending on the browser/OS, so the link silently didn't save.
+  function handleApplyLink(url) {
     if (!restoreSelection()) return;
-    const url = window.prompt('Link URL:', 'https://');
-    if (!url || !url.trim()) return;
-    document.execCommand('createLink', false, url.trim());
+    document.execCommand('createLink', false, url);
     commitIfChanged();
   }
 
@@ -231,7 +239,7 @@ export function EditableText({ value, onCommit, as: Tag = 'span', multiline = fa
             bold: () => exec('bold'),
             italic: () => exec('italic'),
             underline: () => exec('underline'),
-            link: handleLink,
+            onApplyLink: handleApplyLink,
           }}
         />
       )}

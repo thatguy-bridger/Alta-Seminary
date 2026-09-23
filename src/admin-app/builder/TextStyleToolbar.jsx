@@ -10,14 +10,33 @@ import { TEXT_COLOR_TOKENS } from '../../lib/richTextTokens.js';
 // rect captured on focus (see EditableText) rather than tracked continuously,
 // so it can drift slightly if the page scrolls mid-edit -- an acceptable
 // trade for not wiring scroll/resize listeners for a rare edge case.
-// onMark (optional): {bold,italic,underline,link} exec callbacks -- shows a
-// small per-selection formatting cluster (Bold/Italic/Underline/Link) ahead
-// of the whole-field color/size/font controls below. Only EditableText.jsx
+// onMark (optional): {bold,italic,underline,onApplyLink} -- shows a small
+// per-selection formatting cluster (Bold/Italic/Underline/Link) ahead of
+// the whole-field color/size/font controls below. Only EditableText.jsx
 // passes this (its own inline rich-text marks); RichTextBlock's separate
 // RichTextEditor.jsx has its own full toolbar and never renders this one.
 export function TextStyleToolbar({ toolbarRef, anchorRect, value, onChange, onMark }) {
+  const [linkOpen, setLinkOpen] = React.useState(false);
+  const [linkValue, setLinkValue] = React.useState('');
   if (!anchorRect) return null;
   const current = value || {};
+
+  // onApplyLink (not a plain onClick callback) restores the selection AND
+  // applies the link in the same synchronous click handler -- deliberately
+  // NOT a window.prompt() (what this used to be): a blocking native dialog
+  // pauses all page JS while it's open, and different browsers/OSes don't
+  // consistently preserve the DOM Selection across that pause, so the link
+  // would silently land on nothing (or the wrong text) depending on timing
+  // -- exactly the "rich text doesn't always save links" symptom. A plain
+  // inline popover never blocks, so there's no gap for the selection to be
+  // lost in between "pick the URL" and "apply it" -- same technique
+  // RichTextEditor.jsx's own link button already used correctly.
+  function applyLink() {
+    if (!linkValue.trim()) return;
+    onMark.onApplyLink(linkValue.trim());
+    setLinkOpen(false);
+    setLinkValue('');
+  }
 
   function patch(p) { onChange({ ...current, ...p }); }
   function reset() { onChange({}); }
@@ -44,7 +63,39 @@ export function TextStyleToolbar({ toolbarRef, anchorRect, value, onChange, onMa
             <button type="button" title="Bold" onMouseDown={(e) => e.preventDefault()} onClick={onMark.bold} style={{ ...markBtnStyle, fontWeight: 700 }}>B</button>
             <button type="button" title="Italic" onMouseDown={(e) => e.preventDefault()} onClick={onMark.italic} style={{ ...markBtnStyle, fontStyle: 'italic' }}>I</button>
             <button type="button" title="Underline" onMouseDown={(e) => e.preventDefault()} onClick={onMark.underline} style={{ ...markBtnStyle, textDecoration: 'underline' }}>U</button>
-            <button type="button" title="Link" onMouseDown={(e) => e.preventDefault()} onClick={onMark.link} style={markBtnStyle}>🔗</button>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                title="Link"
+                // No preventDefault here (unlike the other 3 marks): opening
+                // the popover needs the input to actually be focusable, and
+                // the selection itself is restored later, at applyLink()
+                // time -- same reasoning as RichTextEditor.jsx's own link button.
+                onClick={() => setLinkOpen((o) => !o)}
+                style={markBtnStyle}
+              >
+                🔗
+              </button>
+              {linkOpen && (
+                <div
+                  onMouseDown={(e) => e.stopPropagation()}
+                  style={{
+                    position: 'absolute', top: '100%', left: 0, marginTop: 4, display: 'flex', gap: 4, zIndex: 1,
+                    background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: 6,
+                  }}
+                >
+                  <input
+                    autoFocus
+                    value={linkValue}
+                    onChange={(e) => setLinkValue(e.target.value)}
+                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); applyLink(); } }}
+                    placeholder="https://…"
+                    style={{ fontSize: 12, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border-default)', width: 160 }}
+                  />
+                  <button type="button" onClick={applyLink} className="btn btn-primary btn-sm">Add</button>
+                </div>
+              )}
+            </div>
           </div>
           <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border-subtle)' }} />
         </>

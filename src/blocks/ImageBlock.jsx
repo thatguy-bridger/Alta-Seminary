@@ -95,30 +95,30 @@ export function ImageBlock({
     </figure>
   );
 
-  // Skipped in the admin's own edit canvas: unlike the Preview tab (its own
-  // real iframe/document, so 100vw there is that iframe's own width) and
-  // the public site, the edit canvas shares ONE browser window with the
-  // rest of the admin UI (the Style panel sidebar, etc) -- 100vw there
-  // would span the actual browser viewport and overlap that UI instead of
-  // "the page," which isn't what an admin dragging this toggle on would
-  // expect to see. Still shown contained-normally here; still breaks out
-  // for real on Preview/the live site.
-  if (!outboundWidth || editable) return figure;
+  if (!outboundWidth) return figure;
 
   // Breaks past every ancestor's max-width (the page's own contained
-  // column, a "Contained" width setting, a parent column) all the way to
-  // the real viewport edge -- `50vw` is relative to the VIEWPORT, not
-  // whatever's containing this block, so it works no matter how deep this
-  // is nested. The outer div's own width is a normal, parent-relative
-  // `100%` (never vw), so it clips anything the inner vw-based div pushes
-  // past the true edge -- including the 1-2px a browser's vw unit can run
-  // over by (some count the scrollbar's own reserved space in 100vw). That
-  // outer clip is what actually delivers "crops instead of scrolls":
-  // without it, this is the one CSS trick most prone to adding a
-  // horizontal scrollbar to the entire page over a couple stray pixels.
+  // column, a "Contained" width setting, a parent column) out to the edge
+  // of the nearest `container-type: inline-size` ancestor -- `cqw` units
+  // are relative to THAT container, not this block's own immediate parent,
+  // so it works no matter how deep this is nested, same idea as `vw` being
+  // viewport-relative but scoped one level in. That container is
+  // `.site-main` on the public site, the Preview tab's own device frame
+  // (preview-frame.astro), or the admin edit canvas's own column
+  // (EditableCanvas.jsx) -- each already exists for the @container
+  // (max-width:640px) rules elsewhere in this codebase, and picking
+  // whichever one is actually closest is exactly why this breaks out to
+  // "the page" in every context (including the admin canvas, where a true
+  // 100vw would instead overlap the Style panel sidebar) instead of only
+  // the real public site. The outer div's own width is a normal,
+  // container-relative `100%` (never cqw), so it clips anything the inner
+  // cqw-based div pushes past that true edge -- including the 1-2px some
+  // browsers' cqw/vw units can run over by. That outer clip is what
+  // actually delivers "crops instead of scrolls": without it, this is the
+  // one CSS trick most prone to adding a horizontal scrollbar.
   return (
     <div style={{ width: '100%', overflow: 'hidden' }}>
-      <div style={{ width: '100vw', maxWidth: '100vw', marginLeft: 'calc(50% - 50vw)' }}>
+      <div style={{ width: '100cqw', maxWidth: '100cqw', marginLeft: 'calc(50% - 50cqw)' }}>
         {figure}
       </div>
     </div>
