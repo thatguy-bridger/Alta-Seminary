@@ -23,49 +23,55 @@ img,video,iframe{max-width:100%}
 body{margin:0;min-height:100vh;display:flex;flex-direction:column;font-family:var(--font-body);color:var(--text-primary);background:var(--surface-page);transition:background var(--duration-standard),color var(--duration-standard)}
 a{color:var(--text-link)}
 a:hover{color:var(--text-link-hover)}
-.btn{position:relative;overflow:hidden;font-family:var(--font-sans);font-size:var(--fs-body);font-weight:var(--fw-bold);border-radius:var(--radius-sm);border:1px solid transparent;padding:10px 20px;cursor:pointer;transition:background var(--duration-fast) var(--ease-standard),color var(--duration-fast) var(--ease-standard),transform var(--duration-fast) var(--ease-standard);display:inline-flex;align-items:center;gap:8px}
+.btn{position:relative;overflow:hidden;font-family:var(--font-sans);font-size:var(--fs-body);font-weight:var(--fw-bold);border-radius:var(--radius-sm);border:1px solid transparent;padding:10px 20px;cursor:pointer;transition:border-color var(--duration-standard) var(--ease-standard),box-shadow var(--duration-standard) var(--ease-standard),transform var(--duration-fast) var(--ease-standard);display:inline-flex;align-items:center;gap:8px}
 .btn:active{transform:scale(0.98)}
-/* The same cursor-tracked radial "fill" hover from the Social Links block
-   (SocialLinksBlock.jsx's SocialIconLink), generalized to every button --
-   see public/btn-glow.js, which is what actually sets --btn-glow-x/y as the
-   pointer moves over any .btn (one shared listener, not a re-implementation
-   per component). Kept deliberately subtle here versus that original: a low-
-   opacity tint layered UNDER the button's existing solid hover background
-   (z-index:-1, see the painting-order note below) rather than a full
-   brand-color takeover, and z-index:-1 is what keeps it behind the label/
-   icon instead of covering them -- a positioned pseudo-element with
-   z-index:auto paints AFTER a button's plain (non-positioned) inline text
-   per the CSS painting-order spec, so without this the glow would sit ON
-   TOP of the label, not behind it. */
-.btn::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--btn-glow-tint);clip-path:circle(0% at var(--btn-glow-x,50%) var(--btn-glow-y,50%));transition:clip-path 0.5s var(--ease-standard)}
-.btn:hover::after{clip-path:circle(140% at var(--btn-glow-x,50%) var(--btn-glow-y,50%))}
+/* Hover feedback comes from ONE thing only -- this cursor-tracked glow
+   (same idea as the Social Links block's hover fill, SocialLinksBlock.jsx's
+   SocialIconLink, generalized here via public/btn-glow.js setting
+   --btn-glow-x/y as the pointer moves over any .btn) -- deliberately NOT
+   layered on top of a separate instant background-color swap, which is
+   what every variant below used to also do on :hover. Two different kinds
+   of change firing at once (an immediate flat recolor AND a glow easing
+   in) read as busy/inconsistent rather than as one considered effect; the
+   glow alone, given room to actually be seen, is enough.
+   A few things ride together to make that one effect feel intentional
+   rather than a flat color appearing:
+   - the fill itself is a soft radial-gradient falloff (--btn-glow-tint at
+     its center fading to transparent), not a hard-edged flat disc, so its
+     leading edge feathers rather than draws a visible circle outline;
+   - it grows in slower (0.65s) than it shrinks back out (0.35s) on leave --
+     an unhurried arrival, a quick, unobtrusive dismissal, rather than the
+     same speed both directions;
+   - a soft box-shadow lift fades in over the same hover, giving the
+     button a small amount of independent depth/weight feedback (through
+     box-shadow, never background) alongside the color itself;
+   - z-index:-1 is what keeps the glow behind the label/icon rather than
+     covering them -- a positioned pseudo-element with z-index:auto paints
+     AFTER a button's plain (non-positioned) inline text per the CSS
+     painting-order spec, so without this the glow would sit ON TOP of
+     the label, not behind it. */
+.btn::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at var(--btn-glow-x,50%) var(--btn-glow-y,50%), var(--btn-glow-tint) 0%, transparent 72%);clip-path:circle(0% at var(--btn-glow-x,50%) var(--btn-glow-y,50%));transition:clip-path 0.35s var(--ease-standard)}
+.btn:hover{box-shadow:var(--shadow-sm)}
+.btn:hover::after{clip-path:circle(150% at var(--btn-glow-x,50%) var(--btn-glow-y,50%));transition-duration:0.65s}
 /* --brand-primary is near-black in light mode but near-WHITE in dark mode
-   (see colors.css) -- the plain white glow this started with was invisible
-   there (white on white), so primary uses the same brand-accent tint as
-   outline/ghost instead of a fixed white, which reads fine against either
-   of its two real background colors. */
-.btn-primary{background:var(--brand-primary);color:var(--text-on-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 20%, transparent)}
-.btn-primary:hover{background:var(--brand-primary-hover)}
-.btn-secondary{background:var(--brand-secondary);color:var(--text-on-secondary);--btn-glow-tint:rgba(255,255,255,0.18)}
-/* Inverts to black-on-white -- er, black-with-white-text -- on hover rather
-   than just a slightly darker shade of the same red: a deliberate opposite
-   of its own resting color (red bg / white text) for maximum contrast,
-   same reasoning as the white-button text staying black above. Fixed
-   values, not theme-aware tokens, since "black" is the point regardless of
-   light/dark mode. */
-.btn-secondary:hover{background:var(--color-neutral-900);color:var(--color-neutral-0)}
-/* Outline/ghost start from a transparent/neutral background, so a white
-   glow would barely read -- a faint tint of the brand accent instead. The
-   label stays on var(--text-primary) through hover rather than switching
-   to the accent color: these two variants are white/near-white
-   backgrounds in light mode, and plain black (text-primary's light-mode
-   value) reads far more reliably there than a mid-tone crimson does,
-   while still adapting to dark mode's own light text color automatically. */
-.btn-outline{background:transparent;border-color:var(--border-strong);color:var(--text-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 14%, transparent)}
-.btn-outline:hover{background:var(--surface-sunken)}
-.btn-ghost{background:transparent;color:var(--text-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 14%, transparent)}
-.btn-ghost:hover{background:var(--surface-sunken)}
+   (see colors.css) -- a plain white glow would be invisible on the dark-
+   mode half of that pair, so primary uses a translucent brand-accent tint
+   instead, which reads against either of its two real background colors. */
+.btn-primary{background:var(--brand-primary);color:var(--text-on-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 45%, transparent)}
+/* Already a strong brand-red background -- a warm white glow (a soft
+   highlight sweeping across it) suits a solid color fill better than yet
+   another red tint would, which would barely separate from the base color. */
+.btn-secondary{background:var(--brand-secondary);color:var(--text-on-secondary);--btn-glow-tint:rgba(255,255,255,0.35)}
+/* Outline/ghost have no fill of their own to begin with -- transparent, or
+   just the page background showing through -- so their border eases
+   toward the brand accent on hover (a border-color transition, not a
+   background swap) to give the OUTLINE itself some response too, on top
+   of the glow now being the only thing that fills in behind the label. */
+.btn-outline{background:transparent;border-color:var(--border-strong);color:var(--text-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 35%, transparent)}
+.btn-outline:hover{border-color:var(--brand-secondary)}
+.btn-ghost{background:transparent;color:var(--text-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 35%, transparent)}
 .btn:disabled{opacity:0.45;cursor:not-allowed}
+.btn:disabled:hover{box-shadow:none}
 .btn:disabled::after{display:none}
 .btn-sm{padding:6px 14px;font-size:var(--fs-small)}
 .btn-lg{padding:14px 28px;font-size:var(--fs-body-lg)}
