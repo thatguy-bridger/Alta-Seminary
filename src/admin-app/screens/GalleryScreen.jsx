@@ -12,6 +12,7 @@ import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
 import { useConfirm, useAlert } from '../ConfirmProvider.jsx';
 import { AllSiteImagesPanel } from './AllSiteImagesPanel.jsx';
 import { UsedOnLine } from '../UsedOnLine.jsx';
+import { LinkedContentPanel } from '../LinkedContentPanel.jsx';
 
 // Photos with no album (e.g. left behind after their album was deleted --
 // gallery_photos.album_id is ON DELETE SET NULL) live under this pseudo-tab.
@@ -236,6 +237,15 @@ export function GalleryScreen() {
               predicate={(block) => block.type === 'gallery' && (block.props?.albumFilter === activeAlbumId || block.props?.albumFilter === 'all')}
               deps={[activeAlbumId]}
             />
+          )}
+          {/* Generic cross-linking (content_links, same as
+              EventsScreen.jsx/PostsListScreen.jsx) -- not shown for the
+              virtual "Unsorted" bucket, same reasoning as UsedOnLine above:
+              it isn't a real row anything could link to. */}
+          {activeAlbumId && (
+            <div style={{ margin: '0 0 var(--space-4)' }}>
+              <LinkedContentPanel kind="album" id={activeAlbumId} title={activeAlbum.name} />
+            </div>
           )}
 
           {photos === null ? (

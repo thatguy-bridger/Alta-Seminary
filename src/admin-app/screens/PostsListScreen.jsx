@@ -13,6 +13,7 @@ import { useBulkListShortcuts } from '../useBulkListShortcuts.js';
 import { useModKeyLabel } from '../useModKeyLabel.js';
 import { UsedOnLine } from '../UsedOnLine.jsx';
 import { findBlockInstances } from '../blockUsage.js';
+import { LinkedContentPanel } from '../LinkedContentPanel.jsx';
 import { htmlToPlainText } from '../../lib/richTextHtml.js';
 
 export function PostsListScreen() {
@@ -212,12 +213,20 @@ export function PostsListScreen() {
           >
             <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleSelected(row.id)} aria-label={`Select ${row.title}`} />
             <div style={{ flex: 1 }}>
-              <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{row.title}</span>
-              {row.published_at && (
-                <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
-                  {new Date(row.published_at).toLocaleDateString()}
-                </span>
-              )}
+              <div>
+                <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{row.title}</span>
+                {row.published_at && (
+                  <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+                    {new Date(row.published_at).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+              {/* Generic cross-linking (content_links, same as
+                  EventsScreen.jsx/GalleryScreen.jsx) -- an announcement can
+                  link to the event it's about and/or the album with its photos. */}
+              <div style={{ marginTop: 4 }}>
+                <LinkedContentPanel kind="announcement" id={row.id} title={row.title} />
+              </div>
             </div>
             <Badge tone={row.status === 'published' ? 'success' : row.status === 'scheduled' ? 'warning' : 'neutral'}>
               {row.status === 'scheduled' && row.publish_at
