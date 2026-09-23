@@ -65,6 +65,8 @@ const organizationSchema = {
     <script is:inline src={withBase('/theme-init.js')}></script>
     <!-- Same reasoning as theme-init.js -- sets --text-scale before first paint so text doesn't visibly jump size on load -->
     <script is:inline src={withBase('/text-size-init.js')}></script>
+    <!-- Cursor-tracked hover glow shared by every .btn button site-wide (see components.css's .btn::after) -->
+    <script is:inline src={withBase('/btn-glow.js')}></script>
 
     {gaId && !noindex && (
       <>

@@ -23,17 +23,38 @@ img,video,iframe{max-width:100%}
 body{margin:0;min-height:100vh;display:flex;flex-direction:column;font-family:var(--font-body);color:var(--text-primary);background:var(--surface-page);transition:background var(--duration-standard),color var(--duration-standard)}
 a{color:var(--text-link)}
 a:hover{color:var(--text-link-hover)}
-.btn{font-family:var(--font-sans);font-size:var(--fs-body);font-weight:var(--fw-bold);border-radius:var(--radius-sm);border:1px solid transparent;padding:10px 20px;cursor:pointer;transition:background var(--duration-fast) var(--ease-standard),transform var(--duration-fast) var(--ease-standard);display:inline-flex;align-items:center;gap:8px}
+.btn{position:relative;overflow:hidden;font-family:var(--font-sans);font-size:var(--fs-body);font-weight:var(--fw-bold);border-radius:var(--radius-sm);border:1px solid transparent;padding:10px 20px;cursor:pointer;transition:background var(--duration-fast) var(--ease-standard),color var(--duration-fast) var(--ease-standard),transform var(--duration-fast) var(--ease-standard);display:inline-flex;align-items:center;gap:8px}
 .btn:active{transform:scale(0.98)}
-.btn-primary{background:var(--brand-primary);color:var(--text-on-primary)}
+/* The same cursor-tracked radial "fill" hover from the Social Links block
+   (SocialLinksBlock.jsx's SocialIconLink), generalized to every button --
+   see public/btn-glow.js, which is what actually sets --btn-glow-x/y as the
+   pointer moves over any .btn (one shared listener, not a re-implementation
+   per component). Kept deliberately subtle here versus that original: a low-
+   opacity tint layered UNDER the button's existing solid hover background
+   (z-index:-1, see the painting-order note below) rather than a full
+   brand-color takeover, and z-index:-1 is what keeps it behind the label/
+   icon instead of covering them -- a positioned pseudo-element with
+   z-index:auto paints AFTER a button's plain (non-positioned) inline text
+   per the CSS painting-order spec, so without this the glow would sit ON
+   TOP of the label, not behind it. */
+.btn::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--btn-glow-tint);clip-path:circle(0% at var(--btn-glow-x,50%) var(--btn-glow-y,50%));transition:clip-path 0.5s var(--ease-standard)}
+.btn:hover::after{clip-path:circle(140% at var(--btn-glow-x,50%) var(--btn-glow-y,50%))}
+.btn-primary{background:var(--brand-primary);color:var(--text-on-primary);--btn-glow-tint:rgba(255,255,255,0.18)}
 .btn-primary:hover{background:var(--brand-primary-hover)}
-.btn-secondary{background:var(--brand-secondary);color:var(--text-on-secondary)}
+.btn-secondary{background:var(--brand-secondary);color:var(--text-on-secondary);--btn-glow-tint:rgba(255,255,255,0.18)}
 .btn-secondary:hover{background:var(--brand-secondary-hover)}
-.btn-outline{background:transparent;border-color:var(--border-strong);color:var(--text-primary)}
-.btn-outline:hover{background:var(--surface-sunken)}
-.btn-ghost{background:transparent;color:var(--text-primary)}
-.btn-ghost:hover{background:var(--surface-sunken)}
+/* Outline/ghost start from a transparent/neutral background, so a white
+   glow would barely read -- a faint tint of the brand accent instead,
+   paired with the label itself easing toward that same accent color on
+   hover so the whole button (fill AND text) reads as one cohesive "you're
+   about to click this" state, and the text never sits at a fixed color
+   against a background that's shifting underneath it. */
+.btn-outline{background:transparent;border-color:var(--border-strong);color:var(--text-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 14%, transparent)}
+.btn-outline:hover{background:var(--surface-sunken);color:var(--brand-secondary)}
+.btn-ghost{background:transparent;color:var(--text-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 14%, transparent)}
+.btn-ghost:hover{background:var(--surface-sunken);color:var(--brand-secondary)}
 .btn:disabled{opacity:0.45;cursor:not-allowed}
+.btn:disabled::after{display:none}
 .btn-sm{padding:6px 14px;font-size:var(--fs-small)}
 .btn-lg{padding:14px 28px;font-size:var(--fs-body-lg)}
 .icon-btn{width:40px;height:40px;border-radius:var(--radius-sm);border:1px solid var(--border-default);background:var(--surface-card);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background var(--duration-fast)}
