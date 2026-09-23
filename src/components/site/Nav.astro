@@ -142,11 +142,15 @@ const currentPath = Astro.url.pathname;
     justify-content: center;
     width: 36px;
     height: 36px;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--brand-secondary);
     border-radius: var(--radius-md);
-    background: var(--surface-card);
-    color: var(--text-primary);
+    background: var(--brand-secondary);
+    color: var(--text-on-secondary);
     cursor: pointer;
+  }
+  .site-nav__toggle:hover {
+    background: var(--brand-secondary-hover);
+    border-color: var(--brand-secondary-hover);
   }
   .site-nav.is-collapsed .site-nav__toggle {
     display: flex;
@@ -182,6 +186,29 @@ const currentPath = Astro.url.pathname;
     border: none;
     margin-top: 0;
     padding-left: var(--space-3);
+  }
+  /* The default underline (border-bottom on the anchor, sized to hug just
+     its own text) looks fine inline in the desktop bar, where every link
+     sits at the same baseline -- but stacked vertically here, two
+     different-length labels ("Home" vs "Announcements") produce two
+     visibly different-length underlines with no shared alignment, which
+     reads as broken rather than as "these are both the current/hovered
+     link." A full-width block with a left accent bar instead gives every
+     row the exact same indicator regardless of label length. */
+  .site-nav.is-collapsed.is-open .site-nav__item > a,
+  .site-nav.is-collapsed.is-open .site-nav__dropdown summary {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: none;
+    border-left: 3px solid transparent;
+  }
+  .site-nav.is-collapsed.is-open .site-nav__item > a:hover,
+  .site-nav.is-collapsed.is-open .site-nav__item > a[aria-current='page'] {
+    border-bottom: none;
+    border-left-color: var(--brand-secondary);
+    background: var(--surface-sunken);
   }
 </style>
 
