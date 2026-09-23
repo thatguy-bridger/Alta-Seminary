@@ -23,7 +23,7 @@ img,video,iframe{max-width:100%}
 body{margin:0;min-height:100vh;display:flex;flex-direction:column;font-family:var(--font-body);color:var(--text-primary);background:var(--surface-page);transition:background var(--duration-standard),color var(--duration-standard)}
 a{color:var(--text-link)}
 a:hover{color:var(--text-link-hover)}
-.btn{position:relative;overflow:hidden;font-family:var(--font-sans);font-size:var(--fs-body);font-weight:var(--fw-bold);border-radius:var(--radius-sm);border:1px solid transparent;padding:10px 20px;cursor:pointer;transition:border-color var(--duration-standard) var(--ease-standard),box-shadow var(--duration-standard) var(--ease-standard),transform var(--duration-fast) var(--ease-standard);display:inline-flex;align-items:center;gap:8px}
+.btn{position:relative;overflow:hidden;font-family:var(--font-sans);font-size:var(--fs-body);font-weight:var(--fw-bold);border-radius:var(--radius-sm);border:1px solid transparent;padding:10px 20px;cursor:pointer;transition:color var(--duration-standard) var(--ease-standard),border-color var(--duration-standard) var(--ease-standard),box-shadow var(--duration-standard) var(--ease-standard),transform var(--duration-fast) var(--ease-standard);display:inline-flex;align-items:center;gap:8px}
 .btn:active{transform:scale(0.98)}
 /* Hover feedback comes from ONE thing only -- this cursor-tracked glow
    (same idea as the Social Links block's hover fill, SocialLinksBlock.jsx's
@@ -55,21 +55,36 @@ a:hover{color:var(--text-link-hover)}
 .btn:hover::after{clip-path:circle(150% at var(--btn-glow-x,50%) var(--btn-glow-y,50%));transition-duration:0.65s}
 /* --brand-primary is near-black in light mode but near-WHITE in dark mode
    (see colors.css) -- a plain white glow would be invisible on the dark-
-   mode half of that pair, so primary uses a translucent brand-accent tint
-   instead, which reads against either of its two real background colors. */
-.btn-primary{background:var(--brand-primary);color:var(--text-on-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 45%, transparent)}
+   mode half of that pair, so primary uses the brand-accent color instead,
+   which reads against either of its two real background colors. Full
+   strength at the gradient's own center (it still fades to transparent by
+   72%, per .btn::after above) rather than translucent throughout, per
+   feedback wanting the glow itself to read as a much bolder hit of color. */
+.btn-primary{background:var(--brand-primary);color:var(--text-on-primary);--btn-glow-tint:var(--brand-secondary)}
+/* The actual "color swap" hover effect, for the two solid-fill variants
+   only (primary/secondary -- outline/ghost have no fill of their own to
+   swap the label INTO, see below): the label's color on hover becomes the
+   SAME color as the button's own resting background, so against any part
+   of the button the glow hasn't reached yet, the label is invisible --
+   background-colored text on that background. It only becomes legible
+   again where the (now fully-opaque, see above) glow sweeps underneath it,
+   since that patch is a different color than the label. The glow growing
+   from the cursor is what "writes in" the label as it passes under it,
+   rather than the label just changing color uniformly all at once. */
+.btn-primary:hover{color:var(--brand-primary)}
 /* Already a strong brand-red background -- a warm white glow (a soft
    highlight sweeping across it) suits a solid color fill better than yet
    another red tint would, which would barely separate from the base color. */
-.btn-secondary{background:var(--brand-secondary);color:var(--text-on-secondary);--btn-glow-tint:rgba(255,255,255,0.35)}
+.btn-secondary{background:var(--brand-secondary);color:var(--text-on-secondary);--btn-glow-tint:rgba(255,255,255,1)}
+.btn-secondary:hover{color:var(--brand-secondary)}
 /* Outline/ghost have no fill of their own to begin with -- transparent, or
    just the page background showing through -- so their border eases
    toward the brand accent on hover (a border-color transition, not a
    background swap) to give the OUTLINE itself some response too, on top
    of the glow now being the only thing that fills in behind the label. */
-.btn-outline{background:transparent;border-color:var(--border-strong);color:var(--text-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 35%, transparent)}
+.btn-outline{background:transparent;border-color:var(--border-strong);color:var(--text-primary);--btn-glow-tint:var(--brand-secondary)}
 .btn-outline:hover{border-color:var(--brand-secondary)}
-.btn-ghost{background:transparent;color:var(--text-primary);--btn-glow-tint:color-mix(in srgb, var(--brand-secondary) 35%, transparent)}
+.btn-ghost{background:transparent;color:var(--text-primary);--btn-glow-tint:var(--brand-secondary)}
 .btn:disabled{opacity:0.45;cursor:not-allowed}
 .btn:disabled:hover{box-shadow:none}
 .btn:disabled::after{display:none}
