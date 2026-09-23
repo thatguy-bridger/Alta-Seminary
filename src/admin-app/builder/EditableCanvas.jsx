@@ -192,15 +192,7 @@ export function EditableCanvas({ blocks, selectedId, onSelect, onReorder, onFiel
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
       <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-        {/* container-type: inline-size -- lets ImageBlock.jsx's "flow past
-            the page edges" toggle break out relative to THIS canvas column
-            (cqw units) instead of doing nothing here (see its own comment):
-            without a sized container to break out of, there's nothing for
-            that toggle to visibly do while editing, which read as "the
-            toggle doesn't work" even though it was already fine on
-            Preview/the live site (both already have their own such
-            container -- preview-frame.astro's device frame, .site-main). */}
-        <div onClick={() => onSelect(null)} style={{ containerType: 'inline-size' }}>
+        <div onClick={() => onSelect(null)}>
           {blocks.map((block) => (
             <SortableBlock
               key={block.id}

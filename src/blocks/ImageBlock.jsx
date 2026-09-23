@@ -97,28 +97,31 @@ export function ImageBlock({
 
   if (!outboundWidth) return figure;
 
-  // Breaks past every ancestor's max-width (the page's own contained
-  // column, a "Contained" width setting, a parent column) out to the edge
-  // of the nearest `container-type: inline-size` ancestor -- `cqw` units
-  // are relative to THAT container, not this block's own immediate parent,
-  // so it works no matter how deep this is nested, same idea as `vw` being
-  // viewport-relative but scoped one level in. That container is
-  // `.site-main` on the public site, the Preview tab's own device frame
-  // (preview-frame.astro), or the admin edit canvas's own column
-  // (EditableCanvas.jsx) -- each already exists for the @container
-  // (max-width:640px) rules elsewhere in this codebase, and picking
-  // whichever one is actually closest is exactly why this breaks out to
-  // "the page" in every context (including the admin canvas, where a true
-  // 100vw would instead overlap the Style panel sidebar) instead of only
-  // the real public site. The outer div's own width is a normal,
-  // container-relative `100%` (never cqw), so it clips anything the inner
-  // cqw-based div pushes past that true edge -- including the 1-2px some
-  // browsers' cqw/vw units can run over by. That outer clip is what
-  // actually delivers "crops instead of scrolls": without it, this is the
-  // one CSS trick most prone to adding a horizontal scrollbar.
+  // `cqw` (tried here first, see git history) turned out to be the wrong
+  // fix: it's relative to the nearest `container-type: inline-size`
+  // ancestor, which on the public site is `.site-main` -- itself a
+  // constrained, CENTERED column (`max-width: var(--content-max)`) on any
+  // screen wider than that, not the true edge of the browser window. So
+  // the image broke out of ITS OWN block/column correctly, but only out to
+  // site-main's boundary, which stops well short of the real page edges on
+  // a normal desktop width -- confirmed live, this is what "doesn't
+  // actually reach edge to edge" looked like.
+  //
+  // `vw` is what actually delivers true edge-to-edge full-bleed, because
+  // it's relative to the real viewport, with no such "nearest container"
+  // detour -- exactly what this needs. The one place that's wrong is the
+  // admin's own edit canvas: unlike the Preview tab (a genuine iframe, a
+  // separate browsing context with its OWN viewport matching the
+  // simulated device size -- 100vw there is already correctly scoped) and
+  // the public site, the edit canvas shares ONE real window with the rest
+  // of the admin UI, so a true 100vw there would overlap the Style panel
+  // sidebar instead of representing "the page." `editable` is exactly
+  // that one case, so it's the only context this still opts out for.
+  if (editable) return figure;
+
   return (
     <div style={{ width: '100%', overflow: 'hidden' }}>
-      <div style={{ width: '100cqw', maxWidth: '100cqw', marginLeft: 'calc(50% - 50cqw)' }}>
+      <div style={{ width: '100vw', maxWidth: '100vw', marginLeft: 'calc(50% - 50vw)' }}>
         {figure}
       </div>
     </div>
