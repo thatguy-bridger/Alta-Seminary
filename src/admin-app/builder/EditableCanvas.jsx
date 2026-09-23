@@ -139,7 +139,7 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
         // sits outside the normal content flow) renders no visible content
         // at this position -- BlockWrapper's spacing padding would just be
         // an empty gap in the page with nothing in it to justify one.
-        return BLOCK_REGISTRY[block.type]?.chromeless ? content : <BlockWrapper layout={block.layout}>{content}</BlockWrapper>;
+        return BLOCK_REGISTRY[block.type]?.chromeless ? content : <BlockWrapper layout={block.layout} editable>{content}</BlockWrapper>;
       })()}
     </div>
   );

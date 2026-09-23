@@ -554,7 +554,18 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                     column, so this dims the canvas behind it and gives an
                     easy way to dismiss by clicking outside the panel. */}
                 <div className="page-builder-sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
-                <div className="page-builder-sidebar" style={{ position: 'sticky', top: 'var(--space-6)' }}>
+                {/* Sticky-positioned but ALSO its own scroll region, capped
+                    to the viewport -- sticky alone only pins the panel's
+                    top edge; its bottom was still wherever the panel's own
+                    content ended, so a settings panel taller than the
+                    canvas content beside it (or just a short page) meant
+                    scrolling the whole page/canvas down was the only way to
+                    reach its lower fields. maxHeight + its own overflow-y
+                    turns it into an independent scrolling column instead --
+                    the two space-6 in the calc are this element's own
+                    sticky offset from the top plus a matching gap left at
+                    the bottom of the viewport. */}
+                <div className="page-builder-sidebar" style={{ position: 'sticky', top: 'var(--space-6)', maxHeight: 'calc(100vh - var(--space-6) - var(--space-6))', overflowY: 'auto' }}>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-2)' }}>
                     <button
                       onClick={() => setSidebarOpen(false)}

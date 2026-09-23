@@ -67,7 +67,7 @@ export const BLOCK_REGISTRY = {
     category: 'Media',
     icon: 'image',
     description: 'A single photo, optionally with a caption and a link.',
-    defaultProps: { imageUrl: '', alt: '', caption: '', width: 'full', outboundWidth: false, aspectRatio: 'auto', corners: 'rounded', border: false, shadow: true, lightbox: false, link: '' },
+    defaultProps: { imageUrl: '', alt: '', caption: '', width: 'full', aspectRatio: 'auto', corners: 'rounded', border: false, shadow: true, lightbox: false, link: '' },
     fields: [
       { key: 'imageUrl', kind: 'image', label: 'Image' },
       // inline:false -- a 'text' field defaults to inline (click-to-edit
@@ -79,14 +79,8 @@ export const BLOCK_REGISTRY = {
       { key: 'caption', kind: 'text', label: 'Caption' },
       { key: 'link', kind: 'text', label: 'Link (optional -- makes the image clickable)', inline: false },
       { key: 'width', kind: 'select', label: 'Width', options: [{value:'full',label:'Full width'},{value:'contained',label:'Contained'}] },
-      // Breaks the image out past whatever contains it -- the page's own
-      // max-width, a "Contained" layout setting above, a parent column --
-      // all the way to the true browser viewport edge, using a viewport-
-      // relative (not parent-relative) width so it works no matter how deep
-      // this block is nested. See ImageBlock.jsx's own comment on why this
-      // never causes a horizontal scrollbar despite going edge-to-edge: the
-      // overflow is clipped locally, so it crops instead of scrolling.
-      { key: 'outboundWidth', kind: 'toggle', label: 'Flow past the page edges (full-bleed, cropped rather than scrolled)' },
+      // "Flow past the page edges" moved to the universal Layout panel (see
+      // LAYOUT_FIELDS below) -- every block gets it now, not just Image.
       // The crop dialog (click the photo's own corner thumbnail) is the
       // primary way to set this now -- it shows all 4 classic ratios plus
       // Custom and re-fits the crop live. This select is a secondary path
@@ -478,11 +472,23 @@ export const BLOCK_CATEGORIES = ['Layout', 'Media', 'Informational', 'Interactiv
 // Universal per-block layout -- every block gets these regardless of type,
 // applied by BlockWrapper.jsx. Kept separate from type-specific `props` so
 // adding a layout control never touches individual block defaultProps.
-export const DEFAULT_LAYOUT = { spacing: 'md', contained: false, background: 'none', anchor: '' };
+export const DEFAULT_LAYOUT = { spacing: 'md', contained: false, outboundWidth: false, background: 'none', anchor: '' };
 
 export const LAYOUT_FIELDS = [
   { key: 'spacing', kind: 'select', label: 'Spacing above/below', options: [{value:'none',label:'None'},{value:'sm',label:'Small'},{value:'md',label:'Medium'},{value:'lg',label:'Large'},{value:'xl',label:'Extra large'}] },
   { key: 'contained', kind: 'toggle', label: 'Contained width (narrower, centered)' },
+  // Breaks the ENTIRE block out past whatever contains it -- the page's own
+  // max-width, a "Contained" setting above, a parent column -- all the way
+  // to the true browser viewport edge, using a viewport-relative (not
+  // parent-relative) width so it works no matter how deep this block is
+  // nested. Started out as an Image-block-only field (see git history); a
+  // full-bleed photo is the most common use, but any block can want to span
+  // edge to edge (a background-colored section, a carousel, ...), so this
+  // now lives here as a universal layout option applied by BlockWrapper.jsx
+  // instead. See BlockWrapper.jsx's own comment for why it never causes a
+  // horizontal scrollbar despite going edge-to-edge: overflow is clipped
+  // locally, so it crops instead of scrolling.
+  { key: 'outboundWidth', kind: 'toggle', label: 'Flow past the page edges (full-bleed, cropped rather than scrolled)' },
   { key: 'background', kind: 'select', label: 'Section background', options: [{value:'none',label:'None'},{value:'sunken',label:'Sunken'},{value:'inverse',label:'Inverse (dark)'}] },
   { key: 'anchor', kind: 'text', label: 'Anchor ID (for linking to this section, e.g. "contact")' },
 ];

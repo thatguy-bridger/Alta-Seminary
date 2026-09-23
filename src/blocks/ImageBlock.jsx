@@ -30,7 +30,7 @@ function aspectRatioToPickerProps(value) {
 }
 
 export function ImageBlock({
-  imageUrl, alt = '', caption, width = 'full', outboundWidth = false, aspectRatio = 'auto',
+  imageUrl, alt = '', caption, width = 'full', aspectRatio = 'auto',
   corners = 'rounded', border = false, shadow = true, lightbox = false, link = '',
   captionStyle, editable, onFieldChange, pathPrefix, onAddImageBlocks,
 }) {
@@ -64,7 +64,7 @@ export function ImageBlock({
   );
 
   const figure = (
-    <figure style={{ margin: 0, maxWidth: !outboundWidth && width === 'contained' ? 640 : undefined, marginLeft: !outboundWidth && width === 'contained' ? 'auto' : undefined, marginRight: !outboundWidth && width === 'contained' ? 'auto' : undefined }}>
+    <figure style={{ margin: 0, maxWidth: width === 'contained' ? 640 : undefined, marginLeft: width === 'contained' ? 'auto' : undefined, marginRight: width === 'contained' ? 'auto' : undefined }}>
       {!editable && link ? <a href={link}>{img}</a> : img}
       {editable && imageUrl && !alt.trim() && (
         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--color-warning)', margin: 'var(--space-2) 0 0' }}>
@@ -95,43 +95,9 @@ export function ImageBlock({
     </figure>
   );
 
-  if (!outboundWidth) return figure;
-
-  // `cqw` (tried here first, see git history) turned out to be the wrong
-  // fix: it's relative to the nearest `container-type: inline-size`
-  // ancestor, which on the public site is `.site-main` -- itself a
-  // constrained, CENTERED column (`max-width: var(--content-max)`) on any
-  // screen wider than that, not the true edge of the browser window. So
-  // the image broke out of ITS OWN block/column correctly, but only out to
-  // site-main's boundary, which stops well short of the real page edges on
-  // a normal desktop width -- confirmed live, this is what "doesn't
-  // actually reach edge to edge" looked like.
-  //
-  // `vw` is what actually delivers true edge-to-edge full-bleed, because
-  // it's relative to the real viewport, with no such "nearest container"
-  // detour -- exactly what this needs. The one place that's wrong is the
-  // admin's own edit canvas: unlike the Preview tab (a genuine iframe, a
-  // separate browsing context with its OWN viewport matching the
-  // simulated device size -- 100vw there is already correctly scoped) and
-  // the public site, the edit canvas shares ONE real window with the rest
-  // of the admin UI, so a true 100vw there would overlap the Style panel
-  // sidebar instead of representing "the page." `editable` is exactly
-  // that one case, so it's the only context this still opts out for.
-  if (editable) return figure;
-
-  // Single div doing both jobs at once (full-bleed width AND clipping) --
-  // it used to be two nested divs, an outer `width:100%` clip wrapper
-  // around an inner `100vw` one. That outer wrapper's "100%" was 100% of
-  // ITS parent, which on any page that also has a "contained"/centered
-  // block above this in the tree (BlockWrapper's own maxWidth:640 column,
-  // see BlockWrapper.jsx) is that narrower contained box, not the real
-  // viewport -- so overflow:hidden clipped the inner 100vw breakout right
-  // back down to the contained column's width, undoing the whole point.
-  // Putting the 100vw/negative-margin trick AND overflow:hidden on the
-  // SAME element means there's nothing narrower in between to clip against.
-  return (
-    <div style={{ width: '100vw', maxWidth: '100vw', marginLeft: 'calc(50% - 50vw)', overflow: 'hidden' }}>
-      {figure}
-    </div>
-  );
+  // "Flow past the page edges" (full-bleed breakout) is now a universal
+  // per-block Layout option applied by BlockWrapper.jsx to whatever the
+  // block renders, rather than something each block type implements for
+  // itself -- see registry.js's LAYOUT_FIELDS/DEFAULT_LAYOUT.
+  return figure;
 }
