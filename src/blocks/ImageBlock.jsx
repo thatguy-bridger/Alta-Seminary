@@ -119,11 +119,19 @@ export function ImageBlock({
   // that one case, so it's the only context this still opts out for.
   if (editable) return figure;
 
+  // Single div doing both jobs at once (full-bleed width AND clipping) --
+  // it used to be two nested divs, an outer `width:100%` clip wrapper
+  // around an inner `100vw` one. That outer wrapper's "100%" was 100% of
+  // ITS parent, which on any page that also has a "contained"/centered
+  // block above this in the tree (BlockWrapper's own maxWidth:640 column,
+  // see BlockWrapper.jsx) is that narrower contained box, not the real
+  // viewport -- so overflow:hidden clipped the inner 100vw breakout right
+  // back down to the contained column's width, undoing the whole point.
+  // Putting the 100vw/negative-margin trick AND overflow:hidden on the
+  // SAME element means there's nothing narrower in between to clip against.
   return (
-    <div style={{ width: '100%', overflow: 'hidden' }}>
-      <div style={{ width: '100vw', maxWidth: '100vw', marginLeft: 'calc(50% - 50vw)' }}>
-        {figure}
-      </div>
+    <div style={{ width: '100vw', maxWidth: '100vw', marginLeft: 'calc(50% - 50vw)', overflow: 'hidden' }}>
+      {figure}
     </div>
   );
 }
