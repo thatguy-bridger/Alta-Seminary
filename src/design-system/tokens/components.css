@@ -50,7 +50,7 @@ a:hover{color:var(--text-link-hover)}
      AFTER a button's plain (non-positioned) inline text per the CSS
      painting-order spec, so without this the glow would sit ON TOP of
      the label, not behind it. */
-.btn::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at var(--btn-glow-x,50%) var(--btn-glow-y,50%), var(--btn-glow-tint) 0%, transparent 72%);clip-path:circle(0% at var(--btn-glow-x,50%) var(--btn-glow-y,50%));transition:clip-path 0.35s var(--ease-standard)}
+.btn::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at var(--btn-glow-x,50%) var(--btn-glow-y,50%), var(--btn-glow-tint) 0%, transparent 144%);clip-path:circle(0% at var(--btn-glow-x,50%) var(--btn-glow-y,50%));transition:clip-path 0.35s var(--ease-standard)}
 .btn:hover{box-shadow:var(--shadow-sm)}
 .btn:hover::after{clip-path:circle(150% at var(--btn-glow-x,50%) var(--btn-glow-y,50%));transition-duration:0.65s}
 /* --brand-primary is near-black in light mode but near-WHITE in dark mode
@@ -58,7 +58,7 @@ a:hover{color:var(--text-link-hover)}
    mode half of that pair, so primary uses the brand-accent color instead,
    which reads against either of its two real background colors. Full
    strength at the gradient's own center (it still fades to transparent by
-   72%, per .btn::after above) rather than translucent throughout, per
+   144%, per .btn::after above) rather than translucent throughout, per
    feedback wanting the glow itself to read as a much bolder hit of color. */
 .btn-primary{background:var(--brand-primary);color:var(--text-on-primary);--btn-glow-tint:var(--brand-secondary)}
 /* The actual "color swap" hover effect, for the two solid-fill variants
