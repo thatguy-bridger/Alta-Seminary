@@ -190,7 +190,7 @@ export const BLOCK_REGISTRY = {
     defaultProps: { embedType: 'youtube', url: '', caption: '', aspectRatio: '16:9', clickToLoad: true },
     fields: [
       { key: 'embedType', kind: 'select', label: 'Provider', options: [{value:'youtube',label:'YouTube'},{value:'vimeo',label:'Vimeo'},{value:'google-maps',label:'Google Maps'},{value:'spotify',label:'Spotify'},{value:'custom',label:'Custom (paste any embed URL)'}] },
-      { key: 'url', kind: 'text', label: 'Paste the video/page URL (any normal share link works for YouTube, Vimeo, Spotify -- Google Maps needs its "Embed a map" link)', inline: false },
+      { key: 'url', kind: 'text', label: 'Paste the video/page URL (any normal share link works for YouTube, Vimeo, Spotify -- for Google Maps, paste its "Embed a map" link, or the whole <iframe> snippet it gives you)', inline: false },
       { key: 'caption', kind: 'text', label: 'Caption' },
       { key: 'aspectRatio', kind: 'select', label: 'Aspect ratio', options: [{value:'16:9',label:'16:9'},{value:'4:3',label:'4:3'},{value:'1:1',label:'1:1'}] },
       { key: 'clickToLoad', kind: 'toggle', label: 'Click to load (faster page, more private -- recommended)' },
@@ -544,10 +544,19 @@ export function isAllowedEmbedUrl(url) {
 // block doesn't silently disappear just because the pasted link wasn't
 // already in embed form (confirmed live: a pasted youtu.be link was being
 // rejected outright since youtu.be isn't an iframe-embeddable host itself).
-// Google Maps/custom are left as-is -- Maps has no ID-based embed URL
-// without an API key, so that one still needs the "Share > Embed a map" link.
+// Google Maps/custom are left as-is (beyond the <iframe> unwrap just below)
+// -- Maps has no ID-based embed URL without an API key, so that one still
+// needs the "Share > Embed a map" link/snippet.
 export function normalizeEmbedUrl(embedType, rawUrl) {
   if (!rawUrl) return '';
+  // Google Maps' own "Share > Embed a map" panel hands you the WHOLE
+  // <iframe src="..." width="600" ...></iframe> snippet to copy, not a
+  // bare URL -- an admin pasting that verbatim (the natural thing to copy)
+  // otherwise failed validation outright, since the whole snippet isn't a
+  // parseable URL on its own. Pulling the src="..." value out of it first
+  // means pasting the full snippet works exactly like pasting just the link.
+  const iframeMatch = rawUrl.match(/<iframe[^>]*\ssrc=["']([^"']+)["']/i);
+  if (iframeMatch) rawUrl = iframeMatch[1].replace(/&amp;/g, '&');
   let parsed;
   try {
     parsed = new URL(rawUrl);
