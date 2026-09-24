@@ -13,8 +13,7 @@ import { useConfirm } from '../ConfirmProvider.jsx';
 import { useBulkListShortcuts } from '../useBulkListShortcuts.js';
 import { useModKeyLabel } from '../useModKeyLabel.js';
 import { UsedOnLine } from '../UsedOnLine.jsx';
-import { LinkedContentPanel } from '../LinkedContentPanel.jsx';
-import { CrossCreateButtons } from '../CrossCreateButtons.jsx';
+import { ContentLinksSection } from '../ContentLinksSection.jsx';
 
 const emptyEvent = () => ({
   title: '', description: '', location: '', start_at: '', end_at: '', all_day: false, status: 'draft',
@@ -201,14 +200,15 @@ export function EventsScreen() {
               {/* Generic cross-linking (content_links, same as
                   PostsListScreen.jsx/GalleryScreen.jsx) -- chips for
                   whatever's already linked plus a picker to link an
-                  existing announcement/album. The two buttons below are
-                  this screen's own shortcut on top of that: make a NEW
-                  announcement/album (prefilled from this event) and link
-                  it in one step, instead of creating it elsewhere first. */}
-              <div style={{ marginTop: 'var(--space-2)' }}>
-                <LinkedContentPanel kind="event" id={row.id} title={row.title} />
-              </div>
-              <CrossCreateButtons sourceKind="event" sourceRow={row} onCreated={load} />
+                  existing announcement/album, and shortcuts to create a
+                  NEW one (prefilled from this event) and link it in one
+                  step. Collapsed behind its own toggle (ContentLinksSection.jsx)
+                  so a long events list doesn't get as visibly tall/busy
+                  per row as this used to always render open. */}
+              <ContentLinksSection
+                kind="event" id={row.id} title={row.title}
+                sourceKind="event" sourceRow={row} onLinkVersionBump={load}
+              />
             </div>
             <Badge tone={row.status === 'published' ? 'success' : 'neutral'}>{row.status}</Badge>
             <Button variant="primary" size="sm" onClick={() => setEditing({

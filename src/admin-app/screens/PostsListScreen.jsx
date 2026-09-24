@@ -13,8 +13,7 @@ import { useBulkListShortcuts } from '../useBulkListShortcuts.js';
 import { useModKeyLabel } from '../useModKeyLabel.js';
 import { UsedOnLine } from '../UsedOnLine.jsx';
 import { findBlockInstances } from '../blockUsage.js';
-import { LinkedContentPanel } from '../LinkedContentPanel.jsx';
-import { CrossCreateButtons } from '../CrossCreateButtons.jsx';
+import { ContentLinksSection } from '../ContentLinksSection.jsx';
 import { htmlToPlainText } from '../../lib/richTextHtml.js';
 
 export function PostsListScreen() {
@@ -25,6 +24,12 @@ export function PostsListScreen() {
   const [newTitle, setNewTitle] = React.useState('');
   const [creating, setCreating] = React.useState(false);
   const [query, setQuery] = React.useState('');
+  // Quick status filter -- a plain title search alone got unwieldy once a
+  // list held a real season's worth of announcements (mostly published,
+  // a handful scheduled/draft), same complaint as the row layout below:
+  // this at least lets "only the ones still waiting" or "only what's live"
+  // be one click instead of scanning every badge by eye.
+  const [statusFilter, setStatusFilter] = React.useState('all');
   const [selected, setSelected] = React.useState(() => new Set());
   // The other 2 "kinds of announcement" on this site -- Announcement Banner
   // and Timed Popup ("one-time") blocks -- aren't blog_posts at all, just
@@ -59,8 +64,15 @@ export function PostsListScreen() {
   const filtered = React.useMemo(() => {
     if (!posts) return posts;
     const q = query.trim().toLowerCase();
-    return q ? posts.filter((p) => p.title.toLowerCase().includes(q)) : posts;
-  }, [posts, query]);
+    return posts
+      .filter((p) => statusFilter === 'all' || p.status === statusFilter)
+      .filter((p) => !q || p.title.toLowerCase().includes(q));
+  }, [posts, query, statusFilter]);
+  const statusCounts = React.useMemo(() => {
+    const counts = { all: posts?.length || 0, published: 0, scheduled: 0, draft: 0 };
+    for (const p of posts || []) counts[p.status] = (counts[p.status] || 0) + 1;
+    return counts;
+  }, [posts]);
 
   function toggleSelected(id) {
     setSelected((prev) => {
@@ -175,11 +187,28 @@ export function PostsListScreen() {
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0, marginBottom: 0 }}>
         Posts shown on the public Announcements page, newest first. Create, edit, copy, or delete below.
       </p>
-      <div style={{ marginBottom: 'var(--space-4)', display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ marginBottom: 'var(--space-3)', display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
         <Button variant="outline" onClick={() => setCreateOpen(true)}>+ New Announcement</Button>
         <div style={{ flex: 1, minWidth: 200 }}>
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by title…" aria-label="Filter announcements by title" />
         </div>
+      </div>
+
+      {/* Quick status filter -- see statusFilter's own comment above for
+          why. Counts are of the FULL list (not the title-filtered one), so
+          switching tabs doesn't also silently drop whatever's typed in the
+          search box above. */}
+      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'published', label: 'Published' },
+          { key: 'scheduled', label: 'Scheduled' },
+          { key: 'draft', label: 'Draft' },
+        ].map((t) => (
+          <button key={t.key} onClick={() => setStatusFilter(t.key)} className={'tab' + (statusFilter === t.key ? ' active' : '')}>
+            {t.label} <span style={{ opacity: 0.6 }}>({statusCounts[t.key] || 0})</span>
+          </button>
+        ))}
       </div>
 
       {selected.size > 0 && (
@@ -192,7 +221,7 @@ export function PostsListScreen() {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         {filtered.length === 0 && (
           <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>
             {posts.length === 0 ? 'No announcements yet.' : 'No announcements match that filter.'}
@@ -213,45 +242,64 @@ export function PostsListScreen() {
           <div
             key={row.id}
             style={{
-              display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-              padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
+              display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
+              padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)',
+              background: 'var(--surface-card)',
             }}
           >
-            <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleSelected(row.id)} aria-label={`Select ${row.title}`} />
-            <div style={{ flex: 1 }}>
-              <div>
-                <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{row.title}</span>
+            {/* Top row: just the identity + status -- title, at real
+                heading weight/size now (it used to be plain body text,
+                which read as a caption or a link, not the row's own
+                headline). Everything actionable moves to its own row
+                below, so this line never gets crowded no matter how many
+                actions or links a given announcement ends up with. */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
+              <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleSelected(row.id)} aria-label={`Select ${row.title}`} style={{ marginTop: 4 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-body-lg)', color: 'var(--text-primary)' }}>{row.title}</span>
+                  <Badge tone={row.status === 'published' ? 'success' : row.status === 'scheduled' ? 'warning' : 'neutral'}>
+                    {row.status === 'scheduled' && row.publish_at
+                      ? `scheduled · ${new Date(row.publish_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+                      : row.status}
+                  </Badge>
+                </div>
                 {row.published_at && (
-                  <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
-                    {new Date(row.published_at).toLocaleDateString()}
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+                    Published {new Date(row.published_at).toLocaleDateString()}
                   </span>
                 )}
+                {/* Generic cross-linking (content_links, same as
+                    EventsScreen.jsx/GalleryScreen.jsx) -- collapsed behind
+                    its own toggle (ContentLinksSection.jsx) instead of
+                    always rendering the full chips+picker, which is what
+                    made a long list of announcements feel convoluted --
+                    every row was visibly taller than its own content just
+                    from this always being open, even with nothing linked yet. */}
+                <ContentLinksSection
+                  kind="announcement" id={row.id} title={row.title} refreshToken={linkVersion}
+                  sourceKind="announcement" sourceRow={row} onLinkVersionBump={() => setLinkVersion((v) => v + 1)}
+                />
               </div>
-              {/* Generic cross-linking (content_links, same as
-                  EventsScreen.jsx/GalleryScreen.jsx) -- an announcement can
-                  link to the event it's about and/or the album with its photos. */}
-              <div style={{ marginTop: 4 }}>
-                <LinkedContentPanel kind="announcement" id={row.id} title={row.title} refreshToken={linkVersion} />
-              </div>
-              <CrossCreateButtons sourceKind="announcement" sourceRow={row} onCreated={() => setLinkVersion((v) => v + 1)} />
             </div>
-            <Badge tone={row.status === 'published' ? 'success' : row.status === 'scheduled' ? 'warning' : 'neutral'}>
-              {row.status === 'scheduled' && row.publish_at
-                ? `scheduled · ${new Date(row.publish_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
-                : row.status}
-            </Badge>
-            <a href={withBase(`/admin/posts/edit?slug=${row.slug}`)} style={{ textDecoration: 'none' }}>
-              <Button variant="primary" size="sm">Edit</Button>
-            </a>
-            {row.status === 'published' && (
-              <Button variant="ghost" size="sm" onClick={() => handleUnpublish(row)}>Unpublish</Button>
-            )}
-            <button onClick={() => handleCopy(row)} title="Copy this announcement" style={iconButtonStyle}>
-              <CopyIcon />
-            </button>
-            <button onClick={() => handleDelete(row)} title="Delete this announcement" style={{ ...iconButtonStyle, color: 'var(--color-error)' }}>
-              <TrashIcon />
-            </button>
+            {/* Actions get their own row, right-aligned -- previously
+                crammed onto the same line as the title/status/date, which
+                is also what pushed the title down to plain body text just
+                to keep that line from wrapping badly. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+              {row.status === 'published' && (
+                <Button variant="ghost" size="sm" onClick={() => handleUnpublish(row)}>Unpublish</Button>
+              )}
+              <a href={withBase(`/admin/posts/edit?slug=${row.slug}`)} style={{ textDecoration: 'none' }}>
+                <Button variant="primary" size="sm">Edit</Button>
+              </a>
+              <button onClick={() => handleCopy(row)} title="Copy this announcement" style={iconButtonStyle}>
+                <CopyIcon />
+              </button>
+              <button onClick={() => handleDelete(row)} title="Delete this announcement" style={{ ...iconButtonStyle, color: 'var(--color-error)' }}>
+                <TrashIcon />
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -324,10 +372,10 @@ function BlockInstanceList({ instances, emptyLabel, preview }) {
           }}
         >
           <div style={{ flex: 1 }}>
-            <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>
               {htmlToPlainText(preview(inst.block)) || <span style={{ color: 'var(--text-muted)', fontWeight: 'var(--fw-regular)' }}>(empty)</span>}
-            </span>
-            <span style={{ marginLeft: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+            </div>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
               on {inst.pageTitle}
             </span>
           </div>
