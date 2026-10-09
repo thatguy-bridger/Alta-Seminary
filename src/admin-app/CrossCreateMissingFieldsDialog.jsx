@@ -18,8 +18,8 @@ export function CrossCreateMissingFieldsDialog({ targetKind, initialDraft, savin
   const canSave = targetKind !== 'event' || (draft.title?.trim() && draft.start_at);
 
   return (
-    <Dialog open title={`New ${crossCreateLabel(targetKind)} — a couple more details`} onClose={onCancel}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 340, maxWidth: 460 }}>
+    <Dialog open wide title={`New ${crossCreateLabel(targetKind)} — a couple more details`} onClose={onCancel}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
         {targetKind === 'event' && (
           <>
             <Input label="Title" value={draft.title} onChange={(e) => patch({ title: e.target.value })} />

@@ -58,8 +58,11 @@ export function RelatedContentDialog({ item, index, onChanged, onClose }) {
 
   return (
     <>
-      <Dialog open title={`Related to “${item.title}”`} onClose={onClose}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', minWidth: 'min(460px, 80vw)', maxWidth: 520 }}>
+      {/* `wide`, and no min-width of its own: the dialog panel is capped (440px by
+          default, less on a phone), and content that insists on a minimum wider
+          than that doesn't fit -- the rows and buttons spilled out of the panel. */}
+      <Dialog open wide title={`Related to “${item.title}”`} onClose={onClose}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
           <Section title={`Linked (${linked.length})`}>
             {linked.length === 0 ? (
               <p style={mutedText}>Nothing linked yet. Link an existing item below, or create a new one.</p>
@@ -159,4 +162,4 @@ function Row({ item, children }) {
 }
 
 const mutedText = { margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-muted)' };
-const textButton = { border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-muted)', padding: 4 };
+const textButton = { flexShrink: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-muted)', padding: 4 };

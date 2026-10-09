@@ -90,8 +90,8 @@ export function EventDialog({ event, saving, onCancel, onSave }) {
   const canSave = draft.title.trim() && draft.start_at;
 
   return (
-    <Dialog open title={event.id ? `Edit ${draft.title || 'event'}` : 'New event'} onClose={onCancel}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 380, maxWidth: 480 }}>
+    <Dialog open wide title={event.id ? `Edit ${draft.title || 'event'}` : 'New event'} onClose={onCancel}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
         <Input label="Title" value={draft.title} onChange={(e) => patch({ title: e.target.value })} placeholder="e.g. Fall Fireside" />
         <Textarea label="Description (optional)" value={draft.description} onChange={(e) => patch({ description: e.target.value })} rows={3} />
         <Input label="Location (optional)" value={draft.location} onChange={(e) => patch({ location: e.target.value })} placeholder="e.g. Seminary Building, Room 4" />
