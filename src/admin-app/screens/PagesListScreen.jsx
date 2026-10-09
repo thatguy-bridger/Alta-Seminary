@@ -8,6 +8,7 @@ import { Select } from '../../design-system/components/forms/Select.jsx';
 import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { EyeIcon, EyeOffIcon, CopyIcon, TrashIcon, PencilIcon } from '../icons.jsx';
 import { slugify, uniqueSlug } from '../slug.js';
+import { nextRoutePath } from '../pageRoutes.js';
 import { withBase } from '../../lib/url.js';
 import { useConfirm } from '../ConfirmProvider.jsx';
 
@@ -124,14 +125,16 @@ export function PagesListScreen() {
     setPages(data || []);
   }
 
-  // One-time-per-mount seed of the default builder pages if missing, then
-  // the initial fetch. Only called from the mount effect below.
+  // Seeds the default builder pages ONLY into a completely empty pages table
+  // (a brand-new database), then does the initial fetch. It used to re-insert
+  // any default page whose slug was "missing" on every mount -- so deleting
+  // About/Enrollment/Home worked, then the very next time this screen opened
+  // it quietly re-created the page (History even logged it as "recreated").
+  // A page an admin deleted on purpose is gone for good now.
   async function ensureDefaultPagesThenLoad() {
-    const { data: existing } = await supabaseBrowser.from('pages').select('slug');
-    const existingSlugs = new Set((existing || []).map((p) => p.slug));
-    const missing = DEFAULT_BUILDER_PAGES.filter((p) => !existingSlugs.has(p.slug));
-    if (missing.length) {
-      await supabaseBrowser.from('pages').insert(missing.map((p) => ({ ...p, page_kind: 'builder' })));
+    const { count } = await supabaseBrowser.from('pages').select('id', { count: 'exact', head: true });
+    if (count === 0) {
+      await supabaseBrowser.from('pages').insert(DEFAULT_BUILDER_PAGES.map((p) => ({ ...p, page_kind: 'builder' })));
     }
     await fetchPages();
   }
@@ -176,24 +179,23 @@ export function PagesListScreen() {
   async function rename(row, title) {
     const trimmed = title.trim();
     if (!trimmed || trimmed === row.title) return;
-    const patch = { title: trimmed };
-    if (!row.nav_label || row.nav_label === row.title) patch.nav_label = trimmed;
-    // A renamed page's URL didn't change along with it -- "About" renamed
-    // to "Info" stayed reachable at /about, and /info simply didn't exist,
-    // which reads as the rename not having really worked. Only safe for a
-    // real builder page (page_kind === 'builder'): its route_path is just
-    // "/" + its own slug, resolved at request time by the catch-all route
-    // (see src/pages/[...path].astro) -- unlike Announcements/Directory/
-    // Gallery/Events/Contact/Makeup Work, which are fixed feature routes
-    // backed by their OWN dedicated Astro page file under a hardcoded path
-    // that renaming here has no way to move. The home page (route_path
-    // "/") is also left alone -- there's no "/home" to move it to that
-    // would make sense.
-    if (row.page_kind === 'builder' && row.route_path && row.route_path !== '/') {
-      const slug = await uniqueSlug('pages', slugify(trimmed));
-      patch.slug = slug;
-      patch.route_path = `/${slug}`;
-    }
+    // A rename updates the page's title, its nav label, and its public URL
+    // together -- never its slug. The slug is the page's permanent identity:
+    // dedicated route files (src/pages/directory/staff.astro, about.astro,
+    // ...) and the seed-if-missing logic above look pages up BY slug, so
+    // rewriting it orphaned the page (a broken Staff Directory) and made the
+    // seeder re-create empty duplicates. The URL moves instead (see
+    // pageRoutes.js), and the old one redirects -- see BuilderPage.astro.
+    //
+    // nav_label is set unconditionally: sub pages carry a deliberately
+    // shorter nav label than their title ("Staff" vs "Staff Directory"), so
+    // the old "only if it still equals the title" rule silently skipped
+    // them -- the Pages list showed the new name, the public nav didn't.
+    const patch = {
+      title: trimmed,
+      nav_label: trimmed,
+      route_path: nextRoutePath(row, trimmed, pages),
+    };
     await supabaseBrowser.from('pages').update(patch).eq('id', row.id);
     fetchPages();
   }
