@@ -4,6 +4,7 @@ import { RichText } from './richText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { Card } from '../design-system/components/core/Card.jsx';
 import { withBase } from '../lib/url.js';
+import { formatSiteDate } from '../lib/dateFormat.js';
 
 // See DirectoryTeaserBlock.jsx for the `items` pre-fetch-vs-client-fetch pattern.
 export function PostsTeaserBlock({ heading, count = '6', items, headingStyle, editable, onFieldChange }) {
@@ -44,7 +45,7 @@ export function PostsTeaserBlock({ heading, count = '6', items, headingStyle, ed
                   <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>{post.title}</span>
                   {post.published_at && (
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                      {new Date(post.published_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {formatSiteDate(post.published_at, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   )}
                 </div>

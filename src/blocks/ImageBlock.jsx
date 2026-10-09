@@ -64,7 +64,17 @@ export function ImageBlock({
   );
 
   const figure = (
-    <figure style={{ margin: 0, maxWidth: width === 'contained' ? 640 : undefined, marginLeft: width === 'contained' ? 'auto' : undefined, marginRight: width === 'contained' ? 'auto' : undefined }}>
+    // Explicit left/right margins, never `margin: 0` plus `marginLeft:
+    // undefined`. <figure> has a 40px left/right margin from the browser's own
+    // stylesheet, and when React CLIENT-renders an element it applies `margin:
+    // 0` and then literally clears `marginLeft`/`marginRight` for the
+    // `undefined` entries -- which also erases the left/right half of that
+    // shorthand and lets the 40px default come back. Server-rendered HTML
+    // doesn't do that, so the image looked right until React re-rendered the
+    // block in the browser (the editor Preview and canvas always do; the live
+    // site does after any hydration mismatch), at which point a "full width"
+    // image shrank by 40px on each side.
+    <figure style={{ margin: 0, marginLeft: width === 'contained' ? 'auto' : 0, marginRight: width === 'contained' ? 'auto' : 0, maxWidth: width === 'contained' ? 640 : undefined }}>
       {!editable && link ? <a href={link}>{img}</a> : img}
       {editable && imageUrl && !alt.trim() && (
         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--color-warning)', margin: 'var(--space-2) 0 0' }}>

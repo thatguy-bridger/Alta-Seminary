@@ -4,6 +4,7 @@ import { RichText } from './richText.jsx';
 import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { Card } from '../design-system/components/core/Card.jsx';
 import { Badge } from '../design-system/components/core/Badge.jsx';
+import { formatSiteDate, formatSiteTime } from '../lib/dateFormat.js';
 
 // See DirectoryTeaserBlock.jsx for the `items` pre-fetch-vs-client-fetch pattern.
 export function EventsTeaserBlock({ heading, count = '3', timeframe = 'upcoming', items, headingStyle, editable, onFieldChange }) {
@@ -84,8 +85,8 @@ export function EventsTeaserBlock({ heading, count = '3', timeframe = 'upcoming'
                     )}
                   </div>
                   <Badge tone="info">
-                    {new Date(event.start_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    {!event.all_day && ` · ${new Date(event.start_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`}
+                    {formatSiteDate(event.start_at)}
+                    {!event.all_day && ` · ${formatSiteTime(event.start_at)}`}
                   </Badge>
                 </div>
               </Card>

@@ -18,6 +18,7 @@ import { BLOCK_REGISTRY, BLOCK_TYPES, isInlineField } from './registry.js';
 // BLOCK_COMPONENTS is only ever read lazily inside function bodies below
 // (render time), never at module-evaluation time.
 import { BLOCK_COMPONENTS } from './BlockRenderer.jsx';
+import { formatSiteDate } from '../lib/dateFormat.js';
 
 const SPEED_MS = { slow: 5000, normal: 3000, fast: 1500 };
 
@@ -75,8 +76,7 @@ function truncateText(text, max = 140) {
 }
 
 function formatEventCaption(event) {
-  const start = event.start_at ? new Date(event.start_at) : null;
-  const dateStr = start ? start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  const dateStr = event.start_at ? formatSiteDate(event.start_at) : '';
   return [dateStr, event.location].filter(Boolean).join(' · ');
 }
 
