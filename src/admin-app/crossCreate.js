@@ -1,5 +1,5 @@
 import { supabaseBrowser } from '../lib/supabase/browser-client';
-import { slugify, uniqueSlug } from './slug.js';
+import { slugify, uniqueSlug, uniqueEventSlug } from './slug.js';
 import { linkContent } from './contentLinks.js';
 import { formatSiteDate, formatSiteTime } from '../lib/dateFormat.js';
 
@@ -9,8 +9,11 @@ import { formatSiteDate, formatSiteTime } from '../lib/dateFormat.js';
 // of each screen hand-rolling its own pair (this started as EventsScreen-
 // only, event -> announcement/album; generalized so every kind can create
 // every other kind).
+// An event offers only an album: it's its own page now (and, via "Show in
+// announcements", its own announcement), so a separate announcement made from
+// it would just duplicate it. Announcements and albums can still create events.
 export const CROSS_CREATE_TARGETS = {
-  event: ['announcement', 'album'],
+  event: ['album'],
   announcement: ['event', 'album'],
   album: ['event', 'announcement'],
 };
@@ -154,6 +157,10 @@ export async function createCrossLinkedItem(sourceKind, sourceId, targetKind, dr
       end_at: draft.end_at ? (draft.all_day ? new Date(`${draft.end_at}T00:00`).toISOString() : new Date(draft.end_at).toISOString()) : null,
       all_day: draft.all_day,
       status: 'draft',
+      slug: await uniqueEventSlug(draft.title),
+      // The announcement or album it came from is already out there; listing the
+      // event in announcements as well would show the same thing twice.
+      show_in_announcements: false,
     };
     const { data: event } = await supabaseBrowser.from('calendar_events').insert(patch).select().single();
     if (!event) return null;
@@ -185,22 +192,17 @@ export async function createCrossLinkedItem(sourceKind, sourceId, targetKind, dr
   throw new Error(`Unknown cross-create target: ${targetKind}`);
 }
 
-// Creates a NEW event and, for each extra the admin ticked, an announcement
-// and/or photo album prefilled from it and already linked to it -- the same
-// builders the Related dialog's "create new" buttons use. Returns the event
-// plus where to send the admin next: straight into the new announcement's
-// editor (it opens on "schedule for later", since only the admin knows when
-// it should go live), or null to stay put (an album alone has nothing to edit
-// yet -- it's an empty draft waiting for photos).
+// Creates a NEW event (with the slug that becomes its page URL) and, if asked,
+// a draft photo album named for it and already linked to it. The event IS its
+// own announcement page now, so there's no announcement to create -- turning
+// on "Show in announcements" (part of the patch) is what puts it in the feed.
 export async function createEventWithExtras(eventPatch, extras = {}) {
-  const { data: event } = await supabaseBrowser.from('calendar_events').insert(eventPatch).select().single();
-  if (!event) return { event: null, redirect: null };
-  let redirect = null;
-  for (const kind of ['announcement', 'album']) {
-    if (!extras[kind]) continue;
-    const { draft } = buildCrossCreateDraft('event', event, kind);
-    const result = await createCrossLinkedItem('event', event.id, kind, draft);
-    if (kind === 'announcement' && result?.redirect) redirect = result.redirect;
+  const slug = await uniqueEventSlug(eventPatch.title);
+  const { data: event } = await supabaseBrowser.from('calendar_events').insert({ ...eventPatch, slug }).select().single();
+  if (!event) return { event: null };
+  if (extras.album) {
+    const { draft } = buildCrossCreateDraft('event', event, 'album');
+    await createCrossLinkedItem('event', event.id, 'album', draft);
   }
-  return { event, redirect };
+  return { event };
 }

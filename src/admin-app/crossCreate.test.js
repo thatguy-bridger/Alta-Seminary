@@ -86,10 +86,12 @@ describe('buildCrossCreateDraft', () => {
     expect(buildCrossCreateDraft('album', { id: 'a1', name: 'Tailgate Party 2026' }, 'event').missing).toEqual(['start_at']);
   });
 
-  it('every kind can create both of the others, and never itself', () => {
-    for (const [kind, targets] of Object.entries(CROSS_CREATE_TARGETS)) {
-      expect(targets).not.toContain(kind);
-      expect(targets).toHaveLength(2);
-    }
+  it('what each kind can create: never itself, and an event only offers an album', () => {
+    for (const [kind, targets] of Object.entries(CROSS_CREATE_TARGETS)) expect(targets).not.toContain(kind);
+    // The event IS its own announcement page now, so a separate announcement
+    // made from it would only duplicate it.
+    expect(CROSS_CREATE_TARGETS.event).toEqual(['album']);
+    expect(CROSS_CREATE_TARGETS.announcement.sort()).toEqual(['album', 'event']);
+    expect(CROSS_CREATE_TARGETS.album.sort()).toEqual(['announcement', 'event']);
   });
 });

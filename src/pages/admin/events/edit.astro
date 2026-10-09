@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { EventEditorPage } from '../../../admin-app/pages/EventEditorPage.jsx';
+---
+
+<BaseLayout title="Edit Event" noindex>
+  <EventEditorPage client:only="react" />
+</BaseLayout>

@@ -7,7 +7,7 @@ vi.mock('../lib/supabase/browser-client', () => ({ get supabaseBrowser() { retur
 import { loadContentIndex, relatedItems, editHref, deleteLinksFor, itemKey } from './contentIndex.js';
 
 const tables = {
-  calendar_events: [{ id: 'e1', title: 'Junior Soda Social', status: 'published', start_at: '2026-10-30T18:30:00Z' }],
+  calendar_events: [{ id: 'e1', slug: 'junior-soda-social', title: 'Junior Soda Social', status: 'published', show_in_announcements: true, start_at: '2026-10-30T18:30:00Z', end_at: '2026-10-30T19:30:00Z', all_day: false }],
   blog_posts: [
     { id: 'p1', slug: 'junior-soda', title: 'Junior Soda Social', status: 'published', published_at: '2026-10-02T00:00:00Z', created_at: '2026-10-01T00:00:00Z' },
     { id: 'p2', slug: 'other', title: 'Another Post', status: 'draft', created_at: '2026-10-03T00:00:00Z' },
@@ -41,6 +41,20 @@ describe('loadContentIndex', () => {
   });
 });
 
+describe('event items', () => {
+  it('know whether they are over, and whether they are in announcements', async () => {
+    const { byKey } = await loadContentIndex();
+    const e = byKey.get('event:e1');
+    expect(e.showInAnnouncements).toBe(true);
+    expect(['upcoming', 'live', 'past']).toContain(e.phase);
+  });
+
+  it('are archived once their end time has passed', async () => {
+    h.client = createFakeSupabase({ tables: { ...tables, calendar_events: [{ ...tables.calendar_events[0], start_at: '2020-01-01T18:00:00Z', end_at: '2020-01-01T19:00:00Z' }] } });
+    expect((await loadContentIndex()).byKey.get('event:e1').phase).toBe('past');
+  });
+});
+
 describe('relatedItems', () => {
   it('returns linked items sorted by title and silently drops links to deleted items', async () => {
     const index = await loadContentIndex();
@@ -61,7 +75,8 @@ describe('editHref', () => {
     const { byKey } = await loadContentIndex();
     expect(editHref(byKey.get('announcement:p1'))).toBe('/admin/posts/edit?slug=junior-soda');
     expect(editHref(byKey.get('album:a1'))).toBe('/admin/gallery?album=a1');
-    expect(editHref(byKey.get('event:e1'))).toBe('/admin/content?item=event:e1');
+    // an event's editor is its page; its date/place/description edit in a dialog
+    expect(editHref(byKey.get('event:e1'))).toBe('/admin/events/edit?slug=junior-soda-social');
   });
 });
 

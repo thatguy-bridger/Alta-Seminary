@@ -1,5 +1,6 @@
 import { supabaseBrowser } from '../lib/supabase/browser-client';
 import { withBase } from '../lib/url.js';
+import { eventPhase } from '../lib/eventPhase.js';
 
 export const itemKey = (kind, id) => `${kind}:${id}`;
 
@@ -27,6 +28,7 @@ export async function loadContentIndex() {
   const items = [
     ...(events.data || []).map((r) => ({
       key: itemKey('event', r.id), kind: 'event', id: r.id, title: r.title, status: r.status, sortAt: r.start_at, raw: r,
+      phase: eventPhase(r), showInAnnouncements: !!r.show_in_announcements,
     })),
     ...(posts.data || []).map((r) => ({
       key: itemKey('announcement', r.id), kind: 'announcement', id: r.id, title: r.title, status: r.status,
@@ -60,12 +62,13 @@ export function relatedItems(index, item) {
     .sort((a, b) => a.title.localeCompare(b.title));
 }
 
-// Where "Edit" goes for each kind: announcements and albums have real editor
-// screens of their own; events edit in a dialog inside the Content screen.
+// Where "Edit" goes for each kind: announcements, albums and events all have a
+// real editor screen (an event's is its page; its date/place/description are
+// edited in a dialog inside the Content screen).
 export function editHref(item) {
   if (item.kind === 'announcement') return withBase(`/admin/posts/edit?slug=${item.raw.slug}`);
   if (item.kind === 'album') return withBase(`/admin/gallery?album=${item.id}`);
-  return withBase(`/admin/content?item=${item.key}`);
+  return withBase(`/admin/events/edit?slug=${item.raw.slug}`);
 }
 
 // Deleting something should also drop its links -- content_links is a

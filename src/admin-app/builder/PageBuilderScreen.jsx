@@ -4,6 +4,7 @@ import { createBlock, BLOCK_REGISTRY } from '../../blocks/registry.js';
 import { EditableCanvas } from './EditableCanvas.jsx';
 import { BlockConfigPanel } from './BlockConfigPanel.jsx';
 import { AddBlockButton } from './AddBlockButton.jsx';
+import { defaultEventBlocks } from '../../blocks/eventPage.js';
 import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Input } from '../../design-system/components/forms/Input.jsx';
 import { Textarea } from '../../design-system/components/forms/Textarea.jsx';
@@ -79,6 +80,11 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const [unpublishAt, setUnpublishAt] = React.useState('');
   const saveTimer = React.useRef(null);
   const isPost = table === 'blog_posts';
+  // An event's own page. Same editor and same draft/published block columns as
+  // posts and pages, but no scheduling (the sweep job only covers pages and
+  // posts), and its title/date/place come from the event record itself -- see
+  // the "Event details" card below and EventDetailsBlock.
+  const isEvent = table === 'calendar_events';
   // Same toggle that gates the Pages list's health badges (see
   // PagesListScreen.jsx / the Settings section on the Diagnostics screen) --
   // the SEO details panel below is the same kind of "extra, not needed to
@@ -109,7 +115,8 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     supabaseBrowser.from(table).select('*').eq('slug', slug).single().then(({ data }) => {
       if (!active || !data) return;
       setRow(data);
-      setBlocks(Array.isArray(data.draft_blocks) ? data.draft_blocks : []);
+      const saved = Array.isArray(data.draft_blocks) ? data.draft_blocks : [];
+      setBlocks(isEvent && saved.length === 0 ? defaultEventBlocks(data.id) : saved);
       setUnpublishAt(toLocalInputValue(data.unpublish_at));
       // ?schedule=1 -- set by EventsScreen.jsx's "Create Announcement" --
       // opens straight into "Schedule for later" so a publish TIME is the
@@ -150,6 +157,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
 
   function handleAdd(type) {
     const block = createBlock(type);
+    if (BLOCK_REGISTRY[type]?.eventBound) block.props.eventId = row.id;
     updateBlocks([...blocks, block]);
     setSelectedId(block.id);
   }
@@ -362,7 +370,12 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     setPublishing(true);
     const { error } = await supabaseBrowser
       .from(table)
-      .update({ published_blocks: blocks, status: 'published', published_at: new Date().toISOString(), publish_at: null })
+      .update(isEvent
+        // Keeps the original go-live time (it orders the event in the
+        // announcements feed, and shouldn't jump every time the page is
+        // edited and re-published), and has no publish_at column to clear.
+        ? { published_blocks: blocks, status: 'published', published_at: row.published_at || new Date().toISOString() }
+        : { published_blocks: blocks, status: 'published', published_at: new Date().toISOString(), publish_at: null })
       .eq('id', row.id);
     setPublishing(false);
     setPublishOpen(false);
@@ -370,7 +383,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
       setToast({ tone: 'error', text: 'Could not publish: ' + error.message });
     } else {
       setToast({ tone: 'success', text: 'Published — live in about a minute.' });
-      setRow((r) => ({ ...r, status: 'published', publish_at: null }));
+      setRow((r) => ({ ...r, status: 'published', publish_at: null, published_at: r.published_at || new Date().toISOString() }));
     }
     setTimeout(() => setToast(null), 4000);
   }
@@ -427,7 +440,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   // Only meaningful once published -- the live site only ever renders
   // published_blocks, so a draft-only page has no real public URL yet.
   const liveHref = row.status === 'published'
-    ? withBase(isPost ? `/announcements/${row.slug}` : (row.route_path || `/${row.slug}`))
+    ? withBase(isEvent ? `/events/${row.slug}` : isPost ? `/announcements/${row.slug}` : (row.route_path || `/${row.slug}`))
     : null;
 
   // Same path, but NOT withBase()-wrapped and not gated on being published
@@ -435,7 +448,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   // (pasted into a Button's Link field elsewhere, which renders its href
   // completely as-is, with no base-path wrapping of its own) rather than an
   // actual clickable link, so preparing it ahead of publishing is fine.
-  const pageUrl = isPost ? `/announcements/${row.slug}` : (row.route_path || `/${row.slug}`);
+  const pageUrl = isEvent ? `/events/${row.slug}` : isPost ? `/announcements/${row.slug}` : (row.route_path || `/${row.slug}`);
 
   return (
     <div>
@@ -469,7 +482,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
               View live ↗
             </a>
           )}
-          {row.published_blocks && <Button variant="ghost" size="sm" onClick={handleResetToPublished}>Reset to current setup - unedited</Button>}
+          {row.published_blocks?.length > 0 && <Button variant="ghost" size="sm" onClick={handleResetToPublished}>Reset to current setup - unedited</Button>}
           {row.status === 'published' && <Button variant="ghost" size="sm" onClick={handleUnpublish}>Unpublish</Button>}
           <Button variant="primary" onClick={() => { setPublishMode('now'); setScheduleAt(''); setPublishOpen(true); }}>Publish</Button>
         </div>
@@ -487,7 +500,19 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
         </div>
       )}
 
-      {!isPost && row.page_kind === 'builder' && showHealthWarnings && (
+      {isEvent && (
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          <Card title="Event details">
+            <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)' }}>
+              The title, date, place and description come from the event itself, so they're always current here -- change them
+              in <a href={withBase(`/admin/content?item=event:${row.id}`)} style={{ color: 'var(--text-link)' }}>Content</a> (Details).
+              Build the rest of the page below. Photos from this event's album appear on it automatically once the album is published.
+            </p>
+          </Card>
+        </div>
+      )}
+
+      {!isPost && !isEvent && row.page_kind === 'builder' && showHealthWarnings && (
         <div style={{ marginBottom: 'var(--space-6)' }}>
           <Card title="Page SEO details">
             {/* Collapsed by default -- these matter for search/social sharing
@@ -538,7 +563,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                 pathPrefix={`${table}/${row.id}`}
               />
               <div style={{ marginTop: 'var(--space-6)' }}>
-                <AddBlockButton onAdd={handleAdd} />
+                <AddBlockButton onAdd={handleAdd} allowEventBound={isEvent} />
               </div>
               {selectedBlock && (
                 <p style={{ marginTop: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
@@ -723,13 +748,13 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
         )}
       </div>
 
-      <Dialog open={publishOpen} title={isPost ? 'Publish this announcement?' : 'Publish this page?'} onClose={() => setPublishOpen(false)}>
-        <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+      <Dialog open={publishOpen} title={isEvent ? 'Publish this event?' : isPost ? 'Publish this announcement?' : 'Publish this page?'} onClose={() => setPublishOpen(false)}>
+        {!isEvent && <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
           <Button variant={publishMode === 'now' ? 'primary' : 'outline'} size="sm" onClick={() => setPublishMode('now')}>Publish now</Button>
           <Button variant={publishMode === 'schedule' ? 'primary' : 'outline'} size="sm" onClick={() => setPublishMode('schedule')}>Schedule for later</Button>
-        </div>
+        </div>}
 
-        {publishMode === 'now' ? (
+        {publishMode === 'now' || isEvent ? (
           <p style={{ color: 'var(--text-secondary)', marginTop: 0 }}>
             This replaces the live version of "{row.title}" with your current draft. It'll be visible on the public
             site within about a minute.
@@ -748,6 +773,11 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
           </div>
         )}
 
+        {isEvent ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-caption)', marginTop: 0 }}>
+            The event stays online after it ends, as part of the archive -- it just stops showing as upcoming or in announcements.
+          </p>
+        ) : (
         <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
           <Input
             label="Unpublish automatically (optional)"
@@ -759,10 +789,11 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
             Reverts to draft at this time — content stays saved, so republishing later needs no rework.
           </p>
         </div>
+        )}
 
         <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
           <Button variant="ghost" onClick={() => setPublishOpen(false)}>Cancel</Button>
-          {publishMode === 'now' ? (
+          {publishMode === 'now' || isEvent ? (
             <Button variant="primary" disabled={publishing} onClick={handlePublish}>
               {publishing ? 'Publishing…' : 'Publish'}
             </Button>

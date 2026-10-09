@@ -8,6 +8,9 @@ import { Dialog } from '../design-system/components/core/Dialog.jsx';
 
 export const emptyEvent = () => ({
   title: '', description: '', location: '', start_at: '', end_at: '', all_day: false, status: 'draft',
+  // On by default: an event IS its own announcement now, so the usual case is
+  // wanting it announced (nothing shows publicly until it's published anyway).
+  show_in_announcements: true,
 });
 
 // Datetime-local inputs need "YYYY-MM-DDTHH:mm" with no timezone suffix;
@@ -39,7 +42,7 @@ export function eventToDraft(row) {
 
 // The inverse -- what actually gets written to calendar_events on save.
 export function draftToEventPatch(draft) {
-  return {
+  const patch = {
     title: draft.title.trim(),
     description: draft.description || null,
     location: draft.location || null,
@@ -47,15 +50,29 @@ export function draftToEventPatch(draft) {
     end_at: fromLocalInputValue(draft.end_at, draft.all_day),
     all_day: draft.all_day,
     status: draft.status,
+    show_in_announcements: !!draft.show_in_announcements,
   };
+  if (draft.status === 'published') {
+    // When it went live orders it in the announcements feed; keep the
+    // original rather than resetting it on every edit.
+    if (!draft.published_at) patch.published_at = new Date().toISOString();
+    // A page customized in the editor but never published has its blocks
+    // only as a draft -- publishing the event has to publish them too, or the
+    // public page would show the default layout instead of what was built.
+    const neverPublished = !draft.published_blocks || draft.published_blocks.length === 0;
+    if (neverPublished && draft.draft_blocks && draft.draft_blocks.length > 0) patch.published_blocks = draft.draft_blocks;
+  }
+  return patch;
 }
 
-// `onSave(draft, extras)` -- extras is { announcement, album } booleans, only
-// ever true for a NEW event: the caller then creates those items prefilled
-// from the event and links them to it (see ContentScreen.jsx saveEvent).
+// `onSave(draft, extras)` -- extras is { album } (a boolean), only ever true for
+// a NEW event: the caller then creates a photo album named for the event and
+// links it (see ContentScreen.jsx saveEvent). There's no "also create an
+// announcement" any more: the event is its own page, and the "Show in
+// announcements" switch below is what puts it in the feed.
 export function EventDialog({ event, saving, onCancel, onSave }) {
   const [draft, setDraft] = React.useState(event);
-  const [extras, setExtras] = React.useState({ announcement: false, album: false });
+  const [extras, setExtras] = React.useState({ album: false });
   const isNew = !event.id;
   function patch(p) { setDraft((d) => ({ ...d, ...p })); }
 
@@ -90,31 +107,30 @@ export function EventDialog({ event, saving, onCancel, onSave }) {
           options={[{ value: 'draft', label: 'Draft (hidden from public)' }, { value: 'published', label: 'Published' }]}
           onChange={(e) => patch({ status: e.target.value })}
         />
-        {/* What an event is for: the calendar entry (when/where). An
-            announcement is the optional publicity around it, an album the
-            photos from it -- so both are opt-in, offered once, here, and come
-            out prefilled and already linked rather than as separate chores. */}
+        {/* An event is its own page (/events/<name>). This puts it in the
+            announcements too while it's upcoming; once it's over it leaves the
+            feed but its page -- and photos -- stay up as part of the archive. */}
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)', cursor: 'pointer' }}>
+          <Switch checked={!!draft.show_in_announcements} onChange={(e) => patch({ show_in_announcements: e.target.checked })} />
+          <span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-body)', color: 'var(--text-primary)' }}>Show in announcements</span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+              While it's upcoming, this event also appears with the announcements. After it ends it moves to the archive, where its page and photos stay.
+            </span>
+          </span>
+        </label>
         {isNew && (
-          <fieldset style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)', margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            <legend style={{ padding: '0 var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)' }}>Also create (optional)</legend>
-            <ExtraOption
-              checked={extras.announcement}
-              onChange={(v) => setExtras((x) => ({ ...x, announcement: v }))}
-              title="An announcement"
-              hint="Prefilled with the title, date and place. It unpublishes itself after the event, and you'll choose when it goes live."
-            />
-            <ExtraOption
-              checked={extras.album}
-              onChange={(v) => setExtras((x) => ({ ...x, album: v }))}
-              title="A photo album"
-              hint="An empty draft album to add photos to during or after the event. Its “Photos” link appears on the event once it has published photos."
-            />
-          </fieldset>
+          <ExtraOption
+            checked={extras.album}
+            onChange={(v) => setExtras({ album: v })}
+            title="Also create a photo album"
+            hint="An empty draft album to add photos to during or after the event. It appears on the event's page once it's published and has photos."
+          />
         )}
         <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
           <Button variant="ghost" onClick={onCancel}>Cancel</Button>
           <Button variant="primary" disabled={saving || !canSave} onClick={() => onSave(draft, isNew ? extras : {})}>
-            {saving ? 'Saving…' : isNew && (extras.announcement || extras.album) ? 'Save & create' : 'Save'}
+            {saving ? 'Saving…' : isNew && extras.album ? 'Save & create album' : 'Save'}
           </Button>
         </div>
       </div>

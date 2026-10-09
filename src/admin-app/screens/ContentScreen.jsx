@@ -5,6 +5,7 @@ import { Badge } from '../../design-system/components/core/Badge.jsx';
 import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Input } from '../../design-system/components/forms/Input.jsx';
 import { Select } from '../../design-system/components/forms/Select.jsx';
+import { Switch } from '../../design-system/components/forms/Switch.jsx';
 import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { EyeIcon, EyeOffIcon, CopyIcon, TrashIcon } from '../icons.jsx';
 import { slugify, uniqueSlug } from '../slug.js';
@@ -32,6 +33,7 @@ const STATUS_OPTIONS = [
   { value: 'published', label: 'Published' },
   { value: 'scheduled', label: 'Scheduled' },
   { value: 'draft', label: 'Draft' },
+  { value: 'past', label: 'Past events (archive)' },
 ];
 
 const SORT_OPTIONS = [
@@ -51,7 +53,8 @@ function metaLine(item) {
   const r = item.raw;
   if (item.kind === 'event') {
     const when = r.all_day ? fmtDate(r.start_at) : fmtDateTime(r.start_at);
-    return `${when}${r.location ? ` · ${r.location}` : ''}`;
+    const phase = item.phase === 'past' ? ' · archived' : item.phase === 'live' ? ' · happening now' : '';
+    return `${when}${r.location ? ` · ${r.location}` : ''}${phase}`;
   }
   if (item.kind === 'announcement') {
     if (r.status === 'published' && r.published_at) return `Published ${fmtDate(r.published_at)}${r.unpublish_at ? ` · unpublishes ${fmtDate(r.unpublish_at)}` : ''}`;
@@ -108,7 +111,7 @@ export function ContentScreen({ initialKind = 'all' }) {
     const q = query.trim().toLowerCase();
     const list = index.items
       .filter((i) => kind === 'all' || i.kind === kind)
-      .filter((i) => status === 'all' || i.status === status)
+      .filter((i) => status === 'all' || (status === 'past' ? i.kind === 'event' && i.phase === 'past' : i.status === status))
       .filter((i) => !q || i.title.toLowerCase().includes(q));
     const byDate = (a, b) => new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
     if (sort === 'az') return list.sort((a, b) => a.title.localeCompare(b.title));
@@ -142,6 +145,14 @@ export function ContentScreen({ initialKind = 'all' }) {
       const table = supabaseBrowser.from(TABLE[item.kind]);
       if (item.kind === 'announcement' && publish) {
         return table.update({ published_blocks: item.raw.draft_blocks, status: 'published', published_at: new Date().toISOString() }).eq('id', item.id);
+      }
+      if (item.kind === 'event' && publish) {
+        // Keeps its original go-live time (it orders the announcements feed), and
+        // publishes a customized page along with it -- see draftToEventPatch.
+        const r = item.raw;
+        const patch = { status: 'published', published_at: r.published_at || new Date().toISOString() };
+        if ((!r.published_blocks || r.published_blocks.length === 0) && r.draft_blocks?.length > 0) patch.published_blocks = r.draft_blocks;
+        return table.update(patch).eq('id', item.id);
       }
       return table.update({ status: publish ? 'published' : 'draft' }).eq('id', item.id);
     }));
@@ -180,6 +191,13 @@ export function ContentScreen({ initialKind = 'all' }) {
     onDeleteSelected: () => deleteItems(selectedItems()),
   });
 
+  // The quick "In announcements" switch on an event row -- same field as in the
+  // Details dialog, without opening it.
+  async function setAnnounced(item, on) {
+    await supabaseBrowser.from('calendar_events').update({ show_in_announcements: on }).eq('id', item.id);
+    await reload();
+  }
+
   async function copyAnnouncement(item) {
     const r = item.raw;
     const slug = await uniqueSlug('blog_posts', slugify(`${r.title}-copy`));
@@ -208,22 +226,20 @@ export function ContentScreen({ initialKind = 'all' }) {
   }
 
   // Editing just updates. A NEW event is created through createEventWithExtras
-  // (crossCreate.js), which also makes whichever announcement/album the admin
-  // ticked; if an announcement was made we go straight to its editor, otherwise
-  // we stay here with the new event highlighted and its link chips showing.
+  // (crossCreate.js), which also makes the photo album if it was ticked; either
+  // way we stay here with the new event highlighted (its page can be customized
+  // any time with "Edit page" -- until then it has a default layout).
   async function saveEvent(draft, extras = {}) {
     setSaving(true);
     const patch = draftToEventPatch(draft);
     let created = null;
-    let redirect = null;
     if (draft.id) {
       await supabaseBrowser.from('calendar_events').update(patch).eq('id', draft.id);
     } else {
-      ({ event: created, redirect } = await createEventWithExtras(patch, extras));
+      ({ event: created } = await createEventWithExtras(patch, extras));
     }
     setSaving(false);
     setEventDraft(null);
-    if (redirect) { window.location.href = withBase(redirect); return; }
     await reload();
     if (created) setHighlightKey(`event:${created.id}`);
   }
@@ -236,7 +252,7 @@ export function ContentScreen({ initialKind = 'all' }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       <Card title="Content">
         <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
-          Announcements, events and photo albums in one place. Link related items together (an event with its announcement and photos) and they point to each other.
+          Announcements, events and photo albums in one place. An event is its own page: turn on “Show in announcements” to list it with the announcements until it's over, after which it's archived with its details and photos. Link an album to an event and its photos appear on the event's page.
         </p>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
@@ -304,6 +320,7 @@ export function ContentScreen({ initialKind = 'all' }) {
               onSelect={() => toggleSelected(item.key)}
               onEditEvent={() => setEventDraft(eventToDraft(item.raw))}
               onTogglePublished={() => setPublished([item], item.status !== 'published')}
+              onToggleAnnounced={(on) => setAnnounced(item, on)}
               onCopy={() => copyAnnouncement(item)}
               onDelete={() => deleteItems([item])}
               onOpenRelated={() => setRelatedKey(item.key)}
@@ -340,7 +357,7 @@ export function ContentScreen({ initialKind = 'all' }) {
   );
 }
 
-function ContentRow({ item, related, selected, highlighted, onSelect, onEditEvent, onTogglePublished, onCopy, onDelete, onOpenRelated, onFocusRelated }) {
+function ContentRow({ item, related, selected, highlighted, onSelect, onEditEvent, onToggleAnnounced, onTogglePublished, onCopy, onDelete, onOpenRelated, onFocusRelated }) {
   const tone = item.status === 'published' ? 'success' : item.status === 'scheduled' ? 'warning' : 'neutral';
   const shown = related.slice(0, 3);
   return (
@@ -368,8 +385,18 @@ function ContentRow({ item, related, selected, highlighted, onSelect, onEditEven
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-body-lg)', color: 'var(--text-primary)' }}>{item.title}</span>
           <Badge tone={tone}>{item.status}</Badge>
           <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>{kindLabel(item.kind)}</span>
+          {item.kind === 'event' && item.phase === 'past' && <Badge tone="neutral">Archived</Badge>}
+          {item.kind === 'event' && item.phase === 'live' && <Badge tone="success">Happening now</Badge>}
         </div>
         <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-muted)', marginTop: 2 }}>{metaLine(item)}</div>
+
+        {item.kind === 'event' && (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: 'var(--space-2)', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)' }}>
+            <Switch checked={item.showInAnnouncements} onChange={(e) => onToggleAnnounced(e.target.checked)} />
+            Show in announcements
+            {item.phase === 'past' && item.showInAnnouncements && <span style={{ color: 'var(--text-muted)' }}>(over — no longer listed)</span>}
+          </label>
+        )}
 
         {related.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
@@ -396,7 +423,10 @@ function ContentRow({ item, related, selected, highlighted, onSelect, onEditEven
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap', marginLeft: 'auto' }}>
         <Button variant="outline" size="sm" onClick={onOpenRelated}>🔗 {related.length > 0 ? related.length : 'Link'}</Button>
         {item.kind === 'event' ? (
-          <Button variant="primary" size="sm" onClick={onEditEvent}>Edit</Button>
+          <>
+            <Button variant="outline" size="sm" onClick={onEditEvent}>Details</Button>
+            <a href={editHref(item)} style={{ textDecoration: 'none' }}><Button variant="primary" size="sm">Edit page</Button></a>
+          </>
         ) : (
           <a href={editHref(item)} style={{ textDecoration: 'none' }}><Button variant="primary" size="sm">Edit</Button></a>
         )}
