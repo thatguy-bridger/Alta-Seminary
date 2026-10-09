@@ -9,33 +9,39 @@ import { DirectoryPersonDialog } from './DirectoryPersonDialog.jsx';
 
 const KIND_PATH = { staff: 'staff', council: 'council', missionary: 'missionaries' };
 
-// Bio + any extra fields (phone/email/title/whatever the admin filled in),
+// The role/title gets its own line at the top of the card (see `header`), so
+// it's left out of the snippet. "term" was removed as a directory field
+// entirely; it's skipped here too in case a stray value ever lingers.
+const NOT_IN_SNIPPET = ['role', 'term'];
+
+// Bio + any other extra fields (phone/email/whatever the admin filled in),
 // flattened into one snippet -- the card only has room for a preview, the
 // full text lives behind the "larger preview" dialog (DirectoryPersonDialog).
-function cardSnippet(person) {
+export function cardSnippet(person) {
   const parts = [];
   if (person.bio) parts.push(person.bio);
   if (person.extra_fields) {
-    for (const value of Object.values(person.extra_fields)) {
-      if (value) parts.push(String(value));
+    for (const [key, value] of Object.entries(person.extra_fields)) {
+      if (value && !NOT_IN_SNIPPET.includes(key)) parts.push(String(value));
     }
   }
   return parts.join(' · ');
 }
 
-// Clips to ~3 lines and fades the last line to transparent instead of a hard
+// Clips to ~5 lines and fades the last line to transparent instead of a hard
 // cutoff or "…" -- reads as "there's more, go open it" rather than a truncated dead end.
+// (It used to be 3; the cards are taller now so more of the bio shows.)
 const snippetStyle = {
   margin: 'var(--space-2) 0 0',
   fontFamily: 'var(--font-sans)',
   fontSize: 'var(--fs-small)',
   color: 'var(--text-secondary)',
   textAlign: 'center',
-  maxHeight: '4.5em',
+  maxHeight: '7.5em',
   lineHeight: '1.5em',
   overflow: 'hidden',
-  WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
-  maskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
+  WebkitMaskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)',
+  maskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)',
 };
 
 // `items` is pre-fetched and passed in by the Astro public page (see
@@ -114,6 +120,12 @@ export function DirectoryTeaserBlock({ heading, sourceType = 'staff', count = '3
             const snippet = cardSnippet(person);
             const header = (
               <>
+                {/* Role / title leads the card, in the site's accent red. */}
+                {person.extra_fields?.role && (
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-link)', textAlign: 'center', marginBottom: 'var(--space-3)' }}>
+                    {person.extra_fields.role}
+                  </div>
+                )}
                 {person.photo_url && (
                   <img src={person.photo_url} alt={person.name} loading="lazy" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)', flexShrink: uniformCardSize ? 0 : undefined }} />
                 )}
