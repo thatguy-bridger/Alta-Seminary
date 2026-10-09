@@ -7,6 +7,26 @@ import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 export function GalleryBlock({ heading, albumFilter = 'all', columns = '3', count = '24', items, headingStyle, editable, onFieldChange }) {
   const [fetched, setFetched] = React.useState(null);
   const [openIndex, setOpenIndex] = React.useState(null);
+  // Set when the page was opened with ?album=<id> (an event's "Photos" link):
+  // that one album's photos, shown instead of the block's own configured set.
+  const [albumView, setAlbumView] = React.useState(null);
+
+  // Runs after mount on purpose, never during the first render -- the server
+  // can't see the query string, so deciding this at render time would make
+  // the server HTML and the client's first render differ (a hydration
+  // mismatch). As an effect it's an ordinary update right after hydration.
+  React.useEffect(() => {
+    if (editable) return;
+    const albumId = new URLSearchParams(window.location.search).get('album');
+    if (!albumId) return;
+    let active = true;
+    import('../lib/supabase/browser-client').then(({ supabaseBrowser }) =>
+      import('./teaserData.js').then(({ fetchGalleryTeaserItems }) =>
+        fetchGalleryTeaserItems(supabaseBrowser, albumId, 'all').then((photos) => active && setAlbumView({ photos }))
+      )
+    );
+    return () => { active = false; };
+  }, [editable]);
 
   React.useEffect(() => {
     if (items !== undefined) return;
@@ -19,7 +39,7 @@ export function GalleryBlock({ heading, albumFilter = 'all', columns = '3', coun
     return () => { active = false; };
   }, [items, albumFilter, count]);
 
-  const list = items !== undefined ? items : fetched;
+  const list = albumView ? albumView.photos : (items !== undefined ? items : fetched);
 
   return (
     <div>
@@ -29,6 +49,12 @@ export function GalleryBlock({ heading, albumFilter = 'all', columns = '3', coun
             <EditableText value={heading} onCommit={(v) => onFieldChange('heading', v)} placeholder="Heading" styleValue={headingStyle} onStyleChange={(s) => onFieldChange('headingStyle', s)} />
           ) : <RichText inline text={heading} />}
         </h2>
+      )}
+      {albumView && (
+        <p style={{ textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-muted)', margin: '0 0 var(--space-4)' }}>
+          Showing photos from one album.{' '}
+          <a href={window.location.pathname} style={{ color: 'var(--text-link)' }}>Show all photos</a>
+        </p>
       )}
       {list === null ? (
         <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</p>

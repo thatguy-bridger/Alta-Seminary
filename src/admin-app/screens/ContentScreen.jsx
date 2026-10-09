@@ -16,6 +16,7 @@ import { UsedOnLine } from '../UsedOnLine.jsx';
 import { kindLabel, kindIcon } from '../contentLinks.js';
 import { loadContentIndex, relatedItems, editHref, deleteLinksFor } from '../contentIndex.js';
 import { RelatedContentDialog } from '../RelatedContentDialog.jsx';
+import { createEventWithExtras } from '../crossCreate.js';
 import { AnnouncementExtras } from '../AnnouncementExtras.jsx';
 import { EventDialog, emptyEvent, eventToDraft, draftToEventPatch } from '../EventDialog.jsx';
 
@@ -206,14 +207,25 @@ export function ContentScreen({ initialKind = 'all' }) {
     setSaving(false);
   }
 
-  async function saveEvent(draft) {
+  // Editing just updates. A NEW event is created through createEventWithExtras
+  // (crossCreate.js), which also makes whichever announcement/album the admin
+  // ticked; if an announcement was made we go straight to its editor, otherwise
+  // we stay here with the new event highlighted and its link chips showing.
+  async function saveEvent(draft, extras = {}) {
     setSaving(true);
     const patch = draftToEventPatch(draft);
-    if (draft.id) await supabaseBrowser.from('calendar_events').update(patch).eq('id', draft.id);
-    else await supabaseBrowser.from('calendar_events').insert(patch);
+    let created = null;
+    let redirect = null;
+    if (draft.id) {
+      await supabaseBrowser.from('calendar_events').update(patch).eq('id', draft.id);
+    } else {
+      ({ event: created, redirect } = await createEventWithExtras(patch, extras));
+    }
     setSaving(false);
     setEventDraft(null);
+    if (redirect) { window.location.href = withBase(redirect); return; }
     await reload();
+    if (created) setHighlightKey(`event:${created.id}`);
   }
 
   if (index === null) return <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>;

@@ -5,6 +5,7 @@ import { textStyleToCss } from '../admin-app/builder/textStyle.js';
 import { Card } from '../design-system/components/core/Card.jsx';
 import { Badge } from '../design-system/components/core/Badge.jsx';
 import { formatSiteDate, formatSiteTime } from '../lib/dateFormat.js';
+import { withBase } from '../lib/url.js';
 
 // See DirectoryTeaserBlock.jsx for the `items` pre-fetch-vs-client-fetch pattern.
 export function EventsTeaserBlock({ heading, count = '3', timeframe = 'upcoming', items, headingStyle, editable, onFieldChange }) {
@@ -79,9 +80,23 @@ export function EventsTeaserBlock({ heading, count = '3', timeframe = 'upcoming'
                     {event.location && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-muted)' }}>{event.location}</div>}
                     {event.description && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', marginTop: 'var(--space-2)' }}>{event.description}</div>}
                     {!editable && (
-                      <button onClick={() => exportEvents([event], `${event.title}.ics`)} style={{ ...linkBtnStyle, marginTop: 'var(--space-2)' }}>
-                        + Add to calendar
-                      </button>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', marginTop: 'var(--space-2)' }}>
+                        <button onClick={() => exportEvents([event], `${event.title}.ics`)} style={linkBtnStyle}>
+                          + Add to calendar
+                        </button>
+                        {/* Only present once the linked announcement is published / the
+                            linked album has published photos -- see attachEventLinks. */}
+                        {event.links?.announcement && (
+                          <a href={withBase(`/announcements/${event.links.announcement.slug}`)} style={{ ...linkBtnStyle, textDecoration: 'none' }}>
+                            Read more →
+                          </a>
+                        )}
+                        {event.links?.album && (
+                          <a href={withBase(`/gallery?album=${event.links.album.id}`)} style={{ ...linkBtnStyle, textDecoration: 'none' }}>
+                            Photos →
+                          </a>
+                        )}
+                      </div>
                     )}
                   </div>
                   <Badge tone="info">

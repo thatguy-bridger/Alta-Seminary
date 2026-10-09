@@ -69,7 +69,33 @@ export async function fetchEventsTeaserItems(client, count, timeframe = 'upcomin
     console.error('events-teaser fetch failed:', error.message);
     return [];
   }
-  return data || [];
+  return attachEventLinks(client, data || []);
+}
+
+// Adds `links: { announcement?: {slug, title}, album?: {id, title} }` to each
+// event, from the public_event_links view (0029) -- the event's published
+// announcement ("Read more") and its album once it has published photos
+// ("Photos"). One batched query for the whole list, not one per event. A
+// failure here just means no extra links; it must never take the events
+// themselves down with it.
+export async function attachEventLinks(client, events) {
+  if (events.length === 0) return events;
+  const { data, error } = await client
+    .from('public_event_links')
+    .select('event_id, kind, target_id, slug, title')
+    .in('event_id', events.map((e) => e.id));
+  if (error) {
+    console.error('event links fetch failed:', error.message);
+    return events;
+  }
+  const byEvent = {};
+  for (const row of data || []) {
+    const links = (byEvent[row.event_id] ||= {});
+    // Several of one kind can be linked; the card has room for one of each.
+    if (row.kind === 'announcement' && !links.announcement) links.announcement = { slug: row.slug, title: row.title };
+    if (row.kind === 'album' && !links.album) links.album = { id: row.target_id, title: row.title };
+  }
+  return events.map((e) => ({ ...e, links: byEvent[e.id] || {} }));
 }
 
 // Unlike calendar_events (small, denormalized query above), the Photo Gallery

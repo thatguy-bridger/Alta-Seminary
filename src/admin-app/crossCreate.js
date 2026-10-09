@@ -1,6 +1,7 @@
 import { supabaseBrowser } from '../lib/supabase/browser-client';
 import { slugify, uniqueSlug } from './slug.js';
 import { linkContent } from './contentLinks.js';
+import { formatSiteDate, formatSiteTime } from '../lib/dateFormat.js';
 
 // Which OTHER kinds each kind can spin off a new, pre-filled, auto-linked
 // item of -- shown as "+ Create & link a new X" buttons on Events/
@@ -108,10 +109,14 @@ export function buildCrossCreateDraft(sourceKind, sourceRow, targetKind) {
     return { draft, missing: draft.start_at ? [] : ['start_at'] };
   }
   if (targetKind === 'announcement') {
+    // This text is stored in the announcement and shown publicly, so it's
+    // written in the seminary's own time zone, not whatever the admin's
+    // browser happens to be set to.
+    const longDate = { month: 'long', day: 'numeric', year: 'numeric' };
     const when = sourceKind === 'event' && sourceRow.start_at
-      ? new Date(sourceRow.start_at).toLocaleString(undefined, sourceRow.all_day
-        ? { month: 'long', day: 'numeric', year: 'numeric' }
-        : { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+      ? (sourceRow.all_day
+        ? formatSiteDate(sourceRow.start_at, longDate)
+        : `${formatSiteDate(sourceRow.start_at, longDate)}, ${formatSiteTime(sourceRow.start_at)}`)
       : '';
     const subheading = sourceKind === 'event'
       ? (sourceRow.location ? `${when} · ${sourceRow.location}` : when)
@@ -178,4 +183,24 @@ export async function createCrossLinkedItem(sourceKind, sourceId, targetKind, dr
     return { redirect: `/admin/gallery?album=${album.id}` };
   }
   throw new Error(`Unknown cross-create target: ${targetKind}`);
+}
+
+// Creates a NEW event and, for each extra the admin ticked, an announcement
+// and/or photo album prefilled from it and already linked to it -- the same
+// builders the Related dialog's "create new" buttons use. Returns the event
+// plus where to send the admin next: straight into the new announcement's
+// editor (it opens on "schedule for later", since only the admin knows when
+// it should go live), or null to stay put (an album alone has nothing to edit
+// yet -- it's an empty draft waiting for photos).
+export async function createEventWithExtras(eventPatch, extras = {}) {
+  const { data: event } = await supabaseBrowser.from('calendar_events').insert(eventPatch).select().single();
+  if (!event) return { event: null, redirect: null };
+  let redirect = null;
+  for (const kind of ['announcement', 'album']) {
+    if (!extras[kind]) continue;
+    const { draft } = buildCrossCreateDraft('event', event, kind);
+    const result = await createCrossLinkedItem('event', event.id, kind, draft);
+    if (kind === 'announcement' && result?.redirect) redirect = result.redirect;
+  }
+  return { event, redirect };
 }
