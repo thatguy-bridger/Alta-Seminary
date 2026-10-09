@@ -129,7 +129,7 @@ function SortableBlock({ block, selected, onSelect, onFieldChange, onOpenSetting
             editable
             onFieldChange={(key, value) => onFieldChange(block.id, key, value)}
             onAddImageBlocks={onDuplicateWithImages ? (urls) => onDuplicateWithImages(block.id, urls) : undefined}
-            onOpenSettings={(nestedKey, nestedIndex) => onOpenSettings(block.id, nestedKey, nestedIndex)}
+            onOpenSettings={(nestedKey, nestedIndex, subKey, subIndex) => onOpenSettings(block.id, nestedKey, nestedIndex, subKey, subIndex)}
             activeSettingsTarget={nestedSettingsTarget}
             pathPrefix={pathPrefix}
             blockId={block.id}

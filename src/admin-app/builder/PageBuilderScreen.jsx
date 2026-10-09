@@ -5,6 +5,7 @@ import { EditableCanvas } from './EditableCanvas.jsx';
 import { BlockConfigPanel } from './BlockConfigPanel.jsx';
 import { AddBlockButton } from './AddBlockButton.jsx';
 import { defaultEventBlocks } from '../../blocks/eventPage.js';
+import { isSameTarget, resolveTarget, applyTargetUpdate, targetLabel } from './settingsTarget.js';
 import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Input } from '../../design-system/components/forms/Input.jsx';
 import { Textarea } from '../../design-system/components/forms/Textarea.jsx';
@@ -36,13 +37,8 @@ function fromLocalInputValue(value) {
 // ("Quote / Scripture") doesn't say where it lives, and the Style panel can
 // otherwise be showing settings for something nowhere near what's visibly
 // selected on the canvas.
-function nestedContextLabel(blocks, settingsTarget) {
-  const parent = blocks.find((b) => b.id === settingsTarget.blockId);
-  if (!parent) return '';
-  const parentLabel = BLOCK_REGISTRY[parent.type]?.label || parent.type;
-  const noun = settingsTarget.nestedKey === 'items' ? 'slide' : 'column';
-  return `${parentLabel} — ${noun} ${settingsTarget.nestedIndex + 1}`;
-}
+// (Built by targetLabel in settingsTarget.js, which also knows the second
+// level: "Carousel — slide 2 — column 1".)
 
 const linkButtonStyle = {
   border: 'none', background: 'none', padding: 0, cursor: 'pointer',
@@ -307,40 +303,25 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     if (id && sidebarOpen) setSettingsTarget({ blockId: id, nestedKey: undefined, nestedIndex: undefined });
   }
 
-  function handleOpenSettings(blockId, nestedKey, nestedIndex) {
-    const isSameTarget = sidebarOpen && settingsTarget
-      && settingsTarget.blockId === blockId
-      && settingsTarget.nestedKey === nestedKey
-      && settingsTarget.nestedIndex === nestedIndex;
-    if (isSameTarget) {
+  // subKey/subIndex: the second nesting level -- an item inside a Columns block
+  // that is itself a slide of a Carousel (see settingsTarget.js).
+  function handleOpenSettings(blockId, nestedKey, nestedIndex, subKey, subIndex) {
+    const next = { blockId, nestedKey, nestedIndex, subKey, subIndex };
+    if (sidebarOpen && isSameTarget(settingsTarget, next)) {
       setSidebarOpen(false);
       return;
     }
-    setSettingsTarget({ blockId, nestedKey, nestedIndex });
+    setSettingsTarget(next);
     setSidebarOpen(true);
   }
 
   function resolveSettingsBlock() {
-    if (!settingsTarget) return null;
-    const parent = blocks.find((b) => b.id === settingsTarget.blockId);
-    if (!parent) return null;
-    if (!settingsTarget.nestedKey) return parent;
-    const nested = (parent.props[settingsTarget.nestedKey] || [])[settingsTarget.nestedIndex];
-    return nested ? { id: nested.id, type: nested.type, props: nested.props } : null;
+    return resolveTarget(blocks, settingsTarget);
   }
 
   function handleConfigChange(updatedBlock) {
     if (!settingsTarget) return;
-    if (!settingsTarget.nestedKey) {
-      updateBlocks(blocks.map((b) => (b.id === updatedBlock.id ? updatedBlock : b)));
-      return;
-    }
-    updateBlocks(blocks.map((b) => {
-      if (b.id !== settingsTarget.blockId) return b;
-      const list = [...(b.props[settingsTarget.nestedKey] || [])];
-      list[settingsTarget.nestedIndex] = { id: list[settingsTarget.nestedIndex].id, type: updatedBlock.type, props: updatedBlock.props };
-      return { ...b, props: { ...b.props, [settingsTarget.nestedKey]: list } };
-    }));
+    updateBlocks(applyTargetUpdate(blocks, settingsTarget, updatedBlock));
   }
 
   // Uses the functional form of setBlocks (not updateBlocks(blocks.map(...))
@@ -604,7 +585,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                     block={resolveSettingsBlock()}
                     onChange={handleConfigChange}
                     showLayout={!settingsTarget?.nestedKey}
-                    contextLabel={settingsTarget?.nestedKey ? nestedContextLabel(blocks, settingsTarget) : undefined}
+                    contextLabel={settingsTarget?.nestedKey ? targetLabel(blocks, settingsTarget) : undefined}
                     pageUrl={pageUrl}
                   />
                 </div>

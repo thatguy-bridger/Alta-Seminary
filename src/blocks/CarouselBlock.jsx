@@ -29,12 +29,24 @@ const AUTOFILL_DIRECTORY_PATH = { staff: 'staff', council: 'council', missionary
 
 // Carousel slides all share one fixed shape (picked in the Style panel) so
 // the slider has a consistent height regardless of which slide is showing.
+//
+// 'auto' ("fit the tallest slide") has no fixed shape of its own; anywhere
+// that still needs one (the editor's image frame and crop, the peek
+// thumbnails) falls back to 16:9. The live slider handles 'auto' separately.
 function ratioToNumber(ratio) {
-  const [w, h] = (ratio || '16:9').split(':').map(Number);
+  const [w, h] = (!ratio || ratio === 'auto' ? '16:9' : ratio).split(':').map(Number);
   return w / h;
 }
 function ratioToCss(ratio) {
-  return (ratio || '16:9').replace(':', '/');
+  return (!ratio || ratio === 'auto' ? '16:9' : ratio).replace(':', '/');
+}
+
+// Should the live slider size itself to its tallest slide instead of a fixed
+// shape? Yes when asked to ('auto'), and automatically when no slide has an
+// image: a fixed 16:9 box exists to give photos a consistent crop, and around a
+// lone button or a line of text it just makes a huge empty slab.
+export function carouselFitsContent(aspectRatio, slides) {
+  return aspectRatio === 'auto' || !slides.some((s) => s.type === 'media' && s.props?.image);
 }
 
 // A slide can either be the original "media" shape (an image with an
@@ -139,7 +151,8 @@ function mergeLegacySlides(items, legacyProps) {
 
 export function CarouselBlock({
   items, autoplay = true, autoplaySpeed = 'normal', loop = true, shuffleOnLoop = false, pauseOnHover = true,
-  showArrows = true, showDots = true, transition = 'slide', aspectRatio = '16:9',
+  showArrows = true, showDots = true, transition = 'slide', aspectRatio = '16:9', showBackground = true,
+  smoothScroll = false, smoothVisible = '3', smoothSpeed = 'normal',
   editable, onFieldChange, onOpenSettings, activeSettingsTarget, pathPrefix,
   ...legacyProps
 }) {
@@ -178,6 +191,11 @@ export function CarouselBlock({
       showDots={showDots}
       transition={transition}
       aspectRatio={aspectRatio}
+      fit={carouselFitsContent(aspectRatio, slides)}
+      showBackground={showBackground}
+      smooth={smoothScroll}
+      smoothVisible={smoothVisible}
+      smoothSpeed={smoothSpeed}
     />
   );
 }
@@ -362,7 +380,16 @@ function EditableCarousel({ slides, pathPrefix, onFieldChange, onOpenSettings, a
               pathPrefix={pathPrefix}
               onFieldChange={(key, value) => updateSlideProps(index, { [key]: value })}
               onOpenSettings={onOpenSettings ? () => onOpenSettings('items', index) : undefined}
-              isSettingsActive={activeSettingsTarget?.nestedKey === 'items' && activeSettingsTarget?.nestedIndex === index}
+              // The slide's own gear is only "on" when the panel is showing the
+              // slide itself -- not one of the columns inside it (below).
+              isSettingsActive={activeSettingsTarget?.nestedKey === 'items' && activeSettingsTarget?.nestedIndex === index && !activeSettingsTarget?.subKey}
+              // A Columns slide has its own items to configure: report them one
+              // level deeper (slide `index`, then column `subIndex`), and say which
+              // of them (if any) the panel is currently pointed at.
+              onOpenNestedSettings={onOpenSettings ? (subKey, subIndex) => onOpenSettings('items', index, subKey, subIndex) : undefined}
+              activeNested={activeSettingsTarget?.nestedKey === 'items' && activeSettingsTarget?.nestedIndex === index && activeSettingsTarget?.subKey
+                ? { nestedKey: activeSettingsTarget.subKey, nestedIndex: activeSettingsTarget.subIndex }
+                : null}
             />
           )}
         </div>
@@ -508,7 +535,7 @@ function AutofillControls({ onGenerate }) {
 // Embed's URL) using the same field renderer as the page-level style panel --
 // those fields have no other home since a slide isn't a real page block with
 // its own row in BlockConfigPanel.
-function SlideBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, onOpenSettings, isSettingsActive }) {
+function SlideBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, onOpenSettings, isSettingsActive, onOpenNestedSettings, activeNested }) {
   const def = BLOCK_REGISTRY[type];
   const Component = BLOCK_COMPONENTS[type];
   if (!def || !Component) return null;
@@ -516,7 +543,18 @@ function SlideBlockEditor({ type, blockId, props, pathPrefix, onFieldChange, onO
 
   return (
     <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', background: 'var(--surface-card)' }}>
-      <Component {...props} editable onFieldChange={onFieldChange} pathPrefix={pathPrefix} blockId={blockId} />
+      {/* Only a Columns slide has items of its own to configure. Without these
+          two props its per-column "⚙ Settings" buttons never rendered at all
+          (Columns only shows them when it's given somewhere to send the click),
+          so anything inside a column inside a slide had no settings. */}
+      <Component
+        {...props}
+        editable
+        onFieldChange={onFieldChange}
+        pathPrefix={pathPrefix}
+        blockId={blockId}
+        {...(type === 'columns' ? { onOpenSettings: onOpenNestedSettings, activeSettingsTarget: activeNested } : {})}
+      />
       {settingsFields.length > 0 && onOpenSettings && (
         // This slide's settings (a Button's href, an Embed's URL, ...) live
         // in the same right-hand panel as everything else -- see
@@ -615,7 +653,7 @@ function shuffle(arr) {
   return a;
 }
 
-function LiveCarousel({ items, autoplay, autoplaySpeed, loop, shuffleOnLoop, pauseOnHover, showArrows, showDots, transition, aspectRatio }) {
+function LiveCarousel({ items, autoplay, autoplaySpeed, loop, shuffleOnLoop, pauseOnHover, showArrows, showDots, transition, aspectRatio, fit, showBackground, smooth, smoothVisible, smoothSpeed }) {
   const [index, setIndex] = React.useState(0);
   // The actually-displayed order -- identical to `items` unless
   // shuffleOnLoop has reshuffled it after a full pass (see `go` below).
@@ -660,10 +698,11 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, shuffleOnLoop, pau
   }, [order.length, loop, shuffleOnLoop]);
 
   React.useEffect(() => {
-    if (!autoplay || paused) return;
+    // Smooth mode moves by CSS animation, not by stepping to the next slide.
+    if (smooth || !autoplay || paused) return;
     const id = setInterval(() => go(index + 1), SPEED_MS[autoplaySpeed] || SPEED_MS.normal);
     return () => clearInterval(id);
-  }, [autoplay, paused, index, autoplaySpeed, go]);
+  }, [smooth, autoplay, paused, index, autoplaySpeed, go]);
 
   function handleKeyDown(e) {
     if (e.key === 'ArrowLeft') go(index - 1);
@@ -677,6 +716,18 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, shuffleOnLoop, pau
     touchStartX.current = null;
   }
 
+  // Shared by both modes. In smooth mode there's no auto-advance setting to
+  // gate it on -- it's always moving -- so it's always offered.
+  const pauseButton = (autoplay || smooth) ? (
+    <button
+      aria-label={paused ? 'Play carousel' : 'Pause carousel'}
+      onClick={togglePaused}
+      style={{ position: 'absolute', top: 'var(--space-3)', right: 'var(--space-3)', zIndex: 1, width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'rgba(20,20,22,0.6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+    >
+      {paused ? <PlayIcon /> : <PauseIcon />}
+    </button>
+  ) : null;
+
   return (
     <div
       role="region"
@@ -689,18 +740,29 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, shuffleOnLoop, pau
       onTouchEnd={handleTouchEnd}
       style={{ position: 'relative', outline: 'none' }}
     >
-      <div style={{ position: 'relative', aspectRatio: ratioToCss(aspectRatio), borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+      {smooth ? (
+        <div style={{ position: 'relative' }}>
+          <TickerTrack items={order} visible={smoothVisible} speed={smoothSpeed} paused={paused} fit={fit} aspectRatio={aspectRatio} showBackground={showBackground} />
+          {pauseButton}
+        </div>
+      ) : (
+      /* Fit mode: no fixed shape, so the box is as tall as the TALLEST slide
+          and stays that height as slides change (no jumping). A sliding row
+          already does this -- flex items stretch to the tallest -- and fading
+          slides are stacked in one grid cell instead of absolutely positioned,
+          since absolute slides contribute no height of their own. */
+      <div style={{ position: 'relative', ...(fit ? { display: transition === 'fade' ? 'grid' : 'block' } : { aspectRatio: ratioToCss(aspectRatio) }), borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: showBackground ? 'var(--shadow-sm)' : 'none' }}>
         {transition === 'fade' ? (
           order.map((item, i) => (
-            <div key={item.id ?? i} style={{ position: 'absolute', inset: 0, opacity: i === index ? 1 : 0, transition: 'opacity var(--duration-standard)', pointerEvents: i === index ? 'auto' : 'none' }}>
-              <Slide item={item} eager={i === 0} />
+            <div key={item.id ?? i} style={{ ...(fit ? { gridArea: '1 / 1' } : { position: 'absolute', inset: 0 }), opacity: i === index ? 1 : 0, transition: 'opacity var(--duration-standard)', pointerEvents: i === index ? 'auto' : 'none' }}>
+              <Slide item={item} eager={i === 0} showBackground={showBackground} />
             </div>
           ))
         ) : (
-          <div style={{ display: 'flex', width: '100%', height: '100%', transform: `translateX(-${index * 100}%)`, transition: 'transform var(--duration-standard) var(--ease-standard)' }}>
+          <div style={{ display: 'flex', width: '100%', height: fit ? undefined : '100%', transform: `translateX(-${index * 100}%)`, transition: 'transform var(--duration-standard) var(--ease-standard)' }}>
             {order.map((item, i) => (
-              <div key={item.id ?? i} style={{ flex: '0 0 100%', height: '100%' }}>
-                <Slide item={item} eager={i === 0} />
+              <div key={item.id ?? i} style={{ flex: '0 0 100%', height: fit ? undefined : '100%' }}>
+                <Slide item={item} eager={i === 0} showBackground={showBackground} />
               </div>
             ))}
           </div>
@@ -713,18 +775,11 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, shuffleOnLoop, pau
           </>
         )}
 
-        {autoplay && (
-          <button
-            aria-label={paused ? 'Play carousel' : 'Pause carousel'}
-            onClick={togglePaused}
-            style={{ position: 'absolute', top: 'var(--space-3)', right: 'var(--space-3)', width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'rgba(20,20,22,0.6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-          >
-            {paused ? <PlayIcon /> : <PauseIcon />}
-          </button>
-        )}
+        {pauseButton}
       </div>
+      )}
 
-      {showDots && order.length > 1 && (
+      {!smooth && showDots && order.length > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
           {order.map((item, i) => (
             <button
@@ -741,15 +796,79 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, shuffleOnLoop, pau
   );
 }
 
+// "Smooth slider": instead of snapping from slide to slide, the row drifts
+// sideways continuously, like a ticker. Several slides are visible at once and
+// the loop is seamless: the set of slides is laid out TWICE end to end and the
+// track slides left by exactly one set's width, then repeats -- at the instant
+// it restarts, the second copy sits precisely where the first began. (If there
+// are fewer slides than are visible at once, the set is repeated until it
+// fills the row, or the end of the first pass would show a gap.)
+//
+// `speed` is how long one slide takes to cross, so the pace stays the same
+// however many slides there are -- not how long the whole loop takes.
+const TICKER_SECONDS_PER_SLIDE = { slow: 8, normal: 5, fast: 3 };
+
+// Pure, so the math is testable: how the row is laid out for a given setup.
+export function tickerLayout(slideCount, visible, speed) {
+  const perView = Math.max(1, Number(visible) || 3);
+  const repeats = Math.max(1, Math.ceil(perView / Math.max(1, slideCount)));
+  const setSize = slideCount * repeats;
+  return {
+    perView,
+    setSize,
+    trackSize: setSize * 2,
+    trackWidthPct: (setSize * 2 / perView) * 100,   // track width as % of the visible row
+    itemBasisPct: 100 / (setSize * 2),               // each slide, as % of the track
+    seconds: setSize * (TICKER_SECONDS_PER_SLIDE[speed] || TICKER_SECONDS_PER_SLIDE.normal),
+  };
+}
+
+// Respecting "reduce motion": no animation, and the row scrolls by hand instead.
+const TICKER_CSS = `@keyframes alta-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}@media (prefers-reduced-motion: reduce){.alta-ticker__track{animation:none!important}.alta-ticker{overflow-x:auto!important}}`;
+
+function TickerTrack({ items, visible, speed, paused, fit, aspectRatio, showBackground }) {
+  const layout = tickerLayout(items.length, visible, speed);
+  const base = Array.from({ length: layout.setSize / items.length }, () => items).flat();
+  const track = [...base, ...base];
+  return (
+    <div className="alta-ticker" style={{ overflow: 'hidden', borderRadius: 'var(--radius-lg)' }}>
+      <style>{TICKER_CSS}</style>
+      <div
+        className="alta-ticker__track"
+        style={{ display: 'flex', width: `${layout.trackWidthPct}%`, animation: `alta-ticker ${layout.seconds}s linear infinite`, animationPlayState: paused ? 'paused' : 'running' }}
+      >
+        {track.map((item, i) => {
+          const isCopy = i >= base.length;
+          return (
+            // The second copy exists only to make the loop seamless: hidden from
+            // assistive tech and unfocusable, so every slide is announced and
+            // tabbed to once, not twice.
+            <div
+              key={`${item.id ?? 'slide'}-${i}`}
+              aria-hidden={isCopy || undefined}
+              inert={isCopy || undefined}
+              style={{ flex: `0 0 ${layout.itemBasisPct}%`, minWidth: 0, padding: '0 var(--space-2)', boxSizing: 'border-box', ...(fit ? {} : { aspectRatio: ratioToCss(aspectRatio) }) }}
+            >
+              <div style={{ height: '100%', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: showBackground ? 'var(--shadow-sm)' : 'none' }}>
+                <Slide item={item} eager={i < layout.perView} showBackground={showBackground} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Dispatches a live (read-only) slide to its renderer: the original
 // image+heading/caption overlay for 'media' slides, or the nested block's
 // own component for everything else (see AddBlockButton's excludeTypes above).
-function Slide({ item, eager }) {
-  if (item.type === 'media') return <MediaSlide {...item.props} eager={eager} />;
+function Slide({ item, eager, showBackground = true }) {
+  if (item.type === 'media') return <MediaSlide {...item.props} eager={eager} showBackground={showBackground} />;
   const Component = BLOCK_COMPONENTS[item.type];
   if (!Component) return null;
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-6)', background: 'var(--surface-card)', boxSizing: 'border-box' }}>
+    <div style={{ width: '100%', height: '100%', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-6)', background: showBackground ? 'var(--surface-card)' : 'transparent', boxSizing: 'border-box' }}>
       <div style={{ width: '100%' }}>
         <Component {...item.props} blockId={item.id} />
       </div>
@@ -762,14 +881,14 @@ function Slide({ item, eager }) {
 // correctly treats them as offscreen and defers them regardless of the
 // active index. See ImageBlock.jsx/DirectoryTeaserBlock.jsx etc. for the
 // same loading="lazy" treatment on other public-facing content images.
-function MediaSlide({ image, heading, caption, headingStyle, captionStyle, link, eager }) {
+function MediaSlide({ image, heading, caption, headingStyle, captionStyle, link, eager, showBackground = true }) {
   // Auto-filled from a source with no photo of its own (e.g. a calendar
   // event) -- shown as centered text on a plain surface instead of the
   // usual image-with-bottom-overlay treatment.
   if (!image) {
     if (!heading && !caption) return null;
     return (
-      <MediaSlideLink link={link} style={{ width: '100%', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 'var(--space-6)', background: 'var(--surface-sunken)' }}>
+      <MediaSlideLink link={link} style={{ width: '100%', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 'var(--space-6)', background: showBackground ? 'var(--surface-sunken)' : 'transparent' }}>
         {heading && <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-subheading)', color: 'var(--text-primary)', ...textStyleToCss(headingStyle) }}><RichText inline text={heading} /></div>}
         {caption && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', marginTop: 'var(--space-2)', ...textStyleToCss(captionStyle) }}><RichText inline text={caption} /></div>}
       </MediaSlideLink>
