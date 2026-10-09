@@ -11,9 +11,13 @@ import { BlockIcon } from './blockIcons.jsx';
 // block that sits outside the normal content flow -- see registry.js) makes
 // no sense as a Carousel slide or Columns column, so both of those pickers
 // pass this; the top-level "+ Add block" button leaves it off.
-export function AddBlockButton({ onAdd, label = '+ Add block', dialogTitle = 'Add a block', excludeTypes = [], excludeChromeless = false }) {
+export function AddBlockButton({ onAdd, label = '+ Add block', dialogTitle = 'Add a block', excludeTypes = [], excludeChromeless = false, allowEventBound = false }) {
   const [open, setOpen] = React.useState(false);
-  const types = BLOCK_TYPES.filter((t) => !excludeTypes.includes(t) && !(excludeChromeless && BLOCK_REGISTRY[t].chromeless));
+  // Event-bound blocks (Event Details / Event Photos) read the event they belong
+  // to, so they only make sense in an event's own page editor, which opts in
+  // with allowEventBound. Everywhere else -- other pages, a Columns slot, a
+  // Carousel slide -- they'd be a block with no event to show.
+  const types = BLOCK_TYPES.filter((t) => !excludeTypes.includes(t) && !(excludeChromeless && BLOCK_REGISTRY[t].chromeless) && (allowEventBound || !BLOCK_REGISTRY[t].eventBound));
   // Grouped by category (Layout/Media/Informational/Interactive/Live
   // Content -- see registry.js) instead of one long flat list, now that
   // there are enough block types that scanning all of them at once is a lot

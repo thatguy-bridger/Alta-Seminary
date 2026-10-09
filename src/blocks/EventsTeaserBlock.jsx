@@ -49,10 +49,14 @@ export function EventsTeaserBlock({ heading, count = '3', timeframe = 'upcoming'
       {list === null ? (
         <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</p>
       ) : list.length === 0 ? (
-        editable ? <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No {timeframe === 'upcoming' ? 'upcoming ' : ''}published events yet.</p> : null
+        editable
+          ? <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No {timeframe === 'upcoming' ? 'upcoming ' : timeframe === 'past' ? 'past ' : ''}published events yet.</p>
+          : <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>
+              {timeframe === 'past' ? 'No past events yet.' : timeframe === 'upcoming' ? 'No upcoming events right now.' : 'No events yet.'}
+            </p>
       ) : (
         <>
-          {!editable && list.length > 1 && (
+          {!editable && list.length > 1 && timeframe !== 'past' && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginBottom: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)' }}>
               {selected.size > 0 && (
                 <button onClick={() => exportEvents(list.filter((e) => selected.has(e.id)), 'events.ics')} style={linkBtnStyle}>
@@ -81,18 +85,21 @@ export function EventsTeaserBlock({ heading, count = '3', timeframe = 'upcoming'
                     {event.description && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', marginTop: 'var(--space-2)' }}>{event.description}</div>}
                     {!editable && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', marginTop: 'var(--space-2)' }}>
-                        <button onClick={() => exportEvents([event], `${event.title}.ics`)} style={linkBtnStyle}>
-                          + Add to calendar
-                        </button>
-                        {/* Only present once the linked announcement is published / the
-                            linked album has published photos -- see attachEventLinks. */}
-                        {event.links?.announcement && (
-                          <a href={withBase(`/announcements/${event.links.announcement.slug}`)} style={{ ...linkBtnStyle, textDecoration: 'none' }}>
+                        {/* A calendar entry for something already over is no use. */}
+                        {event.phase !== 'past' && (
+                          <button onClick={() => exportEvents([event], `${event.title}.ics`)} style={linkBtnStyle}>
+                            + Add to calendar
+                          </button>
+                        )}
+                        {/* Every event has its own page (details, and the album's photos
+                            once published) -- see pages/events/[slug].astro. */}
+                        {event.slug && (
+                          <a href={withBase(`/events/${event.slug}`)} style={{ ...linkBtnStyle, textDecoration: 'none' }}>
                             Read more →
                           </a>
                         )}
-                        {event.links?.album && (
-                          <a href={withBase(`/gallery?album=${event.links.album.id}`)} style={{ ...linkBtnStyle, textDecoration: 'none' }}>
+                        {event.slug && event.links?.album && (
+                          <a href={withBase(`/events/${event.slug}#photos`)} style={{ ...linkBtnStyle, textDecoration: 'none' }}>
                             Photos →
                           </a>
                         )}
@@ -108,6 +115,13 @@ export function EventsTeaserBlock({ heading, count = '3', timeframe = 'upcoming'
             ))}
           </div>
         </>
+      )}
+      {/* The way back to everything that's over -- the archive keeps each
+          event's page and photos, so nothing disappears when it ends. */}
+      {!editable && timeframe === 'upcoming' && (
+        <p style={{ textAlign: 'center', margin: 'var(--space-5) 0 0', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)' }}>
+          <a href={withBase('/events/archive')} style={{ color: 'var(--text-link)' }}>Past events →</a>
+        </p>
       )}
     </div>
   );

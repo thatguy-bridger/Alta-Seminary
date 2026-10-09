@@ -38,3 +38,33 @@ describe('site date formatting', () => {
     expect(formatSiteDate(OCT_9_NOON_UTAH, { month: 'short', day: 'numeric', year: 'numeric' })).toBe('Oct 9, 2026');
   });
 });
+
+import { formatEventWhen } from './dateFormat.js';
+
+describe('formatEventWhen (the date line on an event page)', () => {
+  it('writes a timed event with a same-half-of-day range compactly', () => {
+    expect(formatEventWhen({ all_day: false, start_at: '2026-10-09T18:30:00Z', end_at: '2026-10-09T19:30:00Z' }))
+      .toBe('Friday, October 9, 2026 · 12:30 – 1:30 PM');
+  });
+
+  it('spells out both times when the range crosses noon', () => {
+    expect(formatEventWhen({ all_day: false, start_at: '2026-10-09T16:00:00Z', end_at: '2026-10-09T19:30:00Z' }))
+      .toBe('Friday, October 9, 2026 · 10:00 AM – 1:30 PM');
+  });
+
+  it('shows just the start when there is no end time', () => {
+    expect(formatEventWhen({ all_day: false, start_at: '2026-10-09T18:30:00Z', end_at: null }))
+      .toBe('Friday, October 9, 2026 · 12:30 PM');
+  });
+
+  it('gives both dates for an event that runs past midnight', () => {
+    expect(formatEventWhen({ all_day: false, start_at: '2026-10-10T02:00:00Z', end_at: '2026-10-10T08:00:00Z' }))
+      .toBe('Friday, October 9, 2026, 8:00 PM – Saturday, October 10, 2026, 2:00 AM');
+  });
+
+  it('writes all-day events as dates only, single or multi-day', () => {
+    expect(formatEventWhen({ all_day: true, start_at: '2026-10-09T06:00:00Z', end_at: null })).toBe('Friday, October 9, 2026');
+    expect(formatEventWhen({ all_day: true, start_at: '2026-10-09T06:00:00Z', end_at: '2026-10-11T06:00:00Z' }))
+      .toBe('Friday, October 9 – Sunday, October 11, 2026');
+  });
+});

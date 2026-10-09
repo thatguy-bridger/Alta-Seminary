@@ -24,3 +24,32 @@ export function formatSiteDate(iso, options = { month: 'short', day: 'numeric' }
 export function formatSiteTime(iso, options = { hour: 'numeric', minute: '2-digit' }) {
   return new Date(iso).toLocaleTimeString(SITE_LOCALE, { timeZone: SITE_TIME_ZONE, ...options });
 }
+
+// "Friday, October 9, 2026 · 12:30 – 1:30 PM" -- the date line on an event's
+// own page. Spelled out in full (weekday, long month) because it's the one
+// place the date is the headline rather than a badge, and always written in
+// the seminary's time zone for the same reason as everything above.
+//   all-day:   "Friday, October 9, 2026"  /  "Friday, October 9 – Sunday, October 11, 2026"
+//   timed:     "Friday, October 9, 2026 · 12:30 – 1:30 PM"  (or "12:30 PM" with no end,
+//              or both full dates if it runs past midnight)
+export function formatEventWhen(event) {
+  const day = { weekday: 'long', month: 'long', day: 'numeric' };
+  const dayYear = { ...day, year: 'numeric' };
+  const sameDay = (a, b) => formatSiteDate(a, dayYear) === formatSiteDate(b, dayYear);
+
+  if (event.all_day) {
+    if (!event.end_at || sameDay(event.start_at, event.end_at)) return formatSiteDate(event.start_at, dayYear);
+    return `${formatSiteDate(event.start_at, day)} – ${formatSiteDate(event.end_at, dayYear)}`;
+  }
+  const start = formatSiteTime(event.start_at);
+  if (!event.end_at) return `${formatSiteDate(event.start_at, dayYear)} · ${start}`;
+  if (sameDay(event.start_at, event.end_at)) {
+    // "12:30 – 1:30 PM" when both are the same half of the day, else spell both out.
+    const end = formatSiteTime(event.end_at);
+    const [startClock, startAmPm] = start.split(' ');
+    const [, endAmPm] = end.split(' ');
+    const range = startAmPm === endAmPm ? `${startClock} – ${end}` : `${start} – ${end}`;
+    return `${formatSiteDate(event.start_at, dayYear)} · ${range}`;
+  }
+  return `${formatSiteDate(event.start_at, dayYear)}, ${start} – ${formatSiteDate(event.end_at, dayYear)}, ${formatSiteTime(event.end_at)}`;
+}

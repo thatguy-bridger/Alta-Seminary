@@ -1,3 +1,6 @@
+import { eventPhase } from '../lib/eventPhase.js';
+import { mergeAnnouncements } from '../lib/announcementsFeed.js';
+
 // Shared by the Directory/Events teaser blocks. Takes a Supabase client so it
 // works identically whether called at Astro build time (supabaseBuild, anon
 // key) or client-side in the admin canvas/preview (supabaseBrowser).
@@ -5,6 +8,8 @@
 // query option in postgrest, so we just cap it far above any realistic
 // directory/calendar size instead of branching the query shape.
 const ALL_SENTINEL_LIMIT = 500;
+
+const EVENT_LIST_COLUMNS = 'id, title, description, start_at, end_at, all_day, location, slug';
 
 function resolveLimit(count) {
   if (count === 'all') return ALL_SENTINEL_LIMIT;
@@ -56,20 +61,26 @@ export async function fetchDirectoryFieldDefinitions(client, sourceType) {
   return data || [];
 }
 
-export async function fetchEventsTeaserItems(client, count, timeframe = 'upcoming') {
-  let query = client
+export async function fetchEventsTeaserItems(client, count, timeframe = 'upcoming', now = new Date()) {
+  // "Upcoming" means not over YET (so an event in progress still shows), and
+  // "over" depends on the event's own end rules (see lib/eventPhase.js) --
+  // not something a SQL filter on start_at can express. The events table is
+  // small, so fetch the published ones and sort them out here.
+  const { data, error } = await client
     .from('calendar_events')
-    .select('id, title, description, start_at, end_at, all_day, location')
-    .eq('status', 'published');
-  if (timeframe !== 'all') {
-    query = query.gte('start_at', new Date().toISOString());
-  }
-  const { data, error } = await query.order('start_at').limit(resolveLimit(count));
+    .select(EVENT_LIST_COLUMNS)
+    .eq('status', 'published')
+    .order('start_at');
   if (error) {
     console.error('events-teaser fetch failed:', error.message);
     return [];
   }
-  return attachEventLinks(client, data || []);
+  const all = (data || []).map((e) => ({ ...e, phase: eventPhase(e, now) }));
+  let events;
+  if (timeframe === 'past') events = all.filter((e) => e.phase === 'past').reverse(); // most recent first
+  else if (timeframe === 'all') events = all;
+  else events = all.filter((e) => e.phase !== 'past');
+  return attachEventLinks(client, events.slice(0, resolveLimit(count)));
 }
 
 // Adds `links: { announcement?: {slug, title}, album?: {id, title} }` to each
@@ -122,17 +133,52 @@ export async function fetchGalleryTeaserItems(client, albumFilter, count) {
 // through the public_blog_posts view instead, for both anon (build time) and
 // authenticated (admin canvas/preview) callers. See the security_invoker note
 // on that view in 0001_init.sql, and the authenticated grant added in 0006.
-export async function fetchPostsTeaserItems(client, count) {
-  const { data, error } = await client
-    .from('public_blog_posts')
-    .select('id, slug, title, excerpt, cover_image_url, published_at')
-    .order('published_at', { ascending: false })
-    .limit(resolveLimit(count));
-  if (error) {
-    console.error('posts-teaser fetch failed:', error.message);
+export async function fetchPostsTeaserItems(client, count, now = new Date()) {
+  const limit = resolveLimit(count);
+  const [postsResult, eventsResult] = await Promise.all([
+    client.from('public_blog_posts').select('id, slug, title, excerpt, cover_image_url, published_at')
+      .order('published_at', { ascending: false }).limit(limit),
+    // Events that opted into the announcements feed (their "Show in
+    // announcements" toggle). Whether each is still upcoming is decided in
+    // mergeAnnouncements, from the same end-of-event rules as everywhere else.
+    client.from('calendar_events')
+      .select('id, slug, title, description, location, start_at, end_at, all_day, status, published_at, show_in_announcements')
+      .eq('status', 'published').eq('show_in_announcements', true),
+  ]);
+  if (postsResult.error) {
+    console.error('posts-teaser fetch failed:', postsResult.error.message);
     return [];
   }
-  return data || [];
+  // A failing events query must never take the announcements down with it.
+  if (eventsResult.error) console.error('announced events fetch failed:', eventsResult.error.message);
+  return mergeAnnouncements(postsResult.data, eventsResult.error ? [] : eventsResult.data, now, limit);
+}
+
+// What the "Event Details" block shows: the event record itself, plus its
+// phase worked out HERE (once, on the server) so a page's server HTML and the
+// browser's first render agree -- a clock read at render time could differ
+// between the two and cause a hydration mismatch.
+export async function fetchEventDetails(client, eventId, now = new Date()) {
+  if (!eventId) return null;
+  const { data, error } = await client
+    .from('calendar_events')
+    .select('id, title, description, location, start_at, end_at, all_day, slug')
+    .eq('id', eventId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return { ...data, phase: eventPhase(data, now) };
+}
+
+// What the "Event Photos" block shows: the photos of the album linked to this
+// event -- but only once that album is published AND has published photos
+// (the public_event_links view enforces both), so an empty or unpublished
+// album never produces a blank "Photos" section.
+export async function fetchEventPhotos(client, eventId) {
+  if (!eventId) return [];
+  const { data: links, error } = await client
+    .from('public_event_links').select('target_id').eq('event_id', eventId).eq('kind', 'album');
+  if (error || !links || links.length === 0) return [];
+  return fetchGalleryTeaserItems(client, links[0].target_id, 'all');
 }
 
 // Scans a page's block array for teaser blocks and pre-fetches their data,
@@ -148,6 +194,10 @@ export async function resolveTeaserData(blocks, client) {
         map[block.id] = await fetchEventsTeaserItems(client, block.props.count, block.props.timeframe);
       } else if (block.type === 'posts-teaser') {
         map[block.id] = await fetchPostsTeaserItems(client, block.props.count);
+      } else if (block.type === 'event-details') {
+        map[block.id] = await fetchEventDetails(client, block.props.eventId);
+      } else if (block.type === 'event-photos') {
+        map[block.id] = await fetchEventPhotos(client, block.props.eventId);
       } else if (block.type === 'gallery') {
         map[block.id] = await fetchGalleryTeaserItems(client, block.props.albumFilter, block.props.count);
       }

@@ -1,0 +1,46 @@
+---
+import PublicLayout from '../../layouts/PublicLayout.astro';
+import { BlockRenderer } from '../../blocks/BlockRenderer.jsx';
+import { resolveTeaserData } from '../../blocks/teaserData.js';
+import { defaultEventBlocks } from '../../blocks/eventPage.js';
+import { supabaseBuild } from '../../lib/supabase/build-client';
+import { findClosestRoute } from '../../lib/pages.js';
+
+// An event's own page. Server-rendered per request, like announcements/[slug].
+// Stays available after the event is over -- that's the archive: the page,
+// its photos and everything else are still here, it just says it has passed
+// (see EventDetailsBlock.jsx) and stops appearing in upcoming lists and the
+// announcements feed. Only a draft or deleted event is gone.
+const { slug } = Astro.params;
+const { data: event } = await supabaseBuild
+  .from('calendar_events')
+  .select('id, title, description, location, start_at, end_at, all_day, slug, published_blocks')
+  .eq('status', 'published')
+  .eq('slug', slug)
+  .maybeSingle();
+
+if (!event) {
+  const closest = await findClosestRoute(`/events/${slug}`);
+  return Astro.redirect(`${closest}?notfound=1`, 302);
+}
+
+// Until an admin customizes the page there are no saved blocks; the default
+// layout (live details + live photos) stands in so every event has a page.
+const saved = event.published_blocks;
+const blocks = Array.isArray(saved) && saved.length > 0 ? saved : defaultEventBlocks(event.id);
+const teaserData = await resolveTeaserData(blocks, supabaseBuild);
+
+const eventSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Event',
+  name: event.title,
+  description: event.description || undefined,
+  startDate: event.start_at,
+  endDate: event.end_at || undefined,
+  location: event.location ? { '@type': 'Place', name: event.location } : undefined,
+};
+---
+
+<PublicLayout title={event.title} description={event.description?.slice(0, 160)} structuredData={eventSchema}>
+  <BlockRenderer blocks={blocks} teaserData={teaserData} client:visible />
+</PublicLayout>

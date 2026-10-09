@@ -23,6 +23,8 @@ import { BackToTopBlock } from './BackToTopBlock.jsx';
 import { TimedPopupBlock } from './TimedPopupBlock.jsx';
 import { SiteEffectBlock } from './SiteEffectBlock.jsx';
 import { BlockWrapper } from './BlockWrapper.jsx';
+import { EventDetailsBlock } from './EventDetailsBlock.jsx';
+import { EventPhotosBlock } from './EventPhotosBlock.jsx';
 import { BLOCK_REGISTRY } from './registry.js';
 
 // The one component-per-type map used both by Astro's build (server-rendered,
@@ -54,6 +56,8 @@ export const BLOCK_COMPONENTS = {
   'back-to-top': BackToTopBlock,
   'timed-popup': TimedPopupBlock,
   'site-effect': SiteEffectBlock,
+  'event-details': EventDetailsBlock,
+  'event-photos': EventPhotosBlock,
 };
 
 // teaserData: optional {[blockId]: items[]} map -- pre-fetched server-side by

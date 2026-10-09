@@ -316,8 +316,36 @@ export const BLOCK_REGISTRY = {
     defaultProps: { heading: 'Upcoming Events', count: '3', timeframe: 'upcoming' },
     fields: [
       { key: 'heading', kind: 'text', label: 'Heading' },
-      { key: 'timeframe', kind: 'select', label: 'Which events', options: [{value:'upcoming',label:'Upcoming only'},{value:'all',label:'All (including past)'}] },
+      { key: 'timeframe', kind: 'select', label: 'Which events', options: [{value:'upcoming',label:'Upcoming only'},{value:'past',label:'Past events (the archive)'},{value:'all',label:'All (including past)'}] },
       { key: 'count', kind: 'select', label: 'How many to show', options: [{value:'3',label:'3'},{value:'4',label:'4'},{value:'6',label:'6'},{value:'12',label:'12'},{value:'all',label:'All matching events'}] },
+    ],
+  },
+  // The two blocks below belong to ONE event: they read the event named by
+  // their eventId and are only offered in an event's own page editor (see
+  // eventBound), where the editor fills eventId in. They make up an event
+  // page's default layout (see blocks/eventPage.js).
+  'event-details': {
+    label: 'Event Details',
+    category: 'Live Content',
+    icon: 'calendar',
+    eventBound: true,
+    description: "This event's title, date, place and description, read live from the event.",
+    defaultProps: { eventId: '', showDescription: true, showCalendarButton: true },
+    fields: [
+      { key: 'showDescription', kind: 'toggle', label: 'Show the event description' },
+      { key: 'showCalendarButton', kind: 'toggle', label: 'Show "Add to calendar" (hidden once the event is over)' },
+    ],
+  },
+  'event-photos': {
+    label: 'Event Photos',
+    category: 'Live Content',
+    icon: 'image',
+    eventBound: true,
+    description: "The photos from this event's linked album, shown automatically once the album is published.",
+    defaultProps: { eventId: '', heading: 'Photos', columns: '3' },
+    fields: [
+      { key: 'heading', kind: 'text', label: 'Heading' },
+      { key: 'columns', kind: 'select', label: 'Columns', options: [{value:'2',label:'2'},{value:'3',label:'3'},{value:'4',label:'4'}] },
     ],
   },
   gallery: {

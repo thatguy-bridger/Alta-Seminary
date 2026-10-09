@@ -88,7 +88,7 @@ export async function getSearchIndex() {
     supabaseBuild.from('public_pages').select('title, meta_description, route_path'),
     supabaseBuild.from('public_blog_posts').select('title, excerpt, slug'),
     supabaseBuild.from('directory_entries').select('id, name, bio, extra_fields, directory_kind').eq('status', 'published'),
-    supabaseBuild.from('calendar_events').select('id, title, description, location, start_at').eq('status', 'published'),
+    supabaseBuild.from('calendar_events').select('id, title, description, location, start_at, slug').eq('status', 'published'),
     supabaseBuild.from('gallery_photos').select('id, caption, alt_text, created_at, gallery_albums(name)').eq('status', 'published'),
   ]);
 
@@ -120,7 +120,8 @@ export async function getSearchIndex() {
     description: [row.description, row.location].filter(Boolean).join(' · '),
     date: row.start_at,
     location: row.location || '',
-    path: '/events',
+    // Its own page -- including after it's over, so past events stay findable.
+    path: `/events/${row.slug}`,
   }));
 
   const gallery = (galleryResult.data || []).map((row) => ({
