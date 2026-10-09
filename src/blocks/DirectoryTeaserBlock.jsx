@@ -58,16 +58,21 @@ export function DirectoryTeaserBlock({ heading, sourceType = 'staff', count = '3
     return () => { active = false; };
   }, [items, sourceType, count]);
 
-  // Auto-opens the "larger preview" on load when this is the directory page
-  // a person link sent the visitor to (?person=<id>) -- see the card links
-  // below. Guarded to this block's own canonical page so a teaser elsewhere
-  // (e.g. the homepage) never mistakenly opens it.
+  const list = items !== undefined ? items : fetched;
+
+  // Auto-opens the "larger preview" on load when the URL carries
+  // ?person=<id> (a card link, a carousel slide, a shared link) and that
+  // person is one this block is showing. This used to also require the
+  // page's pathname to end with the directory's hardcoded "/directory/staff"
+  // -- which silently broke every faculty card the moment that page was
+  // renamed to /directory/faculty-directory: the check failed, so nothing
+  // ever opened. Whether the person is in THIS block's own list is the real
+  // question, and doesn't depend on what any page is called.
   React.useEffect(() => {
-    if (editable || !path || typeof window === 'undefined') return;
-    if (!window.location.pathname.endsWith(withBase(`/directory/${path}`))) return;
+    if (editable || !list || typeof window === 'undefined') return;
     const personId = new URLSearchParams(window.location.search).get('person');
-    if (personId) setOpenPersonId(personId);
-  }, [editable, path]);
+    if (personId && list.some((p) => p.id === personId)) setOpenPersonId(personId);
+  }, [editable, list]);
 
   function closeDialog() {
     setOpenPersonId(null);
@@ -77,8 +82,6 @@ export function DirectoryTeaserBlock({ heading, sourceType = 'staff', count = '3
       window.history.replaceState({}, '', url);
     }
   }
-
-  const list = items !== undefined ? items : fetched;
 
   return (
     <div>
@@ -124,52 +127,79 @@ export function DirectoryTeaserBlock({ heading, sourceType = 'staff', count = '3
               </>
             );
 
-            // Editable (admin canvas): never a real link -- href was
-            // previously always set to the live URL regardless of editable,
-            // so clicking a card in the page editor actually navigated to
-            // the public site instead of just selecting the block.
+            // Editable (admin canvas): never interactive -- clicking a card
+            // in the page editor should just select the block, not open
+            // anything or navigate to the live site.
             //
-            // The snippet below (bio/extra fields) can itself contain real
-            // <a> links (email/phone/url, via linkify) -- those must NOT end
-            // up nested inside this card-opening link, so only the photo+name
-            // header is wrapped in the anchor; the snippet is a sibling.
-            const onOwnPage = path && typeof window !== 'undefined'
-              && window.location.pathname.endsWith(withBase(`/directory/${path}`));
-            const headerEl = (!path || editable) ? header : (
+            // Outside the editor the WHOLE card opens the larger preview, not
+            // just the photo and name: the click handler sits on a wrapper
+            // around the entire card, and only steps aside for a link INSIDE
+            // the bio snippet (an email/phone/url from linkify) so those
+            // still work as links. The photo+name header stays a real <a> to
+            // the directory's own page (?person=<id>) as the no-JavaScript /
+            // new-tab / crawler fallback; with JavaScript, a plain click is
+            // intercepted and opens the preview right here on whatever page
+            // the card is on -- including the homepage teasers.
+            // Interactive for EVERY directory, not just the three built-in
+            // kinds in KIND_PATH: renaming "Staff" to "Faculty" changed its
+            // kind to a custom one, which used to mean plain dead cards with
+            // no preview at all. The preview dialog only needs a person id,
+            // so it works for any directory; KIND_PATH now only decides where
+            // the no-JavaScript fallback link points (a custom directory has
+            // no dedicated page, so it falls back to the page it's already on).
+            const interactive = !editable;
+            const openPerson = () => {
+              setOpenPersonId(person.id);
+              const url = new URL(window.location.href);
+              url.searchParams.set('person', person.id);
+              window.history.replaceState({}, '', url);
+            };
+            const headerEl = !interactive ? header : (
               <a
-                href={withBase(`/directory/${path}?person=${person.id}`)}
+                href={path ? withBase(`/directory/${path}?person=${person.id}`) : `?person=${person.id}`}
+                data-person-open
                 style={{ textDecoration: 'none', display: 'block' }}
                 onClick={(e) => {
-                  if (!onOwnPage) return;
-                  e.preventDefault();
-                  setOpenPersonId(person.id);
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('person', person.id);
-                  window.history.replaceState({}, '', url);
+                  // Let a modified click (new tab/window) behave normally.
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) e.stopPropagation();
+                  else e.preventDefault();
                 }}
               >
                 {header}
               </a>
             );
+            const wrapperProps = !interactive ? {} : {
+              style: { cursor: 'pointer', height: uniformCardSize ? '100%' : undefined },
+              onClick: (e) => {
+                const link = e.target.closest('a');
+                if (link && !link.hasAttribute('data-person-open')) return; // a real link in the bio
+                if (link && (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0)) return;
+                openPerson();
+              },
+            };
 
             if (uniformCardSize) {
               return (
-                <div key={person.id} style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', padding: 'var(--space-6)' }}>
-                  {headerEl}
-                  {snippet && <p style={{ ...snippetStyle, flex: 1 }}>{linkify(snippet)}</p>}
+                <div key={person.id} {...wrapperProps} style={{ ...wrapperProps.style, height: '100%' }}>
+                  <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', padding: 'var(--space-6)' }}>
+                    {headerEl}
+                    {snippet && <p style={{ ...snippetStyle, flex: 1 }}>{linkify(snippet)}</p>}
+                  </div>
                 </div>
               );
             }
             return (
-              <Card key={person.id}>
-                {headerEl}
-                {snippet && <p style={snippetStyle}>{linkify(snippet)}</p>}
-              </Card>
+              <div key={person.id} {...wrapperProps}>
+                <Card>
+                  {headerEl}
+                  {snippet && <p style={snippetStyle}>{linkify(snippet)}</p>}
+                </Card>
+              </div>
             );
           })}
         </div>
       )}
-      {path && <DirectoryPersonDialog personId={openPersonId} sourceType={sourceType} onClose={closeDialog} />}
+      {!editable && <DirectoryPersonDialog personId={openPersonId} sourceType={sourceType} onClose={closeDialog} />}
     </div>
   );
 }
