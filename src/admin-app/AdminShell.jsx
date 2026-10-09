@@ -8,10 +8,8 @@ import logo from '../assets/alta-seminary-logo.png';
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Pages' },
-  { href: '/admin/posts', label: 'Announcements' },
+  { href: '/admin/content', label: 'Content' },
   { href: '/admin/directory', label: 'Directories' },
-  { href: '/admin/gallery', label: 'Gallery' },
-  { href: '/admin/events', label: 'Events' },
   { href: '/admin/contact', label: 'Contact' },
   { href: '/admin/team', label: 'Team' },
   { href: '/admin/history', label: 'History' },

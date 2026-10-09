@@ -14,7 +14,7 @@ export function PostEditorPage() {
 
   return (
     <AdminGuard>
-      <AdminShell activePath="/admin/posts">
+      <AdminShell activePath="/admin/content">
         {slug ? <PageBuilderScreen slug={slug} table="blog_posts" backHref="/admin/posts" /> : <p style={{ color: 'var(--text-secondary)' }}>No post specified.</p>}
       </AdminShell>
     </AdminGuard>

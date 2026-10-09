@@ -6,7 +6,7 @@ import { GalleryScreen } from '../screens/GalleryScreen.jsx';
 export function GalleryPage() {
   return (
     <AdminGuard>
-      <AdminShell activePath="/admin/gallery">
+      <AdminShell activePath="/admin/content">
         <GalleryScreen />
       </AdminShell>
     </AdminGuard>

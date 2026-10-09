@@ -53,7 +53,7 @@ export async function unlinkContent(aKind, aId, bKind, bId) {
 function hrefFor(kind, row) {
   if (kind === 'announcement') return withBase(`/admin/posts/edit?slug=${row.slug}`);
   if (kind === 'album') return withBase(`/admin/gallery?album=${row.id}`);
-  return withBase(`/admin/events?event=${row.id}`);
+  return withBase(`/admin/content?item=event:${row.id}`);
 }
 
 // Every item of one kind, for the "link an existing X" picker -- id +

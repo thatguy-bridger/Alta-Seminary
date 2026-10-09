@@ -1,14 +1,6 @@
 import React from 'react';
-import { AdminGuard } from '../AdminGuard.jsx';
-import { AdminShell } from '../AdminShell.jsx';
-import { EventsScreen } from '../screens/EventsScreen.jsx';
+import { ContentPage } from './ContentPage.jsx';
 
 export function EventsPage() {
-  return (
-    <AdminGuard>
-      <AdminShell activePath="/admin/events">
-        <EventsScreen />
-      </AdminShell>
-    </AdminGuard>
-  );
+  return <ContentPage initialKind="event" />;
 }
