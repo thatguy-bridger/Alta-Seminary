@@ -10,7 +10,7 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
 <footer class="site-footer">
   <p>{footerText(footer.text, year)}</p>
   <p class="site-footer__links">
-    {footer.links.map((l) => <a href={href(l.url)}>{l.label}</a>)}
+    {footer.links.map((l: { label: string; url: string }) => <a href={href(l.url)}>{l.label}</a>)}
   </p>
 </footer>
 
