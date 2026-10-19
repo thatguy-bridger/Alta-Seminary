@@ -115,7 +115,7 @@ function Shell({ children, activePath }) {
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); openGuide(); }}
-            style={{ textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', font: 'inherit', color: 'inherit', padding: 'inherit' }}
+            style={{ textAlign: 'left', width: '100%' }}
           >
             Guide
           </button>
