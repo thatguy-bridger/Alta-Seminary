@@ -398,9 +398,11 @@ export const BLOCK_REGISTRY = {
     defaultProps: {
       heading: 'Frequently Asked Questions',
       items: [{ id: 'faq-1', question: '', answer: '' }],
+      expandable: true,
     },
     fields: [
       { key: 'heading', kind: 'text', label: 'Heading' },
+      { key: 'expandable', kind: 'toggle', label: 'Click a question to expand its answer (off = always show answers)' },
     ],
   },
   'background-music': {

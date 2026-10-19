@@ -7,7 +7,45 @@ function newItem() {
   return { id: crypto.randomUUID(), question: '', answer: '' };
 }
 
-export function FaqBlock({ heading, items, headingStyle, editable, onFieldChange }) {
+// One public question. A real button (keyboard + screen reader friendly,
+// aria-expanded) instead of <details>, so the answer can glide in with the
+// same motion as everything else (.glide-in, see PublicLayout.astro).
+function FaqEntry({ item, expandable }) {
+  const [open, setOpen] = React.useState(false);
+  const shown = !expandable || open;
+  const id = `faq-${item.id}`;
+  return (
+    <>
+      {expandable ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={id}
+          onClick={() => setOpen((o) => !o)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)', width: '100%',
+            padding: 'var(--space-4)', cursor: 'pointer', textAlign: 'left', border: 'none', background: 'none',
+            fontFamily: 'var(--font-sans)', fontSize: 'inherit', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)',
+          }}
+        >
+          <span><RichText inline text={item.question} /></span>
+          <span aria-hidden style={{ flexShrink: 0, transition: 'transform 200ms ease', transform: open ? 'rotate(180deg)' : 'none' }}>▾</span>
+        </button>
+      ) : (
+        <div style={{ padding: 'var(--space-4) var(--space-4) 0', fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)' }}>
+          <RichText inline text={item.question} />
+        </div>
+      )}
+      {shown && (
+        <div id={id} className={expandable ? 'glide-in' : undefined} style={{ padding: expandable ? '0 var(--space-4) var(--space-4)' : 'var(--space-2) var(--space-4) var(--space-4)', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>
+          <RichText text={item.answer} />
+        </div>
+      )}
+    </>
+  );
+}
+
+export function FaqBlock({ heading, items, headingStyle, expandable = true, editable, onFieldChange }) {
   const list = Array.isArray(items) && items.length > 0 ? items : editable ? [newItem()] : [];
 
   function updateItem(i, patch) {
@@ -56,19 +94,7 @@ export function FaqBlock({ heading, items, headingStyle, editable, onFieldChange
                 </div>
               </div>
             ) : (
-              <details>
-                <summary
-                  style={{
-                    padding: 'var(--space-4)', cursor: 'pointer', listStyle: 'none',
-                    fontFamily: 'var(--font-sans)', fontWeight: 'var(--fw-bold)', color: 'var(--text-primary)',
-                  }}
-                >
-                  <RichText inline text={item.question} />
-                </summary>
-                <div style={{ padding: '0 var(--space-4) var(--space-4)', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>
-                  <RichText text={item.answer} />
-                </div>
-              </details>
+              <FaqEntry item={item} expandable={expandable !== false} />
             )}
           </div>
         ))}

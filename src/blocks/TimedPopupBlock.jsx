@@ -74,6 +74,7 @@ function LiveTimedPopup({ heading, message, tone, link, linkLabel, delaySeconds,
       style={{ position: 'fixed', inset: 0, zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(20,20,22,0.5)', padding: 'var(--space-4)' }}
     >
       <div
+        className="glide-in"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 420, width: '100%', background: 'var(--surface-card)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', padding: 'var(--space-6)', position: 'relative' }}
       >

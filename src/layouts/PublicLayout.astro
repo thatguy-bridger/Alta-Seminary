@@ -163,3 +163,19 @@ const globalBlocks = await getGlobalChromelessBlocks();
     opacity: 1;
   }
 </style>
+
+<style is:global>
+  /* The same "glide into view" motion as .reveal-on-scroll (see above), for
+     content that appears when someone opens or clicks something -- FAQ
+     answers, nav dropdowns, the timed popup. Same distance, duration, curve. */
+  @keyframes glide-in {
+    from { opacity: 0; transform: translateY(28px); }
+    to { opacity: 1; transform: none; }
+  }
+  .glide-in {
+    animation: glide-in 900ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .glide-in { animation: none; }
+  }
+</style>

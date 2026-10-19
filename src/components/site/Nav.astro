@@ -117,6 +117,12 @@ const currentPath = Astro.url.pathname;
     box-shadow: var(--shadow-md);
     z-index: 20;
   }
+  .site-nav__dropdown[open] ul {
+    animation: glide-in 900ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .site-nav__dropdown[open] ul { animation: none; }
+  }
   .site-nav__dropdown ul a {
     display: block;
     padding: var(--space-2) var(--space-3);
