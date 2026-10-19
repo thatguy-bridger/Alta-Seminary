@@ -804,22 +804,30 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, shuffleOnLoop, pau
 // are fewer slides than are visible at once, the set is repeated until it
 // fills the row, or the end of the first pass would show a gap.)
 //
-// `speed` is how long one slide takes to cross, so the pace stays the same
-// however many slides there are -- not how long the whole loop takes.
-const TICKER_SECONDS_PER_SLIDE = { glacial: 28, crawl: 14, slow: 8, normal: 5, fast: 3, faster: 2, rapid: 1.2 };
+// `speed` is a real on-screen pace, in pixels per second -- so "Slow" looks
+// equally slow on a phone and a desktop, and with 2 slides showing or 6.
+// (Timing each slide to cross in a fixed number of seconds made it depend on
+// the slide's width: slower on a narrow screen, slower again with more
+// slides sharing the row.) The values equal the old seconds-per-slide at a
+// 1000px row showing 3 slides, so existing sliders keep their feel on desktop.
+const TICKER_PX_PER_SECOND = { glacial: 12, crawl: 24, slow: 42, normal: 67, fast: 111, faster: 167, rapid: 278 };
+const TICKER_REFERENCE_WIDTH = 1000; // used until the real width is measured (and on the server)
 
 // Pure, so the math is testable: how the row is laid out for a given setup.
-export function tickerLayout(slideCount, visible, speed) {
+export function tickerLayout(slideCount, visible, speed, rowWidth = TICKER_REFERENCE_WIDTH) {
   const perView = Math.max(1, Number(visible) || 3);
   const repeats = Math.max(1, Math.ceil(perView / Math.max(1, slideCount)));
   const setSize = slideCount * repeats;
+  const pxPerSecond = TICKER_PX_PER_SECOND[speed] || TICKER_PX_PER_SECOND.normal;
+  const slidePx = Math.max(1, rowWidth) / perView;
   return {
     perView,
     setSize,
     trackSize: setSize * 2,
     trackWidthPct: (setSize * 2 / perView) * 100,   // track width as % of the visible row
     itemBasisPct: 100 / (setSize * 2),               // each slide, as % of the track
-    seconds: setSize * (TICKER_SECONDS_PER_SLIDE[speed] || TICKER_SECONDS_PER_SLIDE.normal),
+    pxPerSecond,
+    seconds: (setSize * slidePx) / pxPerSecond,      // the track slides left by one set's width per loop
   };
 }
 
@@ -827,11 +835,24 @@ export function tickerLayout(slideCount, visible, speed) {
 const TICKER_CSS = `@keyframes alta-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}@media (prefers-reduced-motion: reduce){.alta-ticker__track{animation:none!important}.alta-ticker{overflow-x:auto!important}}`;
 
 function TickerTrack({ items, visible, speed, paused, fit, aspectRatio, showBackground }) {
-  const layout = tickerLayout(items.length, visible, speed);
+  // Measured so the pace is the same on every screen width (see tickerLayout).
+  const rowRef = React.useRef(null);
+  const [rowWidth, setRowWidth] = React.useState(TICKER_REFERENCE_WIDTH);
+  React.useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return undefined;
+    const measure = () => { if (el.clientWidth) setRowWidth(el.clientWidth); };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const layout = tickerLayout(items.length, visible, speed, rowWidth);
   const base = Array.from({ length: layout.setSize / items.length }, () => items).flat();
   const track = [...base, ...base];
   return (
-    <div className="alta-ticker" style={{ overflow: 'hidden', borderRadius: 'var(--radius-lg)' }}>
+    <div ref={rowRef} className="alta-ticker" style={{ overflow: 'hidden', borderRadius: 'var(--radius-lg)' }}>
       <style>{TICKER_CSS}</style>
       <div
         className="alta-ticker__track"

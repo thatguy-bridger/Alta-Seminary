@@ -72,11 +72,22 @@ describe('tickerLayout (smooth slider math)', () => {
     expect(l.trackSize).toBe(6);
     expect(l.trackWidthPct).toBeCloseTo(200);      // 6 slides at 3-visible = twice the row
     expect(l.itemBasisPct).toBeCloseTo(100 / 6);
-    expect(l.seconds).toBe(15);                     // 3 slides x 5s
+    expect(l.seconds).toBeCloseTo(15, 0);                     // 3 slides x 5s
   });
 
-  it('keeps the same pace per slide however many there are', () => {
-    expect(tickerLayout(3, '3', 'fast').seconds / 3).toBe(tickerLayout(9, '3', 'fast').seconds / 9);
+  it('keeps the same on-screen pace (px/s) at any screen width, slide count or slides-per-row', () => {
+    const pace = (count, visible, width) => {
+      const l = tickerLayout(count, visible, 'normal', width);
+      return (l.setSize * (width / l.perView)) / l.seconds; // distance per loop / loop time
+    };
+    const ref = pace(3, '3', 1000);
+    for (const [c, v, w] of [[9, '3', 1000], [3, '3', 390], [6, '2', 1440], [4, '5', 320]]) {
+      expect(pace(c, v, w)).toBeCloseTo(ref, 5);
+    }
+  });
+
+  it('takes less time to loop on a narrow screen, so it is not slower there', () => {
+    expect(tickerLayout(3, '3', 'slow', 400).seconds).toBeLessThan(tickerLayout(3, '3', 'slow', 1200).seconds);
   });
 
   it('repeats a short list until it fills the row, so the end of a pass never shows a gap', () => {
