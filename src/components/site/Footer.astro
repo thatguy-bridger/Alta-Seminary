@@ -9,13 +9,11 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
 
 <footer class="site-footer">
   <div class="site-footer__inner">
+    <div class="site-footer__brand">
+      <p class="site-footer__legal">{footerText(footer.text, year)}</p>
+      {footer.about && <p class="site-footer__about">{footer.about}</p>}
+    </div>
     <div class="site-footer__cols">
-      {footer.about && (
-        <section>
-          <h2>Contact</h2>
-          <p class="site-footer__about">{footer.about}</p>
-        </section>
-      )}
       <section>
         <h2>Quick links</h2>
         <ul>
@@ -31,7 +29,6 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
         </section>
       )}
     </div>
-    <p class="site-footer__legal">{footerText(footer.text, year)}</p>
   </div>
 </footer>
 
@@ -50,14 +47,25 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
     max-width: 72rem;
     margin: 0 auto;
     display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-8, 2rem) var(--space-12, 3rem);
+  }
+  /* Text on the left takes the spare room; link columns stay compact on the right. */
+  .site-footer__brand {
+    flex: 1 1 22rem;
+    max-width: 36rem;
+    display: flex;
     flex-direction: column;
-    gap: var(--space-8, 2rem);
+    gap: var(--space-4);
   }
   .site-footer__cols {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: var(--space-8, 2rem) var(--space-10, 2.5rem);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8, 2rem) var(--space-12, 3rem);
   }
+  .site-footer__cols section { min-width: 9rem; }
   .site-footer h2 {
     margin: 0 0 var(--space-3);
     font-size: var(--fs-caption);
@@ -85,10 +93,8 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
     text-decoration: underline;
   }
   .site-footer__legal {
-    padding-top: var(--space-5);
-    border-top: 1px solid var(--border-subtle);
-    font-size: var(--fs-caption);
-    color: var(--text-muted);
-    line-height: 1.5;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+    line-height: 1.6;
   }
 </style>
