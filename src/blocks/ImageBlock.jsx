@@ -29,6 +29,17 @@ function aspectRatioToPickerProps(value) {
   return { initialAspectKey: 'custom', initialCustom: { w: w || 1, h: h || 1 } };
 }
 
+// A linked image with no alt text would be a link with no name at all for a
+// screen reader. Until someone writes alt text, name the link after where it
+// goes ("Link to Gallery"), so the site is never left with an unnamed link.
+export function linkNameFromHref(href) {
+  const host = /^https?:\/\/([^/?#]+)/i.exec(href || '')?.[1];
+  if (host) return `Link to ${host.replace(/^www\./, '')}`;
+  const last = String(href || '').split(/[?#]/)[0].split('/').filter(Boolean).pop() || '';
+  const words = decodeURIComponent(last).replace(/[-_]+/g, ' ').trim();
+  return words ? `Link to ${words.replace(/\b\w/g, (c) => c.toUpperCase())}` : 'Link to the home page';
+}
+
 export function ImageBlock({
   imageUrl, alt = '', caption, width = 'full', aspectRatio = 'auto',
   corners = 'rounded', border = false, shadow = true, lightbox = false, link = '',
@@ -75,7 +86,7 @@ export function ImageBlock({
     // site does after any hydration mismatch), at which point a "full width"
     // image shrank by 40px on each side.
     <figure style={{ margin: 0, marginLeft: width === 'contained' ? 'auto' : 0, marginRight: width === 'contained' ? 'auto' : 0, maxWidth: width === 'contained' ? 640 : undefined }}>
-      {!editable && link ? <a href={link}>{img}</a> : img}
+      {!editable && link ? <a href={link} aria-label={alt.trim() ? undefined : linkNameFromHref(link)}>{img}</a> : img}
       {editable && imageUrl && !alt.trim() && (
         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--color-warning)', margin: 'var(--space-2) 0 0' }}>
           No alt text yet — screen readers can't describe this image to visitors who can't see it. Add it in the panel on the right.

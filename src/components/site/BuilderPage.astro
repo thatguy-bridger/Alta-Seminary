@@ -37,6 +37,11 @@ const teaserData = await resolveTeaserData(blocks, supabaseBuild);
 // are no individual per-event pages (see events.astro), so this is the one
 // slug that gets its own upcoming-events query rather than relying on
 // whatever a Directory Teaser-style block already fetched.
+// Every page needs a level-one heading for screen-reader navigation. A Hero
+// with a heading already renders one; otherwise the page title is added as a
+// visually-hidden <h1>, so nobody has to remember to do it.
+const hasVisibleH1 = blocks.some((b: { type: string; props?: { heading?: string } }) => b.type === 'hero' && b.props?.heading?.trim());
+const pageTitle = page?.title || fallbackTitle;
 let structuredData;
 if (slug === 'events') {
   const { data: events } = await supabaseBuild
@@ -60,7 +65,8 @@ if (slug === 'events') {
 }
 ---
 
-<PublicLayout title={page?.title || fallbackTitle} description={page?.meta_description} ogImage={page?.og_image_url} structuredData={structuredData}>
+<PublicLayout title={pageTitle} description={page?.meta_description} ogImage={page?.og_image_url} structuredData={structuredData}>
+  {!hasVisibleH1 && <h1 class="visually-hidden">{pageTitle}</h1>}
   {blocks.length > 0 ? (
     <BlockRenderer blocks={blocks} teaserData={teaserData} client:visible />
   ) : (
@@ -69,3 +75,17 @@ if (slug === 'events') {
     </p>
   )}
 </PublicLayout>
+
+<style is:global>
+  .visually-hidden {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>

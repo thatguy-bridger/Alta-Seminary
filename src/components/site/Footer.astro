@@ -17,7 +17,7 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
       <section>
         <h2>Quick links</h2>
         <ul>
-          {footer.links.map((l: { label: string; url: string }) => <li><a href={href(l.url)}>{l.label}</a></li>)}
+          {footer.links.map((l: { label: string; url: string }) => <li><a href={href(l.url)} class="site-footer__social site-footer__social--plain">{l.label}</a></li>)}
         </ul>
       </section>
       {footer.social.length > 0 && (
@@ -117,6 +117,7 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
     color: var(--text-primary);
     line-height: 1.2;
   }
+  .site-footer__social--plain { padding: var(--space-2) var(--space-4); }
   .site-footer__social:hover { text-decoration: none; border-color: var(--brand-secondary); color: var(--text-primary); }
   .site-footer__social img { width: 24px; height: 24px; border-radius: 50%; background: #fff; padding: 2px; box-sizing: border-box; flex-shrink: 0; }
   .site-footer li { display: flex; }
