@@ -10,6 +10,11 @@ import { getSiteChrome } from '../../lib/pages.js';
 const { header } = await getSiteChrome();
 ---
 
+{header.bannerOn && (
+  <div class="site-banner">
+    {header.bannerUrl ? <a href={header.bannerUrl.startsWith('/') ? withBase(header.bannerUrl) : header.bannerUrl}>{header.bannerText}</a> : header.bannerText}
+  </div>
+)}
 <header class="site-header">
   <div style="display: flex; align-items: center; gap: var(--space-3);">
     <a href={withBase('/')} class="site-header__wordmark">
@@ -35,6 +40,16 @@ const { header } = await getSiteChrome();
 </header>
 
 <style>
+  .site-banner {
+    padding: var(--space-2) var(--space-6);
+    text-align: center;
+    background: var(--brand-primary);
+    color: var(--text-on-primary, #fff);
+    font-family: var(--font-sans);
+    font-size: var(--fs-small);
+    font-weight: var(--fw-bold);
+  }
+  .site-banner a { color: inherit; text-decoration: underline; }
   .site-header {
     display: flex;
     align-items: center;

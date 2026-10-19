@@ -8,10 +8,20 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
 ---
 
 <footer class="site-footer">
-  <p>{footerText(footer.text, year)}</p>
-  <p class="site-footer__links">
-    {footer.links.map((l: { label: string; url: string }) => <a href={href(l.url)}>{l.label}</a>)}
-  </p>
+  <div class="site-footer__main">
+    <p>{footerText(footer.text, year)}</p>
+    {footer.about && <p class="site-footer__about">{footer.about}</p>}
+  </div>
+  <div class="site-footer__nav">
+    <p class="site-footer__links">
+      {footer.links.map((l: { label: string; url: string }) => <a href={href(l.url)}>{l.label}</a>)}
+    </p>
+    {footer.social.length > 0 && (
+      <p class="site-footer__links">
+        {footer.social.map((l: { label: string; url: string }) => <a href={href(l.url)} rel="noopener">{l.label}</a>)}
+      </p>
+    )}
+  </div>
 </footer>
 
 <style>
@@ -36,4 +46,8 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
     color: var(--text-link);
   }
   .site-footer__links { display: flex; gap: var(--space-4); flex-wrap: wrap; margin: 0; }
+  .site-footer p { margin: 0; }
+  .site-footer__main { display: flex; flex-direction: column; gap: var(--space-2); }
+  .site-footer__about { white-space: pre-line; }
+  .site-footer__nav { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-end; }
 </style>

@@ -15,7 +15,7 @@ describe('normalizeChrome', () => {
   it('keeps real edits and drops half-filled links', () => {
     const c = normalizeChrome({ header: { showSearch: false }, footer: { text: 'Hi', links: [{ label: 'A', url: '/a' }, { label: 'B', url: '' }] } });
     expect(c.header.showSearch).toBe(false);
-    expect(c.footer).toEqual({ text: 'Hi', links: [{ label: 'A', url: '/a' }] });
+    expect(c.footer).toEqual({ text: 'Hi', links: [{ label: 'A', url: '/a' }], about: '', social: [] });
   });
 });
 
@@ -29,6 +29,22 @@ describe('validateChrome', () => {
   it('checks each link', () => {
     const e = validateChrome({ ...ok, footer: { ...ok.footer, links: [{ label: '', url: '' }, { label: 'x', url: 'javascript:alert(1)' }, { label: 'y', url: '/fine' }] } });
     expect(Object.keys(e).sort()).toEqual(['footer.links.0.label', 'footer.links.0.url', 'footer.links.1.url']);
+  });
+});
+
+describe('banner and extras', () => {
+  const ok = normalizeChrome({});
+  it('banner needs text to be on', () => {
+    expect(normalizeChrome({ header: { bannerOn: true, bannerText: ' ' } }).header.bannerOn).toBe(false);
+    expect(normalizeChrome({ header: { bannerOn: true, bannerText: 'Hi' } }).header.bannerOn).toBe(true);
+    expect(validateChrome({ ...ok, header: { ...ok.header, bannerOn: true, bannerText: '' } })['header.bannerText']).toBeTruthy();
+    expect(validateChrome({ ...ok, header: { ...ok.header, bannerText: 'x', bannerUrl: 'nope' } })['header.bannerUrl']).toBeTruthy();
+  });
+  it('social links are optional but must be finished', () => {
+    expect(validateChrome(ok)).toEqual({});
+    const e = validateChrome({ ...ok, footer: { ...ok.footer, social: [{ label: 'IG', url: '' }] } });
+    expect(Object.keys(e)).toEqual(['footer.social.0.url']);
+    expect(normalizeChrome({ footer: { social: [{ label: 'a', url: '' }, { label: 'b', url: 'https://b' }] } }).footer.social).toHaveLength(1);
   });
 });
 

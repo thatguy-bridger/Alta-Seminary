@@ -3,8 +3,10 @@
 // layout and the tests all share one definition of "valid".
 
 export const DEFAULT_CHROME = {
-  header: { logoUrl: '', logoAlt: 'Alta Seminary', showSearch: true, showTextSize: true, showThemeToggle: true },
+  header: { logoUrl: '', logoAlt: 'Alta Seminary', showSearch: true, showTextSize: true, showThemeToggle: true, bannerOn: false, bannerText: '', bannerUrl: '' },
   footer: {
+    about: '',
+    social: [],
     text: '© {year} Alta Seminary · Seminaries and Institutes, The Church of Jesus Christ of Latter-day Saints',
     links: [{ label: 'Contact', url: '/contact' }],
   },
@@ -30,10 +32,17 @@ export function normalizeChrome(raw) {
       showSearch: bool(h.showSearch, true),
       showTextSize: bool(h.showTextSize, true),
       showThemeToggle: bool(h.showThemeToggle, true),
+      // An announcement bar above the header. Only shown when it has text.
+      bannerOn: bool(h.bannerOn, false) && !!str(h.bannerText, '').trim(),
+      bannerText: str(h.bannerText, '').trim(),
+      bannerUrl: str(h.bannerUrl, '').trim(),
     },
     footer: {
       text: str(f.text, '').trim() || d.footer.text,
       links: links && links.length ? links : d.footer.links,
+      // Optional extras: a short blurb / address under the footer text, and social links.
+      about: str(f.about, '').trim(),
+      social: Array.isArray(f.social) ? f.social.map((l) => ({ label: str(l?.label, '').trim(), url: str(l?.url, '').trim() })).filter((l) => l.label && l.url) : [],
     },
   };
 }
@@ -51,6 +60,15 @@ export function validateChrome(c) {
     if (!l.label?.trim()) errors[`footer.links.${i}.label`] = 'Label required.';
     if (!l.url?.trim()) errors[`footer.links.${i}.url`] = 'Link required.';
     else if (!URL_OK.test(l.url.trim())) errors[`footer.links.${i}.url`] = 'Start with /, https://, mailto: or tel:.';
+  });
+  // Announcement bar: switching it on needs something to say.
+  if (c.header.bannerOn && !c.header.bannerText?.trim()) errors['header.bannerText'] = 'Add the message, or switch the bar off.';
+  if (c.header.bannerUrl?.trim() && !URL_OK.test(c.header.bannerUrl.trim())) errors['header.bannerUrl'] = 'Start with /, https://, mailto: or tel:.';
+  // Social links are optional, but a row that is started must be finished.
+  (c.footer.social || []).forEach((l, i) => {
+    if (!l.label?.trim()) errors[`footer.social.${i}.label`] = 'Label required.';
+    if (!l.url?.trim()) errors[`footer.social.${i}.url`] = 'Link required.';
+    else if (!URL_OK.test(l.url.trim())) errors[`footer.social.${i}.url`] = 'Start with /, https://, mailto: or tel:.';
   });
   return errors;
 }
