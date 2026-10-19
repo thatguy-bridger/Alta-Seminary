@@ -1,4 +1,5 @@
 import React from 'react';
+import { findUnlinked, applyLinks, KIND_LABEL } from '../../lib/linkDetect.js';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
 import { createBlock, BLOCK_REGISTRY } from '../../blocks/registry.js';
 import { EditableCanvas } from './EditableCanvas.jsx';
@@ -72,6 +73,9 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const previewFrameRef = React.useRef(null);
   const previewFrameReady = React.useRef(false);
   const [publishMode, setPublishMode] = React.useState('now');
+  // Step 2 of publishing: plain-text phone numbers / emails / web addresses the
+  // admin might want turned into links. { suggestions, picked:Set, then }.
+  const [linkReview, setLinkReview] = React.useState(null);
   const [scheduleAt, setScheduleAt] = React.useState('');
   const [unpublishAt, setUnpublishAt] = React.useState('');
   const saveTimer = React.useRef(null);
@@ -347,7 +351,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     });
   }
 
-  async function handlePublish() {
+  async function handlePublish(blocksToPublish = blocks) {
     setPublishing(true);
     const { error } = await supabaseBrowser
       .from(table)
@@ -355,8 +359,8 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
         // Keeps the original go-live time (it orders the event in the
         // announcements feed, and shouldn't jump every time the page is
         // edited and re-published), and has no publish_at column to clear.
-        ? { published_blocks: blocks, status: 'published', published_at: row.published_at || new Date().toISOString() }
-        : { published_blocks: blocks, status: 'published', published_at: new Date().toISOString(), publish_at: null })
+        ? { published_blocks: blocksToPublish, status: 'published', published_at: row.published_at || new Date().toISOString() }
+        : { published_blocks: blocksToPublish, status: 'published', published_at: new Date().toISOString(), publish_at: null })
       .eq('id', row.id);
     setPublishing(false);
     setPublishOpen(false);
@@ -367,6 +371,27 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
       setRow((r) => ({ ...r, status: 'published', publish_at: null, published_at: r.published_at || new Date().toISOString() }));
     }
     setTimeout(() => setToast(null), 4000);
+  }
+
+  // Publish/Schedule go through here first: if the draft has phone numbers,
+  // emails or web addresses typed as plain text, offer to link them (step 2 of
+  // the dialog) before continuing. Nothing to suggest -> straight through.
+  function startPublish(then) {
+    const suggestions = findUnlinked(blocks);
+    if (suggestions.length === 0) { then.run(blocks); return; }
+    setLinkReview({ suggestions, picked: new Set(suggestions.map((s) => s.id)), then });
+  }
+
+  function finishLinkReview(link) {
+    const { suggestions, picked, then } = linkReview;
+    setLinkReview(null);
+    let next = blocks;
+    if (link && picked.size) {
+      next = applyLinks(blocks, suggestions, picked);
+      setBlocks(next);
+      scheduleSave(next);
+    }
+    then.run(next);
   }
 
   // Scheduled publish doesn't touch published_blocks yet -- sweep-scheduled-
@@ -784,15 +809,49 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
         <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
           <Button variant="ghost" onClick={() => setPublishOpen(false)}>Cancel</Button>
           {publishMode === 'now' || isEvent ? (
-            <Button variant="primary" disabled={publishing} onClick={handlePublish}>
+            <Button variant="primary" disabled={publishing} onClick={() => startPublish({ run: handlePublish })}>
               {publishing ? 'Publishing…' : 'Publish'}
             </Button>
           ) : (
-            <Button variant="primary" disabled={publishing || !scheduleAt} onClick={() => handleSchedule(fromLocalInputValue(scheduleAt))}>
+            <Button variant="primary" disabled={publishing || !scheduleAt} onClick={() => startPublish({ run: () => handleSchedule(fromLocalInputValue(scheduleAt)) })}>
               {publishing ? 'Scheduling…' : 'Schedule'}
             </Button>
           )}
         </div>
+      </Dialog>
+
+      <Dialog open={!!linkReview} wide title="Want to hyperlink created content?" onClose={() => setLinkReview(null)}>
+        {linkReview && (
+          <>
+            <p style={{ color: 'var(--text-secondary)', marginTop: 0 }}>
+              These look like phone numbers, emails or web addresses typed as plain text. Tick the ones to turn into links.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginBottom: 'var(--space-4)', maxHeight: '50vh', overflowY: 'auto' }}>
+              {linkReview.suggestions.map((s) => (
+                <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) var(--space-3)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={linkReview.picked.has(s.id)}
+                    onChange={(e) => setLinkReview((r) => { const picked = new Set(r.picked); if (e.target.checked) picked.add(s.id); else picked.delete(s.id); return { ...r, picked }; })}
+                  />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ wordBreak: 'break-word' }}>{s.text}</strong>
+                    <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 'var(--fs-caption)' }}>
+                      {KIND_LABEL[s.kind]} in {s.blockLabel} → {s.where === 'button' ? `sets the button's link to ${s.href}` : s.href}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <Button variant="ghost" onClick={() => setLinkReview(null)}>Cancel</Button>
+              <Button variant="outline" disabled={publishing} onClick={() => finishLinkReview(false)}>Continue without linking</Button>
+              <Button variant="primary" disabled={publishing || linkReview.picked.size === 0} onClick={() => finishLinkReview(true)}>
+                Link {linkReview.picked.size} &amp; continue
+              </Button>
+            </div>
+          </>
+        )}
       </Dialog>
 
       {toast && (
