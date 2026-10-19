@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_CHROME, normalizeChrome, validateChrome, footerText } from './siteChrome.js';
+import { socialInfo, DEFAULT_CHROME, normalizeChrome, validateChrome, footerText } from './siteChrome.js';
 
 describe('normalizeChrome', () => {
   it('gives the defaults when nothing is stored', () => {
@@ -45,7 +45,21 @@ describe('banner and extras', () => {
     const e = validateChrome({ ...ok, footer: { ...ok.footer, social: [{ label: 'IG', url: '' }] } });
     expect(Object.keys(e)).toEqual(['footer.social.0.url']);
     expect(normalizeChrome({ footer: { social: [{ label: 'a', url: '' }, { label: 'b', url: 'https://b' }] } }).footer.social).toHaveLength(1);
+    expect(validateChrome({ ...ok, footer: { ...ok.footer, social: [{ label: '', url: 'https://instagram.com/x' }] } })).toEqual({});
   });
 });
 
 it('footerText fills in the year', () => expect(footerText('© {year} A, {year}', 2026)).toBe('© 2026 A, 2026'));
+
+describe('socialInfo', () => {
+  it('recognizes channels and falls back to the host', () => {
+    expect(socialInfo('https://www.instagram.com/alta.seminary')).toEqual({ domain: 'www.instagram.com', name: 'Instagram' });
+    expect(socialInfo('https://youtu.be/abc').name).toBe('YouTube');
+    expect(socialInfo('https://twitter.com/x').name).toBe('X');
+    expect(socialInfo('https://www.example.org/page')).toEqual({ domain: 'www.example.org', name: 'example.org' });
+  });
+  it('returns null for non-web links', () => {
+    expect(socialInfo('mailto:a@b.org')).toBeNull();
+    expect(socialInfo('not a url')).toBeNull();
+  });
+});

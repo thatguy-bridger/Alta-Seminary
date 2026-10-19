@@ -42,7 +42,7 @@ export function normalizeChrome(raw) {
       links: links && links.length ? links : d.footer.links,
       // Optional extras: a short blurb / address under the footer text, and social links.
       about: str(f.about, '').trim(),
-      social: Array.isArray(f.social) ? f.social.map((l) => ({ label: str(l?.label, '').trim(), url: str(l?.url, '').trim() })).filter((l) => l.label && l.url) : [],
+      social: Array.isArray(f.social) ? f.social.map((l) => ({ label: str(l?.label, '').trim(), url: str(l?.url, '').trim() })).filter((l) => l.url) : [],
     },
   };
 }
@@ -66,7 +66,6 @@ export function validateChrome(c) {
   if (c.header.bannerUrl?.trim() && !URL_OK.test(c.header.bannerUrl.trim())) errors['header.bannerUrl'] = 'Start with /, https://, mailto: or tel:.';
   // Social links are optional, but a row that is started must be finished.
   (c.footer.social || []).forEach((l, i) => {
-    if (!l.label?.trim()) errors[`footer.social.${i}.label`] = 'Label required.';
     if (!l.url?.trim()) errors[`footer.social.${i}.url`] = 'Link required.';
     else if (!URL_OK.test(l.url.trim())) errors[`footer.social.${i}.url`] = 'Start with /, https://, mailto: or tel:.';
   });
@@ -74,3 +73,24 @@ export function validateChrome(c) {
 }
 
 export const footerText = (text, year) => text.replaceAll('{year}', String(year));
+
+const PROVIDERS = [
+  [/(^|\.)instagram\.com$/, 'Instagram'], [/(^|\.)facebook\.com$|(^|\.)fb\.com$/, 'Facebook'],
+  [/(^|\.)youtube\.com$|(^|\.)youtu\.be$/, 'YouTube'], [/(^|\.)(x|twitter)\.com$/, 'X'],
+  [/(^|\.)tiktok\.com$/, 'TikTok'], [/(^|\.)linkedin\.com$/, 'LinkedIn'], [/(^|\.)pinterest\.com$/, 'Pinterest'],
+  [/(^|\.)snapchat\.com$/, 'Snapchat'], [/(^|\.)spotify\.com$/, 'Spotify'], [/(^|\.)vimeo\.com$/, 'Vimeo'],
+  [/(^|\.)threads\.net$/, 'Threads'], [/(^|\.)bsky\.app$/, 'Bluesky'],
+];
+
+// Which site a social link points at: { domain, name } -- name is the well-known
+// channel ("Instagram") or else the bare host. null when it isn't an http(s) URL.
+export function socialInfo(url) {
+  let host;
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol)) return null;
+    host = u.hostname.toLowerCase();
+  } catch { return null; }
+  const hit = PROVIDERS.find(([re]) => re.test(host));
+  return { domain: host, name: hit ? hit[1] : host.replace(/^www\./, '') };
+}

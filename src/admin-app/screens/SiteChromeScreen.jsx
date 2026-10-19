@@ -90,7 +90,7 @@ export function SiteChromeScreen() {
           <h4 style={{ margin: 0, fontFamily: 'var(--font-sans)' }}>Social links (optional)</h4>
           {chrome.footer.social.map((l, i) => (
             <div key={i} style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 160px' }}><Input label="Name" value={l.label} placeholder="Instagram" onChange={(e) => setSocial(i, { label: e.target.value })} error={err(`footer.social.${i}.label`)} /></div>
+              <div style={{ flex: '1 1 160px' }}><Input label="Name (optional — detected from the link)" value={l.label} placeholder="Instagram" onChange={(e) => setSocial(i, { label: e.target.value })} error={err(`footer.social.${i}.label`)} /></div>
               <div style={{ flex: '2 1 220px' }}><Input label="Link" value={l.url} placeholder="https://…" onChange={(e) => setSocial(i, { url: e.target.value })} error={err(`footer.social.${i}.url`)} /></div>
               <Button variant="ghost" size="sm" onClick={() => setFooter({ social: chrome.footer.social.filter((_, j) => j !== i) })}>Remove</Button>
             </div>
