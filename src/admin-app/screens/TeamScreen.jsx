@@ -1,4 +1,5 @@
 import React from 'react';
+import { InfoButton } from '../guide/InfoButton.jsx';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
 import { Input } from '../../design-system/components/forms/Input.jsx';
 import { Button } from '../../design-system/components/forms/Button.jsx';
@@ -55,7 +56,7 @@ export function TeamScreen() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', maxWidth: 640 }}>
-      <Card title="Invite a new admin">
+      <Card title={<>Invite a new admin <InfoButton feature="team" /></>}>
         <form onSubmit={handleInvite} style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 180 }}>
             <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" />

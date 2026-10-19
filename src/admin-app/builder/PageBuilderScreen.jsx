@@ -1,4 +1,5 @@
 import React from 'react';
+import { InfoButton } from '../guide/InfoButton.jsx';
 import { findUnlinked, applyLinks, KIND_LABEL } from '../../lib/linkDetect.js';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
 import { createBlock, BLOCK_REGISTRY } from '../../blocks/registry.js';
@@ -491,6 +492,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
           {row.published_blocks?.length > 0 && <Button variant="ghost" size="sm" onClick={handleResetToPublished}>Reset to current setup - unedited</Button>}
           {row.status === 'published' && <Button variant="ghost" size="sm" onClick={handleUnpublish}>Unpublish</Button>}
           <Button variant="primary" onClick={() => { setPublishMode('now'); setScheduleAt(''); setPublishOpen(true); }}>Publish</Button>
+          <InfoButton feature="publish" />
         </div>
       </div>
 
@@ -544,7 +546,11 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
         </div>
       )}
 
-      <Tabs tabs={['Edit', 'Preview']} active={view} onChange={setView} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+        <Tabs tabs={['Edit', 'Preview']} active={view} onChange={setView} />
+        <InfoButton feature="preview" />
+        <InfoButton feature="editing" />
+      </div>
 
       <div style={{ marginTop: 'var(--space-6)' }}>
         {view === 'Edit' ? (
@@ -579,6 +585,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                 display: 'flex', alignItems: 'center', gap: 'var(--space-4)', flexWrap: 'wrap',
               }}>
                 <AddBlockButton onAdd={handleAdd} allowEventBound={isEvent} variant="secondary" />
+                <InfoButton feature="add-block" />
                 {selectedBlock && (
                   <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
                     Selected: press <kbd>Delete</kbd> to remove, <kbd>{modKeyLabel}D</kbd> to duplicate, <kbd>Esc</kbd> to deselect.
@@ -606,7 +613,8 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                     sticky offset from the top plus a matching gap left at
                     the bottom of the viewport. */}
                 <div className="page-builder-sidebar" style={{ position: 'sticky', top: 'var(--space-6)', maxHeight: 'calc(100vh - var(--space-6) - var(--space-6))', overflowY: 'auto' }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                    <InfoButton feature="settings" />
                     <button
                       onClick={() => setSidebarOpen(false)}
                       title="Hide the settings panel to give the canvas more room"

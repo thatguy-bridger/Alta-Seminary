@@ -3,6 +3,7 @@ import { supabaseBrowser } from '../lib/supabase/browser-client';
 import { ThemeToggle } from '../design-system/components/core/ThemeToggle.jsx';
 import { TextSizeToggle } from '../design-system/components/core/TextSizeToggle.jsx';
 import { ConfirmProvider } from './ConfirmProvider.jsx';
+import { GuideProvider, useGuide } from './guide/GuideProvider.jsx';
 import { withBase } from '../lib/url.js';
 import logo from '../assets/alta-seminary-logo.png';
 
@@ -18,7 +19,12 @@ const NAV_ITEMS = [
 
 const DISMISSED_KEY = 'alta-dismissed-deploy-error';
 
-export function AdminShell({ children, activePath }) {
+export function AdminShell(props) {
+  return <GuideProvider><Shell {...props} /></GuideProvider>;
+}
+
+function Shell({ children, activePath }) {
+  const { openGuide, showInvite, dismissInvite } = useGuide();
   const [deployError, setDeployError] = React.useState(null);
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
@@ -105,6 +111,14 @@ export function AdminShell({ children, activePath }) {
               {item.label}
             </a>
           ))}
+          {/* Not a page: opens the how-to-use guide (see guide/). */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openGuide(); }}
+            style={{ textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', font: 'inherit', color: 'inherit', padding: 'inherit' }}
+          >
+            Guide
+          </button>
         </nav>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-around', gap: 'var(--space-2)' }}>
@@ -149,6 +163,21 @@ export function AdminShell({ children, activePath }) {
             >
               Dismiss
             </button>
+          </div>
+        )}
+        {showInvite && (
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap',
+              padding: 'var(--space-3) var(--space-6)', background: 'var(--tint-info-bg, var(--surface-sunken))', color: 'var(--text-primary)',
+              fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)',
+            }}
+          >
+            <span><strong>New to the admin?</strong> Take a quick tour of how everything works.</span>
+            <span style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => openGuide()}>Start the tour</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={dismissInvite}>Not now</button>
+            </span>
           </div>
         )}
         <main style={{ flex: 1, minWidth: 0, padding: 'var(--space-6)', background: 'var(--surface-page)' }}>

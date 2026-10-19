@@ -1,4 +1,5 @@
 import React from 'react';
+import { InfoButton } from '../guide/InfoButton.jsx';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
 import { Card } from '../../design-system/components/core/Card.jsx';
 import { Badge } from '../../design-system/components/core/Badge.jsx';
@@ -130,7 +131,7 @@ export function DirectoryScreen() {
   }
 
   return (
-    <Card title="Directories">
+    <Card title={<>Directories <InfoButton feature="directory" /></>}>
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
         Manage as many directories as you need -- Seminary Council, Missionaries, and Staff to start, plus any others you create. Add a "Directory Teaser" block to any page to display one publicly.
       </p>

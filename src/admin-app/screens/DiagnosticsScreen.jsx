@@ -1,4 +1,5 @@
 import React from 'react';
+import { InfoButton } from '../guide/InfoButton.jsx';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
 import { Card } from '../../design-system/components/core/Card.jsx';
 import { Badge } from '../../design-system/components/core/Badge.jsx';
@@ -226,7 +227,7 @@ export function DiagnosticsScreen() {
 
   return (
     <div>
-      <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 var(--space-2)' }}>Diagnostics</h2>
+      <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 var(--space-2)' }}>Diagnostics <InfoButton feature="diagnostics" /></h2>
       <p style={{ color: 'var(--text-secondary)', marginTop: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', maxWidth: 640 }}>
         A developer-facing status panel for the website, its database, and its build pipeline. Nothing here is needed
         for day-to-day publishing -- come here if something seems broken and you want to know what, or if support

@@ -1,4 +1,5 @@
 import React from 'react';
+import { InfoButton } from '../guide/InfoButton.jsx';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
 import { Card } from '../../design-system/components/core/Card.jsx';
 import { Badge } from '../../design-system/components/core/Badge.jsx';
@@ -250,7 +251,7 @@ export function ContentScreen({ initialKind = 'all' }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-      <Card title="Content">
+      <Card title={<>Content <InfoButton feature="content" /></>}>
         <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
           Announcements, events and photo albums in one place. An event is its own page: turn on “Show in announcements” to list it with the announcements until it's over, after which it's archived with its details and photos. Link an album to an event and its photos appear on the event's page.
         </p>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { InfoButton } from '../guide/InfoButton.jsx';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
 import { Card } from '../../design-system/components/core/Card.jsx';
 import { Badge } from '../../design-system/components/core/Badge.jsx';
@@ -132,7 +133,7 @@ export function HistoryScreen() {
 
   return (
     <div>
-      <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 var(--space-4)' }}>History</h2>
+      <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 var(--space-4)' }}>History <InfoButton feature="history" /></h2>
       <p style={{ color: 'var(--text-secondary)', marginTop: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)' }}>
         Every change admins make, with who made it and when. Undo restores a change to how it was before.
       </p>

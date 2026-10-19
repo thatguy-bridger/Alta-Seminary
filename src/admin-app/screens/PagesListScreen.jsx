@@ -1,4 +1,5 @@
 import React from 'react';
+import { InfoButton } from '../guide/InfoButton.jsx';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
 import { Card } from '../../design-system/components/core/Card.jsx';
 import { Badge } from '../../design-system/components/core/Badge.jsx';
@@ -264,7 +265,7 @@ export function PagesListScreen() {
   ];
 
   return (
-    <Card title="Pages & Site Navigation">
+    <Card title={<>Pages &amp; Site Navigation <InfoButton feature="pages" /></>}>
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
         Every page and section of the site, in nav order. Toggle visibility, reorder with the arrows, edit content, or create/copy/delete pages — including sub-pages nested under a parent.
       </p>
@@ -274,10 +275,11 @@ export function PagesListScreen() {
       {/* The site-wide header & footer: always there, can't be renamed, deleted
           or unpublished -- only edited -- so it sits apart from the page rows
           and in the secondary color instead of the regular row styling. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
       <a
         href={withBase('/admin/site-chrome')}
         style={{
-          display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap', marginBottom: 'var(--space-4)',
+          flex: 1, display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap',
           padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)', textDecoration: 'none',
           background: 'var(--brand-secondary)', color: 'var(--text-on-secondary)', fontFamily: 'var(--font-sans)',
         }}
@@ -286,6 +288,8 @@ export function PagesListScreen() {
         <span style={{ fontSize: 'var(--fs-caption)', opacity: 0.9, flex: 1 }}>Shown on every page · always live · can't be deleted or renamed</span>
         <span style={{ fontWeight: 'var(--fw-bold)' }}>Edit →</span>
       </a>
+      <InfoButton feature="header-footer" />
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         {tree.map((row) => (
           <PageRow key={row.id} row={row} siblings={tree} onToggle={toggleVisible} onUnpublish={unpublish} onPublish={publish} onRename={rename} onMove={move} onCopy={handleCopy} onDelete={handleDelete} depth={0} showHealthWarnings={showHealthWarnings} />

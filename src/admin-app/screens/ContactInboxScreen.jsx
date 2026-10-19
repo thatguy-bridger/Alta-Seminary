@@ -1,4 +1,5 @@
 import React from 'react';
+import { InfoButton } from '../guide/InfoButton.jsx';
 import { supabaseBrowser } from '../../lib/supabase/browser-client';
 import { Card } from '../../design-system/components/core/Card.jsx';
 import { Badge } from '../../design-system/components/core/Badge.jsx';
@@ -37,7 +38,7 @@ export function ContactInboxScreen() {
   }
 
   return (
-    <Card title="Contact Submissions">
+    <Card title={<>Contact Submissions <InfoButton feature="contact" /></>}>
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
         Messages sent through the Contact Form block on the public site.
       </p>
