@@ -86,9 +86,9 @@ describe('tickerLayout (smooth slider math)', () => {
   });
 
   it('has a clearly ordered range of speeds', () => {
-    const secs = ['crawl', 'slow', 'normal', 'fast', 'faster', 'rapid'].map((s) => tickerLayout(3, '3', s).seconds);
+    const secs = ['glacial', 'crawl', 'slow', 'normal', 'fast', 'faster', 'rapid'].map((s) => tickerLayout(3, '3', s).seconds);
     expect(secs).toEqual([...secs].sort((a, b) => b - a));
-    expect(new Set(secs).size).toBe(6);
+    expect(new Set(secs).size).toBe(7);
   });
 
   it('copes with nonsense input', () => {
