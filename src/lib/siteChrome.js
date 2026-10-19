@@ -1,3 +1,4 @@
+import { cleanIconChoice } from './footerIcons.js';
 // Editable site header + footer. Stored as one jsonb value on site_settings
 // (site_chrome); everything here is pure so the admin form, the public
 // layout and the tests all share one definition of "valid".
@@ -8,7 +9,7 @@ export const DEFAULT_CHROME = {
     about: '',
     social: [],
     text: '© {year} Alta Seminary · Seminaries and Institutes, The Church of Jesus Christ of Latter-day Saints',
-    links: [{ label: 'Contact', url: '/contact' }],
+    links: [{ label: 'Contact', url: '/contact', icon: '' }],
   },
 };
 
@@ -23,7 +24,7 @@ export function normalizeChrome(raw) {
   const f = raw?.footer || {};
   const d = DEFAULT_CHROME;
   const links = Array.isArray(f.links)
-    ? f.links.map((l) => ({ label: str(l?.label, '').trim(), url: str(l?.url, '').trim() })).filter((l) => l.label && l.url)
+    ? f.links.map((l) => ({ label: str(l?.label, '').trim(), url: str(l?.url, '').trim(), icon: cleanIconChoice(l?.icon) })).filter((l) => l.label && l.url)
     : null;
   return {
     header: {
@@ -42,7 +43,7 @@ export function normalizeChrome(raw) {
       links: links && links.length ? links : d.footer.links,
       // Optional extras: a short blurb / address under the footer text, and social links.
       about: str(f.about, '').trim(),
-      social: Array.isArray(f.social) ? f.social.map((l) => ({ label: str(l?.label, '').trim(), url: str(l?.url, '').trim() })).filter((l) => l.url) : [],
+      social: Array.isArray(f.social) ? f.social.map((l) => ({ label: str(l?.label, '').trim(), url: str(l?.url, '').trim(), icon: cleanIconChoice(l?.icon) })).filter((l) => l.url) : [],
     },
   };
 }

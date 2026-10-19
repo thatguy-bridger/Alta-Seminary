@@ -15,7 +15,7 @@ describe('normalizeChrome', () => {
   it('keeps real edits and drops half-filled links', () => {
     const c = normalizeChrome({ header: { showSearch: false }, footer: { text: 'Hi', links: [{ label: 'A', url: '/a' }, { label: 'B', url: '' }] } });
     expect(c.header.showSearch).toBe(false);
-    expect(c.footer).toEqual({ text: 'Hi', links: [{ label: 'A', url: '/a' }], about: '', social: [] });
+    expect(c.footer).toEqual({ text: 'Hi', links: [{ label: 'A', url: '/a', icon: '' }], about: '', social: [] });
   });
 });
 
@@ -61,5 +61,34 @@ describe('socialInfo', () => {
   it('returns null for non-web links', () => {
     expect(socialInfo('mailto:a@b.org')).toBeNull();
     expect(socialInfo('not a url')).toBeNull();
+  });
+});
+
+import { FOOTER_ICONS, getFooterIcon, cleanIconChoice, pickFooterIcon } from './footerIcons.js';
+describe('footer icons', () => {
+  it('has a clean, unique library', () => {
+    expect(FOOTER_ICONS.length).toBeGreaterThanOrEqual(25);
+    expect(new Set(FOOTER_ICONS.map((i) => i.id)).size).toBe(FOOTER_ICONS.length);
+    for (const i of FOOTER_ICONS) { expect(i.label).toBeTruthy(); expect(i.paths.length).toBeGreaterThan(0); }
+    expect(getFooterIcon('temple')).not.toBeNull();
+  });
+  it('only keeps a valid choice, and survives normalizing', () => {
+    expect(cleanIconChoice('temple')).toBe('temple');
+    expect(cleanIconChoice('none')).toBe('none');
+    expect(cleanIconChoice('hamburger')).toBe('');
+    const c = normalizeChrome({ footer: { links: [{ label: 'A', url: '/a', icon: 'book' }], social: [{ label: '', url: 'https://x.com/a', icon: 'bogus' }] } });
+    expect(c.footer.links[0].icon).toBe('book');
+    expect(c.footer.social[0].icon).toBe('');
+  });
+});
+
+describe('pickFooterIcon', () => {
+  it('is automatic when unset, and obeys an explicit choice', () => {
+    expect(pickFooterIcon({ label: 'Contact', url: '/contact', icon: '' }, 'link').icon.id).toBe('contact');
+    expect(pickFooterIcon({ label: 'Staff', url: '/staff', icon: '' }, 'link')).toBeNull();
+    expect(pickFooterIcon({ label: 'Contact', url: '/contact', icon: 'none' }, 'link')).toBeNull();
+    expect(pickFooterIcon({ label: 'Staff', url: '/staff', icon: 'users' }, 'link').icon.id).toBe('users');
+    expect(pickFooterIcon({ label: 'IG', url: 'https://instagram.com/a', icon: '' }, 'social', { domain: 'instagram.com' })).toEqual({ type: 'favicon', domain: 'instagram.com' });
+    expect(pickFooterIcon({ label: 'IG', url: 'https://instagram.com/a', icon: 'heart' }, 'social', { domain: 'instagram.com' }).icon.id).toBe('heart');
   });
 });

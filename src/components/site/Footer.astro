@@ -2,6 +2,7 @@
 import { withBase } from '../../lib/url.js';
 import { getSiteChrome } from '../../lib/pages.js';
 import { footerText, socialInfo } from '../../lib/siteChrome.js';
+import { pickFooterIcon } from '../../lib/footerIcons.js';
 const year = new Date().getFullYear();
 const { footer } = await getSiteChrome();
 const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
@@ -17,14 +18,14 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
       <section>
         <h2>Quick links</h2>
         <ul>
-          {footer.links.map((l: { label: string; url: string }) => {
-            const isContact = /\/contact\/?$/i.test(l.url) || l.label.toLowerCase() === 'contact';
+          {footer.links.map((l: { label: string; url: string; icon?: string }) => {
+            const pick = pickFooterIcon({ icon: '', ...l }, 'link');
             return (
               <li>
-                <a href={href(l.url)} class={`site-footer__social${isContact ? '' : ' site-footer__social--plain'}`}>
-                  {isContact && (
+                <a href={href(l.url)} class={`site-footer__social${pick ? '' : ' site-footer__social--plain'}`}>
+                  {pick?.type === 'svg' && (
                     <span class="site-footer__chip" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6v12a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2z" /><path d="M10 16h6" /><path d="M13 11m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M4 8h3" /><path d="M4 12h3" /><path d="M4 16h3" /></svg>
+                      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">{pick.icon?.paths.map((d: string) => <path d={d} />)}</svg>
                     </span>
                   )}
                   {l.label}
@@ -38,12 +39,18 @@ const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
         <section>
           <h2>Follow us</h2>
           <ul>
-            {footer.social.map((l: { label: string; url: string }) => {
+            {footer.social.map((l: { label: string; url: string; icon?: string }) => {
               const info = socialInfo(l.url);
+              const pick = pickFooterIcon({ icon: '', ...l }, 'social', info);
               return (
                 <li>
-                  <a href={href(l.url)} rel="noopener" class="site-footer__social">
-                    {info && <img src={`https://www.google.com/s2/favicons?domain=${info.domain}&sz=64`} alt="" width="20" height="20" loading="lazy" />}
+                  <a href={href(l.url)} rel="noopener" class={`site-footer__social${pick ? '' : ' site-footer__social--plain'}`}>
+                    {pick?.type === 'favicon' && <img src={`https://www.google.com/s2/favicons?domain=${pick.domain}&sz=64`} alt="" width="32" height="32" loading="lazy" />}
+                    {pick?.type === 'svg' && (
+                      <span class="site-footer__chip" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">{pick.icon?.paths.map((d: string) => <path d={d} />)}</svg>
+                      </span>
+                    )}
                     {l.label || info?.name || l.url}
                   </a>
                 </li>

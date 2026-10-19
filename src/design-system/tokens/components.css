@@ -71,12 +71,15 @@ a:hover{color:var(--text-link-hover)}
    since that patch is a different color than the label. The glow growing
    from the cursor is what "writes in" the label as it passes under it,
    rather than the label just changing color uniformly all at once. */
-.btn-primary:hover{color:var(--brand-primary)}
+.btn-primary:hover{color:var(--brand-primary)!important}
+/* !important on the two hover colors above: a label color an admin picked in
+   the text toolbar is an inline style, which would otherwise beat these rules
+   and leave the label un-flipped on hover (red text on the red glow). */
 /* Already a strong brand-red background -- a warm white glow (a soft
    highlight sweeping across it) suits a solid color fill better than yet
    another red tint would, which would barely separate from the base color. */
 .btn-secondary{background:var(--brand-secondary);color:var(--text-on-secondary);--btn-glow-tint:rgba(255,255,255,1)}
-.btn-secondary:hover{color:var(--brand-secondary)}
+.btn-secondary:hover{color:var(--brand-secondary)!important}
 /* Outline/ghost have no fill of their own to begin with -- transparent, or
    just the page background showing through -- so their border eases
    toward the brand accent on hover (a border-color transition, not a
