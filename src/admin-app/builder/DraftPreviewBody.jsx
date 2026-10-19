@@ -52,5 +52,5 @@ export function DraftPreviewBody() {
       </p>
     );
   }
-  return <BlockRenderer blocks={blocks} />;
+  return <BlockRenderer blocks={blocks} quiet />;
 }

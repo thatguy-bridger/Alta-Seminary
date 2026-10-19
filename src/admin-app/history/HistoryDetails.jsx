@@ -15,7 +15,7 @@ function BlocksPreview({ blocks, label }) {
           <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-caption)', padding: 'var(--space-3)' }}>No content</p>
         ) : (
           <div style={{ width: '250%', transform: 'scale(0.4)', transformOrigin: 'top left', pointerEvents: 'none' }}>
-            <BlockRenderer blocks={blocks} />
+            <BlockRenderer blocks={blocks} quiet />
           </div>
         )}
       </div>

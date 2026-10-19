@@ -8,7 +8,7 @@ A short guide for new admins. The same content is in the admin itself: open **Gu
 
 This is where you edit the public website. Nothing you do here goes live until you press Publish, so you can explore safely.
 
-- The menu on the left is your map: Pages, Content (announcements, events, photos), Directories, Contact, Team, History, Diagnostics.
+- The menu on the left is your map: Pages, Content (announcements, events, photos), Directories, Team, History, Diagnostics.
 - Look for the small (i) buttons beside features. They explain what the thing is, and "Demonstrate for me" jumps to that slide of this guide.
 - You can reopen this guide any time from "Guide" in the left menu.
 
@@ -89,35 +89,28 @@ Lists of people (faculty, staff, councils) shown as cards on the site.
 - Choose a directory, then add or edit people: name, role, photo and bio.
 - Visitors click a card to see the full profile.
 
-## 11. Contact inbox
-
-Messages sent through the Contact form on the website.
-
-- New messages are listed here as well as emailed to the address set up for the site.
-- Open one to read it and reply from your own email.
-
-## 12. Team
+## 11. Team
 
 Who can sign in to this admin.
 
 - Invite a new admin by email. They get a link to set their password.
 - Everyone here can edit everything, so only invite people you trust.
 
-## 13. History
+## 12. History
 
 A record of changes: what was edited, when, and by whom.
 
 - Use it to see what changed if something looks wrong.
 - If a publish ever fails to go live, a red notice at the top of the admin links here.
 
-## 14. Diagnostics and page health
+## 13. Diagnostics and page health
 
 Checks that help keep the site in good shape, plus a few tools.
 
 - Page health flags things worth fixing, like an image with no description.
 - The same notes show on the Pages list as small badges.
 
-## 15. Accessibility
+## 14. Accessibility
 
 Almost all of it is automatic: page headings, link names, color contrast, keyboard use and reduced-motion are handled for you.
 

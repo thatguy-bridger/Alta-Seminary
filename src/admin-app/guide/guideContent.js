@@ -6,7 +6,7 @@ export const SLIDES = [
     id: 'welcome', title: 'Welcome to the Alta Seminary admin',
     what: 'This is where you edit the public website. Nothing you do here goes live until you press Publish, so you can explore safely.',
     steps: [
-      'The menu on the left is your map: Pages, Content (announcements, events, photos), Directories, Contact, Team, History, Diagnostics.',
+      'The menu on the left is your map: Pages, Content (announcements, events, photos), Directories, Team, History, Diagnostics.',
       'Look for the small (i) buttons beside features. They explain what the thing is, and "Demonstrate for me" jumps to that slide of this guide.',
       'You can reopen this guide any time from "Guide" in the left menu.',
     ],
@@ -96,14 +96,6 @@ export const SLIDES = [
     ],
   },
   {
-    id: 'contact', title: 'Contact inbox',
-    what: 'Messages sent through the Contact form on the website.',
-    steps: [
-      'New messages are listed here as well as emailed to the address set up for the site.',
-      'Open one to read it and reply from your own email.',
-    ],
-  },
-  {
     id: 'team', title: 'Team',
     what: 'Who can sign in to this admin.',
     steps: [
@@ -148,7 +140,6 @@ export const FEATURES = {
   preview: { slide: 'preview', title: 'Preview', blurb: 'See the page as visitors will, on desktop, tablet and phone sizes.' },
   content: { slide: 'content', title: 'Content', blurb: 'Announcements, events and photo albums, and how they connect.' },
   directory: { slide: 'directory', title: 'Directories', blurb: 'The people cards (faculty, staff, councils) shown on the site.' },
-  contact: { slide: 'contact', title: 'Contact inbox', blurb: 'Messages visitors send through the Contact form.' },
   team: { slide: 'team', title: 'Team', blurb: 'Who can sign in to this admin, and how to invite someone.' },
   history: { slide: 'history', title: 'History', blurb: 'A log of every change, so you can see what happened and when.' },
   diagnostics: { slide: 'diagnostics', title: 'Diagnostics', blurb: 'Health checks that flag things worth fixing, like images missing a description.' },

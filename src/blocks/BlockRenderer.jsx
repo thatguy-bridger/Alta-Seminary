@@ -16,7 +16,6 @@ import { DirectoryTeaserBlock } from './DirectoryTeaserBlock.jsx';
 import { EventsTeaserBlock } from './EventsTeaserBlock.jsx';
 import { PostsTeaserBlock } from './PostsTeaserBlock.jsx';
 import { GalleryBlock } from './GalleryBlock.jsx';
-import { ContactFormBlock } from './ContactFormBlock.jsx';
 import { FaqBlock } from './FaqBlock.jsx';
 import { BackgroundMusicBlock } from './BackgroundMusicBlock.jsx';
 import { BackToTopBlock } from './BackToTopBlock.jsx';
@@ -50,7 +49,6 @@ export const BLOCK_COMPONENTS = {
   'events-teaser': EventsTeaserBlock,
   'posts-teaser': PostsTeaserBlock,
   gallery: GalleryBlock,
-  'contact-form': ContactFormBlock,
   faq: FaqBlock,
   'background-music': BackgroundMusicBlock,
   'back-to-top': BackToTopBlock,
@@ -64,13 +62,18 @@ export const BLOCK_COMPONENTS = {
 // Astro public pages for directory-teaser/events-teaser/posts-teaser blocks (see
 // src/lib/pages.js resolveTeaserData). Admin canvas/preview omit it and let
 // those two block types fetch their own data client-side instead.
-export function BlockRenderer({ blocks, teaserData = {} }) {
+// quiet: admin screens that merely DISPLAY page content (History snapshots,
+// the editor's preview) skip the "chromeless" blocks -- background music,
+// popups, back-to-top, site effects -- so nothing plays or pops up while
+// someone is just working in the admin.
+export function BlockRenderer({ blocks, teaserData = {}, quiet = false }) {
   if (!Array.isArray(blocks) || blocks.length === 0) return null;
   return (
     <div>
       {blocks.map((block) => {
         const Component = BLOCK_COMPONENTS[block.type];
         if (!Component) return null;
+        if (quiet && BLOCK_REGISTRY[block.type]?.chromeless) return null;
         const extra = teaserData && teaserData[block.id] !== undefined ? { items: teaserData[block.id] } : {};
         const content = <Component {...block.props} {...extra} blockId={block.id} />;
         // See EditableCanvas.jsx's identical check -- a chromeless block

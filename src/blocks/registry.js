@@ -379,17 +379,6 @@ export const BLOCK_REGISTRY = {
       { key: 'count', kind: 'select', label: 'How many to show', options: [{value:'3',label:'3'},{value:'6',label:'6'},{value:'9',label:'9'},{value:'12',label:'12'},{value:'all',label:'All published announcements'}] },
     ],
   },
-  'contact-form': {
-    label: 'Contact Form',
-    category: 'Interactive',
-    icon: 'mail',
-    description: "A working contact form visitors can submit — replies land in your inbox.",
-    defaultProps: { heading: 'Get in Touch', successMessage: "Thanks — we'll be in touch soon." },
-    fields: [
-      { key: 'heading', kind: 'text', label: 'Heading' },
-      { key: 'successMessage', kind: 'text', label: 'Message shown after a successful submission', inline: false },
-    ],
-  },
   faq: {
     label: 'FAQ',
     category: 'Informational',
