@@ -11,7 +11,7 @@ import { BlockIcon } from './blockIcons.jsx';
 // block that sits outside the normal content flow -- see registry.js) makes
 // no sense as a Carousel slide or Columns column, so both of those pickers
 // pass this; the top-level "+ Add block" button leaves it off.
-export function AddBlockButton({ onAdd, label = '+ Add block', dialogTitle = 'Add a block', excludeTypes = [], excludeChromeless = false, allowEventBound = false }) {
+export function AddBlockButton({ onAdd, label = '+ Add block', dialogTitle = 'Add a block', excludeTypes = [], excludeChromeless = false, allowEventBound = false, variant = 'outline' }) {
   const [open, setOpen] = React.useState(false);
   // Event-bound blocks (Event Details / Event Photos) read the event they belong
   // to, so they only make sense in an event's own page editor, which opts in
@@ -33,7 +33,7 @@ export function AddBlockButton({ onAdd, label = '+ Add block', dialogTitle = 'Ad
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>{label}</Button>
+      <Button variant={variant} onClick={() => setOpen(true)}>{label}</Button>
       <Dialog open={open} title={dialogTitle} onClose={() => setOpen(false)} wide>
         <div style={{ width: '100%', maxHeight: '80vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
           {groups.map(({ category, types: groupTypes }) => (

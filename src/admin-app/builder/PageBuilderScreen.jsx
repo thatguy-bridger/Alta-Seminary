@@ -553,7 +553,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                 borderTop: '1px solid var(--border-subtle)', borderRadius: '0 0 var(--radius-lg) var(--radius-lg)',
                 display: 'flex', alignItems: 'center', gap: 'var(--space-4)', flexWrap: 'wrap',
               }}>
-                <AddBlockButton onAdd={handleAdd} allowEventBound={isEvent} />
+                <AddBlockButton onAdd={handleAdd} allowEventBound={isEvent} variant="primary" />
                 {selectedBlock && (
                   <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
                     Selected: press <kbd>Delete</kbd> to remove, <kbd>{modKeyLabel}D</kbd> to duplicate, <kbd>Esc</kbd> to deselect.
