@@ -806,7 +806,7 @@ function LiveCarousel({ items, autoplay, autoplaySpeed, loop, shuffleOnLoop, pau
 //
 // `speed` is how long one slide takes to cross, so the pace stays the same
 // however many slides there are -- not how long the whole loop takes.
-const TICKER_SECONDS_PER_SLIDE = { slow: 8, normal: 5, fast: 3 };
+const TICKER_SECONDS_PER_SLIDE = { crawl: 14, slow: 8, normal: 5, fast: 3, faster: 2, rapid: 1.2 };
 
 // Pure, so the math is testable: how the row is laid out for a given setup.
 export function tickerLayout(slideCount, visible, speed) {

@@ -224,7 +224,7 @@ export const BLOCK_REGISTRY = {
       { key: 'showBackground', kind: 'toggle', label: "Show the slider's background (the card behind each slide, and its shadow)" },
       { key: 'smoothScroll', kind: 'toggle', label: 'Smooth slider (a slow, continuous side-scroll like a ticker -- no jumping between slides)' },
       { key: 'smoothVisible', kind: 'select', label: 'Slides visible at once', options: [{value:'1',label:'1'},{value:'2',label:'2'},{value:'3',label:'3'},{value:'4',label:'4'},{value:'5',label:'5'}], showIf: (p) => p.smoothScroll },
-      { key: 'smoothSpeed', kind: 'select', label: 'Scroll speed', options: [{value:'slow',label:'Slow'},{value:'normal',label:'Normal'},{value:'fast',label:'Fast'}], showIf: (p) => p.smoothScroll },
+      { key: 'smoothSpeed', kind: 'select', label: 'Scroll speed', options: [{value:'crawl',label:'Crawl (very slow)'},{value:'slow',label:'Slow'},{value:'normal',label:'Normal'},{value:'fast',label:'Fast'},{value:'faster',label:'Faster'},{value:'rapid',label:'Rapid'}], showIf: (p) => p.smoothScroll },
       // The step-by-step controls don't apply to a continuous scroll.
       { key: 'transition', kind: 'select', label: 'Transition', options: [{value:'slide',label:'Slide'},{value:'fade',label:'Fade'}], showIf: (p) => !p.smoothScroll },
       { key: 'autoplay', kind: 'toggle', label: 'Auto-advance', showIf: (p) => !p.smoothScroll },
