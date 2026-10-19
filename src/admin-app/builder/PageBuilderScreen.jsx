@@ -22,6 +22,7 @@ import { useModKeyLabel } from '../useModKeyLabel.js';
 
 const AUTOSAVE_DELAY_MS = 1000;
 const DEVICE_WIDTHS = { Desktop: null, Tablet: 768, Mobile: 390 };
+const DESKTOP_PREVIEW_WIDTH = 1440;
 
 // datetime-local inputs need "YYYY-MM-DDTHH:mm" with no timezone suffix;
 // Postgres timestamptz values round-trip as ISO strings with one.
@@ -69,6 +70,8 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
   const [toast, setToast] = React.useState(null);
   const modKeyLabel = useModKeyLabel();
   const [previewDevice, setPreviewDevice] = React.useState('Desktop');
+  const previewBoxRef = React.useRef(null);
+  const [previewBoxWidth, setPreviewBoxWidth] = React.useState(0);
   const [customPreviewWidth, setCustomPreviewWidth] = React.useState(null); // non-null while dragging the resize handle -- see the Preview tab below
   const [resizingPreview, setResizingPreview] = React.useState(false); // true only while the handle below is actively being dragged
   const previewFrameRef = React.useRef(null);
@@ -239,6 +242,21 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [view, selectedId, blocks]);
+
+  // The Desktop preview must always LAY OUT at a real desktop width. If the
+  // admin window is narrower than that (small laptop, sidebar open), the page
+  // inside would otherwise be laid out at that smaller width and look like a
+  // tablet. So it renders at DESKTOP_PREVIEW_WIDTH and is scaled down to fit.
+  React.useEffect(() => {
+    if (view !== 'Preview') return undefined;
+    const el = previewBoxRef.current;
+    if (!el) return undefined;
+    const measure = () => setPreviewBoxWidth(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [view, previewDevice, customPreviewWidth]);
 
   // Feeds the current draft blocks into the Preview tab's <iframe> (see
   // preview-frame.astro / DraftPreviewBody.jsx) over postMessage, instead of
@@ -469,6 +487,7 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
             <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
               {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Draft saved' : ''}
             </span>
+            <InfoButton feature="editing" />
           </div>
           {row.status === 'scheduled' && row.publish_at && (
             <div style={{ marginTop: 'var(--space-2)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', color: 'var(--color-warning)' }}>
@@ -549,7 +568,6 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
         <Tabs tabs={['Edit', 'Preview']} active={view} onChange={setView} />
         <InfoButton feature="preview" />
-        <InfoButton feature="editing" />
       </div>
 
       <div style={{ marginTop: 'var(--space-6)' }}>
@@ -677,8 +695,9 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                   rendered below (only while resizingPreview) is what
                   actually fixes that -- it sits above the iframe in z-order
                   and intercepts the drag before the iframe ever sees it. */}
-              <div style={{ position: 'relative', maxWidth: '100%', paddingRight: 36 }}>
+              <div style={{ position: 'relative', maxWidth: '100%', paddingRight: 36, width: !customPreviewWidth && previewDevice === 'Desktop' ? '100%' : undefined, boxSizing: 'border-box' }}>
                 <div
+                  ref={previewBoxRef}
                   style={{
                     width: customPreviewWidth ?? (DEVICE_WIDTHS[previewDevice] || '100%'),
                     maxWidth: '100%',
@@ -708,13 +727,24 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                       half of this (it receives the current draft blocks over
                       postMessage, not a database read, so it's always exactly
                       up to date with what's on screen right now). */}
-                  <iframe
-                    ref={previewFrameRef}
-                    src={withBase('/admin/preview-frame')}
-                    title="Page preview"
-                    onLoad={() => { previewFrameReady.current = false; }}
-                    style={{ width: '100%', height: '80vh', border: 'none', display: 'block', background: 'var(--surface-page)' }}
-                  />
+                  {(() => {
+                    const desktop = !customPreviewWidth && previewDevice === 'Desktop';
+                    const scale = desktop && previewBoxWidth ? Math.min(1, previewBoxWidth / DESKTOP_PREVIEW_WIDTH) : 1;
+                    const scaled = scale < 1;
+                    return (
+                      <div style={scaled ? { height: '80vh', overflow: 'hidden' } : undefined}>
+                        <iframe
+                          ref={previewFrameRef}
+                          src={withBase('/admin/preview-frame')}
+                          title="Page preview"
+                          onLoad={() => { previewFrameReady.current = false; }}
+                          style={scaled
+                            ? { width: DESKTOP_PREVIEW_WIDTH, height: `calc(80vh / ${scale})`, transform: `scale(${scale})`, transformOrigin: '0 0', border: 'none', display: 'block', background: 'var(--surface-page)' }
+                            : { width: '100%', height: '80vh', border: 'none', display: 'block', background: 'var(--surface-page)' }}
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div
                   onPointerDown={(e) => {

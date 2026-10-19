@@ -33,3 +33,18 @@ describe('InfoButton', () => {
     expect(document.body.textContent).toContain(`Slide ${SLIDES.findIndex((s) => s.id === 'publish') + 1} of ${SLIDES.length}`);
   });
 });
+
+describe('turning the help off', () => {
+  it('hides every (i) button, and the guide still opens to turn it back on', async () => {
+    mounted = await renderInBrowser(<GuideProvider><InfoButton feature="publish" /><InfoButton feature="pages" /></GuideProvider>);
+    expect(mounted.container.querySelectorAll('button[aria-label^="About"]')).toHaveLength(2);
+    mounted.container.querySelector('button[aria-label="About: Publish"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+    [...mounted.container.querySelectorAll('button')].find((b) => b.textContent === 'Demonstrate for me').click();
+    await new Promise((r) => setTimeout(r, 0));
+    document.querySelector('input[type="checkbox"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mounted.container.querySelectorAll('button[aria-label^="About"]')).toHaveLength(0);
+    expect(localStorage.getItem('alta-admin-help-hidden')).toBe('1');
+  });
+});

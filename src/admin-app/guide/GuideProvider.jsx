@@ -1,13 +1,17 @@
 import React from 'react';
 import { Dialog } from '../../design-system/components/core/Dialog.jsx';
+import { Switch } from '../../design-system/components/forms/Switch.jsx';
 import { Button } from '../../design-system/components/forms/Button.jsx';
 import { SLIDES, slideIndex } from './guideContent.js';
 
-const GuideContext = React.createContext({ openGuide: () => {} });
+const GuideContext = React.createContext({ openGuide: () => {}, helpVisible: true });
 export const useGuide = () => React.useContext(GuideContext);
 
 const SEEN_KEY = 'alta-admin-guide-seen';
 const readSeen = () => { try { return localStorage.getItem(SEEN_KEY) === '1'; } catch { return true; } };
+const HIDDEN_KEY = 'alta-admin-help-hidden';
+const readHidden = () => { try { return localStorage.getItem(HIDDEN_KEY) === '1'; } catch { return false; } };
+const writeHidden = (v) => { try { localStorage.setItem(HIDDEN_KEY, v ? '1' : '0'); } catch { /* not remembered */ } };
 const markSeen = () => { try { localStorage.setItem(SEEN_KEY, '1'); } catch { /* private window: just show it again next time */ } };
 
 // Holds the guide for the whole admin: any (i) button or menu link calls
@@ -15,8 +19,20 @@ const markSeen = () => { try { localStorage.setItem(SEEN_KEY, '1'); } catch { /*
 export function GuideProvider({ children }) {
   const [index, setIndex] = React.useState(null); // null = closed
   const [showInvite, setShowInvite] = React.useState(false);
+  // "Show help buttons": off hides every (i) button and the new-admin invitation.
+  // The Guide link in the menu always stays, so it can be switched back on.
+  const [helpVisible, setHelpVisibleState] = React.useState(true);
 
-  React.useEffect(() => { setShowInvite(!readSeen()); }, []);
+  React.useEffect(() => {
+    setHelpVisibleState(!readHidden());
+    setShowInvite(!readSeen() && !readHidden());
+  }, []);
+
+  function setHelpVisible(v) {
+    setHelpVisibleState(v);
+    writeHidden(!v);
+    if (!v) setShowInvite(false);
+  }
 
   const openGuide = React.useCallback((slideId) => {
     markSeen();
@@ -30,7 +46,7 @@ export function GuideProvider({ children }) {
   const last = index === SLIDES.length - 1;
 
   return (
-    <GuideContext.Provider value={{ openGuide, showInvite, dismissInvite }}>
+    <GuideContext.Provider value={{ openGuide, showInvite: showInvite && helpVisible, dismissInvite, helpVisible, setHelpVisible }}>
       {children}
       <Dialog open={!!slide} wide title={slide ? slide.title : ''} onClose={() => setIndex(null)}>
         {slide && (
@@ -53,6 +69,10 @@ export function GuideProvider({ children }) {
                   : <Button variant="primary" onClick={() => setIndex((i) => i + 1)}>Next</Button>}
               </div>
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', fontSize: 'var(--fs-small)', color: 'var(--text-secondary)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
+              <Switch checked={helpVisible} onChange={(e) => setHelpVisible(e.target.checked)} />
+              Show the (i) help buttons around the admin. You can always reopen this guide from the menu.
+            </label>
             <div role="tablist" aria-label="Guide slides" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SLIDES.map((s, i) => (
                 <button

@@ -6,9 +6,10 @@ import { useGuide } from './GuideProvider.jsx';
 // "Demonstrate for me" button that jumps to that slide of the guide.
 export function InfoButton({ feature }) {
   const info = FEATURES[feature];
-  const { openGuide } = useGuide();
+  const { openGuide, helpVisible } = useGuide();
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef(null);
+  const [place, setPlace] = React.useState({ above: false, right: false });
 
   React.useEffect(() => {
     if (!open) return undefined;
@@ -19,14 +20,20 @@ export function InfoButton({ feature }) {
     return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey); };
   }, [open]);
 
-  if (!info) return null;
+  if (!info || helpVisible === false) return null;
   return (
     <span ref={ref} style={{ position: 'relative', display: 'inline-flex', verticalAlign: 'middle' }} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
       <button
         type="button"
         aria-label={`About: ${info.title}`}
         aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          // Open upward / leftward when there is no room below / to the right (e.g. the
+          // pinned Add block bar at the bottom of the editor).
+          const r = ref.current.getBoundingClientRect();
+          setPlace({ above: window.innerHeight - r.bottom < 230, right: r.left + 280 > window.innerWidth });
+          setOpen((o) => !o);
+        }}
         style={{
           width: 22, height: 22, borderRadius: '50%', cursor: 'pointer', padding: 0, lineHeight: 1,
           border: '1px solid var(--border-strong)', background: open ? 'var(--brand-secondary)' : 'var(--surface-card)',
@@ -40,7 +47,7 @@ export function InfoButton({ feature }) {
           role="dialog"
           aria-label={info.title}
           style={{
-            position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 400, width: 270,
+            position: 'absolute', ...(place.above ? { bottom: '100%', marginBottom: 6 } : { top: '100%', marginTop: 6 }), ...(place.right ? { right: 0 } : { left: 0 }), zIndex: 400, width: 270, maxWidth: 'calc(100vw - 24px)',
             padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', background: 'var(--surface-card)',
             border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-lg)', fontFamily: 'var(--font-sans)', textAlign: 'left',
           }}
