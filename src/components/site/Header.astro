@@ -6,14 +6,18 @@ import { TextSizeToggle } from '../../design-system/components/core/TextSizeTogg
 import { SiteSearch } from './SiteSearch.jsx';
 import logo from '../../assets/alta-seminary-logo.png';
 import { withBase } from '../../lib/url.js';
+import { getSiteChrome } from '../../lib/pages.js';
+const { header } = await getSiteChrome();
 ---
 
 <header class="site-header">
   <div style="display: flex; align-items: center; gap: var(--space-3);">
     <a href={withBase('/')} class="site-header__wordmark">
-      <Image src={logo} alt="Alta Seminary" height={40} />
+      {header.logoUrl
+        ? <img src={header.logoUrl} alt={header.logoAlt} height="40" />
+        : <Image src={logo} alt={header.logoAlt} height={40} />}
     </a>
-    <SiteSearch client:idle />
+    {header.showSearch && <SiteSearch client:idle />}
   </div>
   <Nav />
   {/* margin-left: auto (not the header's own justify-content: space-between,
@@ -25,8 +29,8 @@ import { withBase } from '../../lib/url.js';
       logo/search/nav cluster together on the left and pushes only this
       group flush right, with no awkward middle gap at any nav width. */}
   <div style="display: flex; align-items: center; gap: var(--space-3); margin-left: auto;">
-    <TextSizeToggle client:idle />
-    <ThemeToggle client:idle />
+    {header.showTextSize && <TextSizeToggle client:idle />}
+    {header.showThemeToggle && <ThemeToggle client:idle />}
   </div>
 </header>
 

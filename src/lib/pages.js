@@ -1,5 +1,6 @@
 import { supabaseBuild } from './supabase/build-client';
 import { withBase } from './url.js';
+import { normalizeChrome } from './siteChrome.js';
 
 // Build-time only: reads the public_pages VIEW (never the base `pages` table),
 // which only exposes published_blocks for rows with status='published' --
@@ -168,4 +169,12 @@ export async function findClosestRoute(requestedPath) {
     candidate = normalizePath(candidate.slice(0, candidate.lastIndexOf('/')) || '/');
   }
   return candidate;
+}
+
+// Editable header/footer (see siteChrome.js). Always returns a complete,
+// valid config: a failed read or blank value falls back to the defaults.
+export async function getSiteChrome() {
+  const { data, error } = await supabaseBuild.from('public_site_chrome').select('site_chrome').maybeSingle();
+  if (error) console.error('Failed to fetch site chrome:', error.message);
+  return normalizeChrome(data?.site_chrome);
 }

@@ -1,11 +1,17 @@
 ---
 import { withBase } from '../../lib/url.js';
+import { getSiteChrome } from '../../lib/pages.js';
+import { footerText } from '../../lib/siteChrome.js';
 const year = new Date().getFullYear();
+const { footer } = await getSiteChrome();
+const href = (u: string) => (u.startsWith('/') ? withBase(u) : u);
 ---
 
 <footer class="site-footer">
-  <p>&copy; {year} Alta Seminary &middot; Seminaries and Institutes, The Church of Jesus Christ of Latter-day Saints</p>
-  <p><a href={withBase('/contact')}>Contact</a></p>
+  <p>{footerText(footer.text, year)}</p>
+  <p class="site-footer__links">
+    {footer.links.map((l) => <a href={href(l.url)}>{l.label}</a>)}
+  </p>
 </footer>
 
 <style>
@@ -29,4 +35,5 @@ const year = new Date().getFullYear();
   .site-footer a:hover {
     color: var(--text-link);
   }
+  .site-footer__links { display: flex; gap: var(--space-4); flex-wrap: wrap; margin: 0; }
 </style>

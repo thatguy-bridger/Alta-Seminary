@@ -271,6 +271,21 @@ export function PagesListScreen() {
       <div style={{ marginBottom: 'var(--space-4)' }}>
         <Button variant="outline" onClick={() => setCreateOpen(true)}>+ New Page</Button>
       </div>
+      {/* The site-wide header & footer: always there, can't be renamed, deleted
+          or unpublished -- only edited -- so it sits apart from the page rows
+          and in the secondary color instead of the regular row styling. */}
+      <a
+        href={withBase('/admin/site-chrome')}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap', marginBottom: 'var(--space-4)',
+          padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)', textDecoration: 'none',
+          background: 'var(--brand-secondary)', color: 'var(--text-on-secondary)', fontFamily: 'var(--font-sans)',
+        }}
+      >
+        <strong>Header &amp; Footer</strong>
+        <span style={{ fontSize: 'var(--fs-caption)', opacity: 0.9, flex: 1 }}>Shown on every page · always live · can't be deleted or renamed</span>
+        <span style={{ fontWeight: 'var(--fw-bold)' }}>Edit →</span>
+      </a>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         {tree.map((row) => (
           <PageRow key={row.id} row={row} siblings={tree} onToggle={toggleVisible} onUnpublish={unpublish} onPublish={publish} onRename={rename} onMove={move} onCopy={handleCopy} onDelete={handleDelete} depth={0} showHealthWarnings={showHealthWarnings} />

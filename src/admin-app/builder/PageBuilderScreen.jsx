@@ -543,14 +543,23 @@ export function PageBuilderScreen({ slug, table = 'pages', backHref = '/admin' }
                 onDuplicateWithImages={handleDuplicateWithImages}
                 pathPrefix={`${table}/${row.id}`}
               />
-              <div style={{ marginTop: 'var(--space-6)' }}>
+              {/* Sticky to the bottom of the viewport while the canvas is on screen,
+                  so "Add block" (and the selection hint) are always reachable
+                  without scrolling to the end of a long page. */}
+              <div style={{
+                position: 'sticky', bottom: 0, zIndex: 10,
+                margin: 'var(--space-6) calc(var(--space-6) * -1) calc(var(--space-6) * -1)',
+                padding: 'var(--space-3) var(--space-6)', background: 'var(--surface-page)',
+                borderTop: '1px solid var(--border-subtle)', borderRadius: '0 0 var(--radius-lg) var(--radius-lg)',
+                display: 'flex', alignItems: 'center', gap: 'var(--space-4)', flexWrap: 'wrap',
+              }}>
                 <AddBlockButton onAdd={handleAdd} allowEventBound={isEvent} />
+                {selectedBlock && (
+                  <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
+                    Selected: press <kbd>Delete</kbd> to remove, <kbd>{modKeyLabel}D</kbd> to duplicate, <kbd>Esc</kbd> to deselect.
+                  </p>
+                )}
               </div>
-              {selectedBlock && (
-                <p style={{ marginTop: 'var(--space-3)', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)' }}>
-                  Selected: press <kbd>Delete</kbd> to remove, <kbd>{modKeyLabel}D</kbd> to duplicate, <kbd>Esc</kbd> to deselect.
-                </p>
-              )}
             </div>
             {sidebarOpen ? (
               <>
