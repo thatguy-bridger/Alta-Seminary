@@ -8,7 +8,7 @@ export const STEPS = ['begin', 'choose', 'learn', 'truth', 'understand', 'commit
 export const RULES = {
   minutesPerDay: 30,      // suggested time per missed day (existing seminary worksheets expect 30 to 60)
   maxSessions: 4,         // "4 or more days" is treated as 4
-  maxSources: 3,          // most ways-to-learn in one journey
+  maxSources: 4,          // most picks in one journey (one per missed day; the same way may be picked more than once)
   extraWordsPerSource: 4, // each extra source asks a little more of each written answer
   extraVoicePerSource: 5,
   settleSeconds: 3,       // the quiet moment before "I'm ready" unlocks

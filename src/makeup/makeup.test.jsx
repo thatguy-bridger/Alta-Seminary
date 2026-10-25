@@ -12,7 +12,7 @@ describe('journey rules', () => {
     expect(daysCovered(7)).toBe(RULES.maxSessions);
     expect(estimateMinutes(2)).toBe(60);
     expect(daysCovered(0)).toBe(0);
-    expect([1, 2, 3, 4].map(sourcesNeeded)).toEqual([1, 2, 3, 3]);
+    expect([0, 1, 2, 3, 4, 9].map(sourcesNeeded)).toEqual([1, 1, 2, 3, 4, 4]);
     expect(wordsNeeded(3)).toBe(RULES.minWords + 2 * RULES.extraWordsPerSource);
   });
   it('gates each step with the right condition', () => {
@@ -25,6 +25,7 @@ describe('journey rules', () => {
     expect(advance(s)).toBe(s);                     // no source yet
     s = { ...s, days: 2 };
     expect(advance({ ...s, sourceIds: ['a'] }).step).toBe(1);  // two days missed means two sources
+    expect(advance({ ...s, sourceIds: ['a', 'a'] }).step).toBe(2);  // the same way can be picked twice
     s = advance({ ...s, sourceIds: ['a', 'b'] });
     s = advance({ ...s, learned: true });
     expect(STEPS[s.step]).toBe('truth');

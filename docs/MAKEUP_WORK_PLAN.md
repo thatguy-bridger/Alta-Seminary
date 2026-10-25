@@ -3,9 +3,10 @@
 Companion to `MAKEUP_WORK_CONCEPT.md` and `MAKEUP_WORK_RESEARCH.md`.
 
 **Where it stands (updated):**
+- Mountains are the site's own artwork, cut from the existing banners above the lettering, cropped at valleys and mirrored so they tile without a seam. Three layers, randomized each journey. The tiles live inside the prototype file; the real build should store them as site assets.
 - Direction: **Ridgeline** (`docs/prototypes/makeup-work-ridgeline.html`): flat, in the app's own logo, fonts and colors; a red line traces a ridge as you go; outlined mountains like the Alta artwork; background steps from night to morning; one small flat sun in the brand red. The earlier four directions and the glassy "First Light" are kept in `docs/prototypes/` for reference only.
 - Content follows the seminary pattern found in the research: read, find a truth, understand it, feel it, apply it. Seven short screens.
-- Multiple missed days are **one comprehensive journey**, not a repeat per day: one more way to learn per missed day (up to three), slightly longer answers, one truth that ties it together. There is no "Day 1 of 2".
+- Multiple missed days are **one comprehensive journey**, not a repeat per day: one pick per missed day (up to four; the same way can be picked more than once, shown as numbered circles in order), slightly longer answers, one truth that ties it together. There is no "Day 1 of 2".
 - 30 minutes per missed day by default (a setting), per what existing worksheets expect (30 to 60).
 
 ## What is already done (prefired)
