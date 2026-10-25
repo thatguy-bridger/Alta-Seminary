@@ -1,6 +1,6 @@
 # Makeup Work: the starting library
 
-**206 lessons are already loaded** in the database (Makeup Work, in the admin, lists them; the test page uses them).
+**209 lessons are already loaded** in the database (Makeup Work, in the admin, lists them; the test page uses them).
 
 | Kind | How many | What |
 |---|---|---|
@@ -8,6 +8,7 @@
 | Conference talk (text) | 97 | Every substantive talk from April 2026, October 2025 and April 2025 general conferences (sustaining votes, reports and the like are left out). |
 | Audio talk | 17 | A spread of talks (8 to 15 minutes) as audio, each with its **real timestamped captions** (the English caption track of the talk's video, about 130 to 220 lines each). Students can follow along, click a line to jump there, and cite a moment. |
 | Video talk | 17 | The **same 17 talks as video, played from YouTube** (the Church's own "General Conference of The Church of Jesus Christ" channel), with the same timestamped transcript beside the video. See "Video" below. |
+| Proclamation | 3 | The Family: A Proclamation to the World; The Living Christ; The Restoration of the Fulness of the Gospel of Jesus Christ. Full text. Shown as "Deep study", once per student. |
 
 Every lesson records where it came from (`origin_url`), its author, and its series, and the admin list is searchable and filterable by type.
 
@@ -42,4 +43,4 @@ YouTube is the default for video: no files to host, the Church publishes there, 
 
 - By hand: **Makeup Work, Sources**, add a source (text, a video or audio address, plus its captions for video or audio).
 - In bulk: edit the lists at the top of `scripts/build_makeup_library.py` (the passage list `S`, and `CONFERENCES`), run it, and import with the edge function pattern. The importer skips anything already loaded (matched on `origin_url`), so re-running is safe.
-- Not yet included: videos beyond the 17 talks above, hymns and music, the Proclamations (Family, The Living Christ, the Restoration), Come, Follow Me lessons, and the Institute manuals.
+- Not yet included: videos beyond the 17 talks above, hymns and music, Come, Follow Me lessons, and the Institute manuals.

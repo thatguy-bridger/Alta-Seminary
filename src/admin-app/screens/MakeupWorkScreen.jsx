@@ -5,11 +5,11 @@ import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Input } from '../../design-system/components/forms/Input.jsx';
 import { Select } from '../../design-system/components/forms/Select.jsx';
 import { Switch } from '../../design-system/components/forms/Switch.jsx';
-import { withBase } from '../../lib/url.js';
-import { InfoButton } from '../guide/InfoButton.jsx';
-import { analyzeEffort, formatDuration } from '../../makeup/effort.js';
+import { formatDuration } from '../../makeup/effort.js';
 import { parseTranscript, parseTime, checkTranscript, formatTimestamp } from '../../makeup/transcript.js';
 import { mediaKind, mediaLabel } from '../../makeup/media.js';
+import { MakeupOpenCard } from './MakeupOpenCard.jsx';
+import { MakeupSubmissions } from './MakeupSubmissions.jsx';
 
 const KINDS = [
   { value: 'scripture', label: 'Scripture' }, { value: 'video', label: 'Video' },
@@ -110,17 +110,6 @@ export function MakeupWorkScreen() {
     run(supabaseBrowser.from('makeup_sources').update({ transcript: editParsed.segments, duration_seconds: Math.round(dur) }).eq('id', editing.id).then((r) => { if (!r.error) setEditing(null); return r; }), 'Transcript saved.');
   };
 
-  function exportCsv() {
-    const head = ['When', 'Student', 'Class', 'Days covered', 'Learned by', 'Truth', 'Where', 'Understanding', 'Why it matters', 'Commitment', 'Blessing', 'Active time', 'Signal'];
-    const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = (subs || []).map((s) => {
-      const e = analyzeEffort({ mode: s.mode, text: s.response, voiceSeconds: s.voice_seconds, stats: { pastes: s.paste_attempts, jumps: s.sudden_jumps, activeMs: s.active_seconds * 1000, typedChars: s.typed_chars, leaves: s.page_leaves } });
-      return [new Date(s.created_at).toLocaleString(), s.student_name, s.class_name, s.days_total, (s.source_titles?.length ? s.source_titles.join('; ') : s.source_title), s.truth, s.truth_ref, s.understanding, s.mode === 'voice' ? '(voice)' : s.response, s.commitment, s.blessing, formatDuration(s.active_seconds), e.label].map(q).join(',');
-    });
-    const url = URL.createObjectURL(new Blob([[head.map(q).join(','), ...lines].join('\n')], { type: 'text/csv' }));
-    const a = document.createElement('a'); a.href = url; a.download = 'makeup-work.csv'; a.click(); URL.revokeObjectURL(url);
-  }
-
   if (!classes || !sources || !subs) return <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>;
   const q = srcQuery.trim().toLowerCase();
   const filteredSources = sources.filter((x) => (!srcKind || x.kind === srcKind) && (!q || [x.title, x.reference, x.author, x.series].some((f) => (f || '').toLowerCase().includes(q))));
@@ -129,14 +118,7 @@ export function MakeupWorkScreen() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-      <Card title={<>Makeup Work <InfoButton feature="makeup" /></>}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', fontFamily: 'var(--font-sans)' }}>
-          <Switch checked={enabled} onChange={async (e) => { setEnabled(e.target.checked); await supabaseBrowser.from('site_settings').update({ makeup_work_enabled: e.target.checked }).eq('id', true); }} />
-          Makeup Work is open to students
-        </label>
-        <div style={{ marginTop: 'var(--space-3)' }}><a className="btn btn-secondary btn-sm" href={withBase('/admin/makeup-work/test')} style={{ textDecoration: 'none' }}>Try the student experience →</a></div>
-        {msg && <p role="status" style={{ ...small, marginTop: 'var(--space-3)' }}>{msg}</p>}
-      </Card>
+      <MakeupOpenCard enabled={enabled} setEnabled={setEnabled} activeClasses={classes.filter((c) => c.active).length} shownLessons={sources.filter((x) => x.active).length} flash={flash} msg={msg} />
 
       <Card title="Classes and who gets the email">
         <p style={small}>Each submission is emailed to the class's teacher. A class code is optional; if you set one, students must enter it to submit.</p>
@@ -207,30 +189,7 @@ export function MakeupWorkScreen() {
         </div>
       </Card>
 
-      <Card title={`Recent submissions (${subs.length})`}>
-        <div style={{ marginBottom: 'var(--space-3)' }}><Button variant="outline" size="sm" onClick={exportCsv} disabled={!subs.length}>Download as spreadsheet (CSV)</Button></div>
-        {subs.length === 0 && <p style={small}>Nothing yet. Submissions are kept for 90 days.</p>}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          {subs.map((s) => {
-            const e = analyzeEffort({ mode: s.mode, text: s.response, voiceSeconds: s.voice_seconds, stats: { pastes: s.paste_attempts, jumps: s.sudden_jumps, activeMs: s.active_seconds * 1000, typedChars: s.typed_chars, leaves: s.page_leaves } });
-            return (
-              <details key={s.id} style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-2) var(--space-3)' }}>
-                <summary style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  <strong>{s.student_name}</strong> · {s.class_name} · {new Date(s.created_at).toLocaleDateString()} · <span style={{ color: e.ok ? 'var(--color-success)' : 'var(--color-warning)' }}>{e.label}</span>
-                </summary>
-                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', paddingTop: 'var(--space-2)' }}>
-                  <div style={small}>Covers {s.days_total} day{s.days_total > 1 ? 's' : ''} · {(s.source_titles?.length ? s.source_titles.join(', ') : s.source_title) || 'a lesson'} · {formatDuration(s.active_seconds)} active{s.notified_at ? '' : ' · not emailed'}</div>
-                  {s.truth && <div><em>Truth{s.truth_ref ? ` (${s.truth_ref})` : ''}:</em> {s.truth}</div>}
-                  {s.understanding && <div style={{ whiteSpace: 'pre-wrap' }}><em>Could help someone their age:</em> {s.understanding}</div>}
-                  <div style={{ whiteSpace: 'pre-wrap' }}><em>Why it matters to them:</em> {s.mode === 'voice' ? `(Spoken response, ${formatDuration(s.voice_seconds)})` : s.response}</div>
-                  <div><em>Will do{s.commit_kind ? ` (${s.commit_kind})` : ''}:</em> {s.commitment}{s.blessing ? ` — it will bless their life: ${s.blessing}` : ''}</div>
-                  <div style={small}>{e.reasons.join(' · ')}</div>
-                </div>
-              </details>
-            );
-          })}
-        </div>
-      </Card>
+      <MakeupSubmissions subs={subs} reload={load} flash={flash} />
     </div>
   );
 }

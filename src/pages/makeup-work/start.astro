@@ -1,0 +1,11 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { StudentPage } from '../../makeup/StudentPage.jsx';
+---
+
+<!-- Where students do their makeup work. Not linked from the menu; the Makeup Work page links here. No site header or
+     footer on purpose: it is a quiet, full-screen place to study. Whether it is open is decided by the Makeup Work
+     switch in the admin, and enforced by the database. -->
+<BaseLayout title="Makeup Work" description="Make up missed seminary time." noindex>
+  <StudentPage client:only="react" />
+</BaseLayout>

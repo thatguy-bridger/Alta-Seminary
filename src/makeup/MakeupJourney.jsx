@@ -17,6 +17,8 @@ import { composeTeacherEmail } from './teacherEmail.js';
 import { silentWavUrl } from './sampleContent.js';
 import { artFor, artCredit } from './art.js';
 import { useSoundscape } from './useSoundscape.js';
+import { VoiceAnswer } from './VoiceAnswer.jsx';
+import { speechSupported } from './useSpeech.js';
 
 const N = STEPS.length;
 const WATCHED_ENOUGH = 0.75;
@@ -224,7 +226,7 @@ function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipE
 }
 
 /* ---------- the journey ---------- */
-export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, phone = false, testMode = false }) {
+export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, phone = false, testMode = false, full = false }) {
   const stageRef = React.useRef(null);
   const headingRef = React.useRef(null);
   const [S, setS] = React.useState(() => ({ ...initialState(), picks: [], word: '', code: '', closer: '', styleOffset: Math.floor(Math.random() * 3) }));
@@ -310,7 +312,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
     const text = 'I noticed that doing small things for others brings a quiet peace to my day and I want more of it.';
     return { name: S.name || 'Test Student', cls: S.cls || classes[0]?.id || '', days, settled: true, picks, sourceIds: ids, learned: true,
       truth: S.truth || 'If we act on what the Lord asks, then He will prepare a way for us.', where: S.where || (learnSources[0]?.reference || 'A sample moment · 0:11'),
-      understanding: S.understanding || text, text: S.text || text, word: S.word || (STYLES[S.styleOffset % 3] === 'word' ? 'Peace' : ''),
+      understanding: S.understanding || text, text: S.text || text, voiceSeconds: S.mode === 'voice' ? Math.max(S.voiceSeconds, voiceSecondsNeeded(days)) : 0, word: S.word || (STYLES[S.styleOffset % 3] === 'word' ? 'Peace' : ''),
       inv: S.inv || 'serve', commit: S.commit || 'my little brother with his reading', bless: S.bless || 'help me be kinder at home' };
   };
   const skipStep = () => {
@@ -420,21 +422,50 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   })();
 
   const style = STYLES[S.styleOffset % 3];
+  const voiceParts = React.useRef({ under: 0, feel: 0 });   // seconds spoken for each of the two answers
+  const spokenSeconds = (key) => (n) => { voiceParts.current[key] = n; upd({ voiceSeconds: voiceParts.current.under + voiceParts.current.feel }); };
+  const append = (key) => (t) => setS((s) => ({ ...s, [key]: s[key] ? `${s[key]} ${t}` : t }));
+  const clear = (key) => () => setS((s) => ({ ...s, [key]: '' }));
+  const switchMode = (mode) => { if (mode === S.mode) return; voiceParts.current = { under: 0, feel: 0 }; upd({ mode, understanding: '', text: '', voiceSeconds: 0 }); };
+  const canSpeak = speechSupported();
   const understandScreen = (() => {
     const need = wordsNeeded(S.days);
-    const okText = wordCount(S.understanding) >= need && wordCount(S.text) >= need && (style !== 'word' || S.word);
-    const hint = !okText ? (style === 'word' && !S.word ? 'Pick a word first.' : `About ${need} words in each box. Pasting is turned off.`) : 'That is a good start.';
+    const voice = S.mode === 'voice';
+    const okText = canAdvance(S) && (style !== 'word' || S.word);
+    const hint = okText ? 'That is a good start.'
+      : style === 'word' && !S.word ? 'Pick a word first.'
+        : voice ? (S.voiceSeconds < voiceSecondsNeeded(S.days) ? `Answer both out loud, about ${voiceSecondsNeeded(S.days)} seconds or more.` : 'Say a little more in each answer.')
+          : `About ${need} words in each box. Pasting is turned off.`;
+    const wordChips = style === 'word' && <div className="mw-row">{WORDS.map((w) => <button key={w} className="mw-chip" aria-pressed={S.word === w} onClick={() => upd({ word: w })}>{w}</button>)}</div>;
+    const starter = style === 'sentence' && <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{STARTERS[S.styleOffset % 3]}</p>;
     return (
       <>
         <p className="mw-eyebrow">Understand and feel</p>
         <Heading>Why does this truth matter?</Heading>
-        <p className="mw-sub">Two short answers in your own words. Pasting is turned off.</p>
-        <div className="mw-field"><label htmlFor="mw-under">How could this truth help someone your age?</label>
-          <textarea id="mw-under" placeholder="It could help them…" value={S.understanding} {...tracker.fieldProps('under')} onChange={(e) => { tracker.fieldProps('under').onChange(e); upd({ understanding: e.target.value }); }} /></div>
-        <div className="mw-field"><label htmlFor="mw-feel">{FEEL_HEAD[style]}</label>
-          {style === 'word' && <div className="mw-row">{WORDS.map((w) => <button key={w} className="mw-chip" aria-pressed={S.word === w} onClick={() => upd({ word: w })}>{w}</button>)}</div>}
-          {style === 'sentence' && <p style={{ fontWeight: 700, margin: '0 0 4px' }}>{STARTERS[S.styleOffset % 3]}</p>}
-          <textarea id="mw-feel" placeholder={style === 'word' ? 'Because…' : 'In your own words…'} value={S.text} {...tracker.fieldProps('feel')} onChange={(e) => { tracker.fieldProps('feel').onChange(e); upd({ text: e.target.value }); }} /></div>
+        <p className="mw-sub">{voice ? 'Two short answers, out loud.' : 'Two short answers in your own words. Pasting is turned off.'}</p>
+        {canSpeak && (
+          <div className="mw-row" role="group" aria-label="How to answer">
+            <button className="mw-chip" aria-pressed={!voice} onClick={() => switchMode('text')}>Write it</button>
+            <button className="mw-chip" aria-pressed={voice} onClick={() => switchMode('voice')}>Say it</button>
+          </div>
+        )}
+        {voice ? (
+          <>
+            <VoiceAnswer id="mw-vunder" label="How could this truth help someone your age?" value={S.understanding} onAppend={append('understanding')} onClear={clear('understanding')}
+              seconds={voiceParts.current.under} onSeconds={spokenSeconds('under')} onListening={(on) => sound.duck(on)} />
+            <VoiceAnswer id="mw-vfeel" label={FEEL_HEAD[style]} value={S.text} onAppend={append('text')} onClear={clear('text')}
+              seconds={voiceParts.current.feel} onSeconds={spokenSeconds('feel')} onListening={(on) => sound.duck(on)}>{wordChips}{starter}</VoiceAnswer>
+            <p className="mw-fine">Your browser turns your voice into words. We keep only the words and how long you spoke, never a recording. Some browsers send your voice to their maker to do this.</p>
+          </>
+        ) : (
+          <>
+            <div className="mw-field"><label htmlFor="mw-under">How could this truth help someone your age?</label>
+              <textarea id="mw-under" placeholder="It could help them…" value={S.understanding} {...tracker.fieldProps('under')} onChange={(e) => { tracker.fieldProps('under').onChange(e); upd({ understanding: e.target.value }); }} /></div>
+            <div className="mw-field"><label htmlFor="mw-feel">{FEEL_HEAD[style]}</label>
+              {wordChips}{starter}
+              <textarea id="mw-feel" placeholder={style === 'word' ? 'Because…' : 'In your own words…'} value={S.text} {...tracker.fieldProps('feel')} onChange={(e) => { tracker.fieldProps('feel').onChange(e); upd({ text: e.target.value }); }} /></div>
+          </>
+        )}
         <p className="mw-fine" aria-live="polite">{hint}</p>
         <div><button className="mw-cta" disabled={!okText} onClick={() => advance()}>Continue</button></div>
       </>
@@ -481,7 +512,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
             <dt>Covers</dt><dd>{row.days_total} day{row.days_total > 1 ? 's' : ''}</dd>
             <dt>Learned by</dt><dd>{row.source_titles.join(' · ')}</dd>
             <dt>Truth found</dt><dd>{row.truth} <span className="mw-fine">({row.truth_ref})</span></dd>
-            <dt>Their words</dt><dd>{row.response}</dd>
+            <dt>Their words</dt><dd>{row.response}{row.mode === 'voice' && <span className="mw-fine"> (spoken, {formatDuration(row.voice_seconds)})</span>}</dd>
             <dt>Active time</dt><dd>{formatDuration(row.active_seconds)}</dd>
             {row.source_seconds > 0 && <><dt>Played</dt><dd>{formatDuration(row.watched_seconds)} of {formatDuration(row.source_seconds)}</dd></>}
             <dt>Paste attempts</dt><dd>{row.paste_attempts}</dd>
@@ -498,7 +529,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const wide = step === 'learn' && cur && AV_KINDS.includes(cur.kind);
 
   return (
-    <div ref={stageRef} className={`mw-stage${phone ? ' phone' : ''}`} onPointerDown={sound.wake}>
+    <div ref={stageRef} className={`mw-stage${phone ? ' phone' : ''}${full ? ' full' : ''}`} onPointerDown={sound.wake}>
       <Scene stage={stageRef} stepRaw={stepRaw} />
       <div className="mw-tbar"><img src={logo.src} alt="Alta Seminary" /><SoundControl sound={sound} /></div>
       <RidgeProgress stepRaw={stepRaw} />

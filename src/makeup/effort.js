@@ -12,7 +12,7 @@ export function analyzeEffort({ mode = 'text', text = '', voiceSeconds = 0, stat
   const skipNote = `played only ${formatDuration(watchedSeconds)} of the ${formatDuration(sourceSeconds)} of video and audio`;
   if (mode === 'voice') {
     if (skipped) return { ok: false, label: 'Worth a conversation', reasons: [skipNote] };
-    return { ok: true, label: 'Spoken live', reasons: [`Recorded in the student's own voice (${voiceSeconds}s).`] };
+    return { ok: true, label: 'Spoken live', reasons: [`Spoken aloud for ${formatDuration(voiceSeconds)} and written down by the student's browser.`] };
   }
   const reasons = [];
   if (pastes > 0) reasons.push(`${pastes} paste attempt${pastes > 1 ? 's' : ''} (blocked)`);

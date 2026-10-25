@@ -20,7 +20,8 @@ const setVal = async (el, value) => {
   el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
   await tick();
 };
-const chooseType = (value) => setVal([...document.querySelectorAll('select')].at(-1), value);   // the "add a source" form's type
+// The "add a source" form's Type is the last "Type" on the page (a list filter above it has one too when the library has lessons).
+const chooseType = (value) => setVal(document.getElementById([...document.querySelectorAll('label')].filter((l) => l.textContent.trim() === 'Type').at(-1).htmlFor), value);
 
 let mounted;
 beforeEach(async () => {

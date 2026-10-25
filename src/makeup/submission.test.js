@@ -28,6 +28,13 @@ describe('buildSubmission', () => {
     expect(m.text).toContain('played 3:20 of 5:00');
     expect(m.text).toContain('paste attempt');
   });
+  it('records spoken time only for a spoken answer, and counts it as active time', () => {
+    const typed = buildSubmission({ S: { ...S, mode: 'text', voiceSeconds: 99 }, classes, sources, stats }).rpc;
+    expect(typed.p_voice_seconds).toBe(0);                      // leftover speaking time never leaks into a typed answer
+    const spoken = buildSubmission({ S: { ...S, mode: 'voice', voiceSeconds: 41.6 }, classes, sources, stats }).rpc;
+    expect(spoken).toMatchObject({ p_mode: 'voice', p_voice_seconds: 42 });
+    expect(spoken.p_active_seconds).toBe(typed.p_active_seconds + 42);
+  });
   it('is at least one day even if days was never set', () => {
     expect(buildSubmission({ S: { ...S, days: 0 }, classes, sources, stats }).rpc.p_days_total).toBe(1);
   });

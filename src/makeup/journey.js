@@ -16,6 +16,7 @@ export const RULES = {
   minWhereChars: 3,       // where they found it (verse, talk, time)
   minWords: 8,            // each of the two written answers in "understand"
   minVoiceSeconds: 10,    // spoken answer to both questions
+  minVoiceWords: 4,       // and the browser must have heard at least this many words in each answer
   minBlessChars: 8,
   minCommitChars: 8,
   jumpChars: 25,          // this many characters appearing at once counts as a "sudden jump"
@@ -49,7 +50,7 @@ export function canAdvance(s) {
     case 'learn': return !!s.learned;
     case 'truth': return wordCount(s.truth) >= RULES.minTruthWords && s.where.trim().length >= RULES.minWhereChars;
     case 'understand': return s.mode === 'voice'
-      ? s.voiceSeconds >= voiceSecondsNeeded(s.days)
+      ? s.voiceSeconds >= voiceSecondsNeeded(s.days) && wordCount(s.understanding) >= RULES.minVoiceWords && wordCount(s.text) >= RULES.minVoiceWords
       : wordCount(s.understanding) >= wordsNeeded(s.days) && wordCount(s.text) >= wordsNeeded(s.days);
     case 'commit': return !!s.inv && s.commit.trim().length >= RULES.minCommitChars && s.bless.trim().length >= RULES.minBlessChars;
     default: return false;

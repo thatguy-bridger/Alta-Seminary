@@ -36,8 +36,11 @@ describe('journey rules', () => {
     const eight = Array(wordsNeeded(2)).fill('word').join(' ');
     expect(canAdvance({ ...s, understanding: eight, text: 'short' })).toBe(false);
     expect(canAdvance({ ...s, understanding: eight, text: eight })).toBe(true);
-    expect(canAdvance({ ...s, mode: 'voice', voiceSeconds: 10 })).toBe(false);  // two sources: longer than the base 10s
-    expect(canAdvance({ ...s, mode: 'voice', voiceSeconds: 15 })).toBe(true);
+    const spoken = { mode: 'voice', understanding: 'it could help them feel peace', text: 'I felt calm and close to Him' };
+    expect(canAdvance({ ...s, ...spoken, voiceSeconds: 10 })).toBe(false);  // two sources: longer than the base 10s
+    expect(canAdvance({ ...s, ...spoken, voiceSeconds: 15 })).toBe(true);
+    expect(canAdvance({ ...s, ...spoken, voiceSeconds: 15, text: '' })).toBe(false);                 // the browser must have heard words in both answers
+    expect(canAdvance({ ...s, ...spoken, voiceSeconds: 15, understanding: 'um ok' })).toBe(false);
     s = advance({ ...s, understanding: eight, text: eight });
     expect(STEPS[s.step]).toBe('commit');
     expect(canAdvance({ ...s, inv: 'serve', commit: 'help my brother', bless: 'short' })).toBe(false);
@@ -95,7 +98,12 @@ describe('composeTeacherEmail', () => {
     expect(m.html).not.toContain('<b>');
   });
   it('shows voice responses as such', () => {
-    expect(composeTeacherEmail({ ...sub, mode: 'voice', voice_seconds: 42 }).text).toContain('Spoken response, 0:42');
+    const m = composeTeacherEmail({ ...sub, mode: 'voice', voice_seconds: 42 });
+    expect(m.text).toContain('Answered out loud (0:42)');
+    expect(m.text).toContain('written down by the student\'s browser');
+    expect(m.text).toContain('If we listen then we learn');   // the actual words are in the email, not just "spoken"
+    expect(m.html).toContain('Answered out loud (0:42)');
+    expect(composeTeacherEmail(sub).text).not.toContain('Answered out loud');
   });
 });
 

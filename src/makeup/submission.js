@@ -10,12 +10,12 @@ export function buildSubmission({ S, classes, sources, stats, mediaTotals = { wa
   const invite = INVITES.find((i) => i.k === S.inv);
   const response = (S.word ? `${S.word}. ` : '') + S.text;
   const commitment = `${invite ? invite.start + ' ' : ''}${S.commit}`.trim();
-  const activeSeconds = Math.round((stats.activeMs || 0) / 1000 + mediaTotals.watched + mediaTotals.readSeconds);
+  const activeSeconds = Math.round((stats.activeMs || 0) / 1000 + mediaTotals.watched + mediaTotals.readSeconds + (S.mode === 'voice' ? S.voiceSeconds || 0 : 0));
   const days = Math.max(1, daysCovered(S.days));
   const rpc = {
     p_class_id: S.cls, p_code: code || null, p_student_name: S.name.trim(), p_days_total: days,
     p_source_ids: S.sourceIds, p_mode: S.mode, p_truth: S.truth.trim(), p_truth_ref: S.where.trim(), p_truth_seconds: S.whereSeconds ?? null,
-    p_understanding: S.understanding.trim(), p_response: response.trim(), p_voice_seconds: S.voiceSeconds || 0,
+    p_understanding: S.understanding.trim(), p_response: response.trim(), p_voice_seconds: S.mode === 'voice' ? Math.round(S.voiceSeconds || 0) : 0,
     p_commit_kind: S.inv, p_commitment: commitment, p_blessing: S.bless.trim(),
     p_active_seconds: activeSeconds, p_watched_seconds: Math.round(mediaTotals.watched), p_source_seconds: Math.round(mediaTotals.source),
     p_paste_attempts: stats.pastes || 0, p_sudden_jumps: stats.jumps || 0, p_typed_chars: stats.typedChars || 0, p_page_leaves: stats.leaves || 0,

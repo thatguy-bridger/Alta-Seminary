@@ -12,19 +12,20 @@ export function composeTeacherEmail(sub) {
   const dayLine = sub.days_total > 1 ? `Covers ${sub.days_total} days` : 'Covers 1 day';
   const played = sub.source_seconds > 0 ? ` · played ${formatDuration(sub.watched_seconds || 0)} of ${formatDuration(sub.source_seconds)}` : '';
   const learned = (sub.source_titles && sub.source_titles.length ? sub.source_titles.join(', ') : sub.source_title) || 'a lesson';
-  const words = sub.mode === 'voice'
-    ? `(Spoken response, ${formatDuration(sub.voice_seconds || 0)})`
-    : sub.response;
+  const words = sub.response;
+  // Spoken answers are the words the student's browser heard; say so, so a misheard word is not blamed on the student.
+  const spoken = sub.mode === 'voice' ? `Answered out loud (${formatDuration(sub.voice_seconds || 0)}) and written down by the student's browser, so a small mistake in the words may be the browser's.` : '';
   const subject = `Makeup work from ${sub.student_name} (${sub.class_name})`;
   const text = [
     `${sub.student_name} finished makeup work for ${sub.class_name}.`,
     `${dayLine} · learned by ${learned}${played} · ${formatDuration(sub.active_seconds || 0)} active`,
+    ...(spoken ? [spoken] : []),
     '',
     `A truth they found${sub.truth_ref ? ` (${sub.truth_ref})` : ''}:`,
     sub.truth,
     '',
     'How it could help someone their age:',
-    sub.mode === 'voice' ? '(Included in the spoken response.)' : sub.understanding,
+    sub.understanding,
     '',
     'Why it matters to them:',
     words,
@@ -38,11 +39,11 @@ export function composeTeacherEmail(sub) {
   ].join('\n');
   const html = `<div style="font-family:Helvetica,Arial,sans-serif;max-width:560px;line-height:1.5;color:#1a1a1d">
 <p><strong>${esc(sub.student_name)}</strong> finished makeup work for ${esc(sub.class_name)}.</p>
-<p style="color:#5d5e66;font-size:14px">${esc(dayLine)} · learned by ${esc(learned)}${esc(played)} · ${esc(formatDuration(sub.active_seconds || 0))} active</p>
+<p style="color:#5d5e66;font-size:14px">${esc(dayLine)} · learned by ${esc(learned)}${esc(played)} · ${esc(formatDuration(sub.active_seconds || 0))} active</p>${spoken ? `\n<p style="color:#5d5e66;font-size:14px;margin-top:-8px"><em>${esc(spoken)}</em></p>` : ''}
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">A truth they found${sub.truth_ref ? ` (${esc(sub.truth_ref)})` : ''}</h3>
 <p style="margin-top:0">${esc(sub.truth)}</p>
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">How it could help someone their age</h3>
-<p style="white-space:pre-wrap;margin-top:0">${esc(sub.mode === 'voice' ? '(Included in the spoken response.)' : sub.understanding)}</p>
+<p style="white-space:pre-wrap;margin-top:0">${esc(sub.understanding)}</p>
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">Why it matters to them</h3>
 <p style="white-space:pre-wrap;margin-top:0">${esc(words)}</p>
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">What they will do${sub.commit_kind ? ` (${esc(sub.commit_kind)})` : ''}</h3>
