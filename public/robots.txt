@@ -1,3 +1,0 @@
-User-agent: *
-Disallow: /admin/
-Sitemap: https://altaseminary.com/sitemap-index.xml
