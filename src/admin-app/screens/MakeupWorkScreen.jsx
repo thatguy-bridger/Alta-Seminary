@@ -9,6 +9,7 @@ import { withBase } from '../../lib/url.js';
 import { InfoButton } from '../guide/InfoButton.jsx';
 import { analyzeEffort, formatDuration } from '../../makeup/effort.js';
 import { parseTranscript, parseTime, checkTranscript, formatTimestamp } from '../../makeup/transcript.js';
+import { mediaKind, mediaLabel } from '../../makeup/media.js';
 
 const KINDS = [
   { value: 'scripture', label: 'Scripture' }, { value: 'video', label: 'Video' },
@@ -91,7 +92,11 @@ export function MakeupWorkScreen() {
   const newDuration = parseTime(newDur) ?? (Number(newDur) > 0 ? Number(newDur) : null);
   const newNeeds = NEEDS_TRANSCRIPT.includes(newSource.kind);
   const newCheck = checkTranscript(newParsed.segments, newDuration || 0);
-  const newOk = newSource.title.trim() && (!newNeeds || (newCheck.ok && !newParsed.errors.length));
+  const newAddrKind = mediaKind(newSource.embed_url.trim());   // 'youtube' | 'audio' | 'video' | null
+  const addrBad = newNeeds && newSource.embed_url.trim() && !newAddrKind;
+  const addrHelp = !newNeeds ? undefined : newAddrKind ? `Plays as: ${mediaLabel[newAddrKind]}.`
+    : newSource.kind === 'video' ? 'Paste the YouTube link. YouTube does not share its captions with us, so paste the transcript below.' : 'The address of an audio file (.mp3 or .m4a).';
+  const newOk = newSource.title.trim() && (!newNeeds || (newAddrKind && newCheck.ok && !newParsed.errors.length));
   const addSource = () => run(supabaseBrowser.from('makeup_sources').insert({
     ...newSource, reference: newSource.reference || null, embed_url: newSource.embed_url || null,
     duration_seconds: newDuration ? Math.round(newDuration) : null, transcript: newParsed.segments.length ? newParsed.segments : null,
@@ -157,7 +162,7 @@ export function MakeupWorkScreen() {
       </Card>
 
       <Card title="Sources students can learn from">
-        <p style={small}>Scripture and talks can carry text for the built-in reader. Videos, audio and podcasts use an embed address and <strong>must have a transcript with timestamps</strong>: students read along, jump to a line, and cite the moment they found a truth. It is also the captions for anyone who cannot hear it.</p>
+        <p style={small}>Scripture and talks can carry text for the built-in reader. Videos use a YouTube link (the Church's own channel works well); audio uses an audio file address. Either <strong>must have a transcript with timestamps</strong>: students read along, jump to a line, and cite the moment they found a truth. It is also the captions for anyone who cannot hear it.</p>
         {sources.length > 0 && (
           <div style={{ ...row, margin: 'var(--space-3) 0 0' }}>
             <div style={grow(2)}><Input label="Search the library" value={srcQuery} onChange={(e) => { setSrcQuery(e.target.value); setSrcShown(30); }} placeholder="Title, scripture, speaker…" /></div>
@@ -192,7 +197,9 @@ export function MakeupWorkScreen() {
           <div style={grow(1)}><Select label="Type" value={newSource.kind} onChange={(e) => setNewSource({ ...newSource, kind: e.target.value })} options={KINDS} /></div>
           <div style={grow(2)}><Input label="Title" value={newSource.title} onChange={(e) => setNewSource({ ...newSource, title: e.target.value })} /></div>
           <div style={grow(1)}><Input label="Reference (optional)" value={newSource.reference} onChange={(e) => setNewSource({ ...newSource, reference: e.target.value })} placeholder="1 Nephi 3:7" /></div>
-          <div style={grow(2)}><Input label="Embed address (video/audio)" value={newSource.embed_url} onChange={(e) => setNewSource({ ...newSource, embed_url: e.target.value })} placeholder="https://…" /></div>
+          <div style={grow(2)}><Input label={newSource.kind === 'video' ? 'YouTube link' : newNeeds ? 'Audio address' : 'Video or audio address (not needed for text)'} value={newSource.embed_url} onChange={(e) => setNewSource({ ...newSource, embed_url: e.target.value })}
+            placeholder={newSource.kind === 'video' ? 'https://www.youtube.com/watch?v=…' : 'https://…'} helpText={addrHelp}
+            error={addrBad ? 'We can play YouTube links and direct audio or video files (.mp3, .m4a, .mp4, .webm). This address is neither.' : undefined} /></div>
           <div style={{ flex: '0 1 90px' }}><Input label="Minutes" type="number" value={newSource.minutes} onChange={(e) => setNewSource({ ...newSource, minutes: Number(e.target.value) || 6 })} /></div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--fs-small)' }}><Switch checked={newSource.one_time} onChange={(e) => setNewSource({ ...newSource, one_time: e.target.checked })} /> Once per student</label>
           {newNeeds && <TranscriptEditor raw={newRaw} setRaw={setNewRaw} durationText={newDur} setDurationText={setNewDur} />}
