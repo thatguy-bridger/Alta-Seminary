@@ -12,7 +12,7 @@
 [data-theme="dark"]{
 --surface-page:var(--color-neutral-900);--surface-card:var(--color-neutral-800);--surface-sunken:var(--color-neutral-700);--surface-inverse:var(--color-neutral-50);
 --text-primary:var(--color-neutral-50);--text-secondary:var(--color-neutral-300);--text-muted:var(--color-neutral-400);--text-on-inverse:var(--color-neutral-900);
---text-link:var(--color-crimson-300);--text-link-hover:var(--color-crimson-100);
+--text-link:var(--color-crimson-500);--text-link-hover:var(--color-crimson-300);
 --brand-primary:var(--color-neutral-100);--brand-primary-hover:var(--color-neutral-200);--brand-primary-active:var(--color-neutral-300);
 --brand-secondary:var(--color-crimson-500);--brand-secondary-hover:var(--color-crimson-300);
 --text-on-primary:var(--color-neutral-900);--text-on-secondary:var(--color-neutral-0);
