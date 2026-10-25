@@ -7,7 +7,7 @@ import { RULES } from './journey.js';
 export function useEffortTracker({ onBlocked } = {}) {
   const stats = React.useRef({ pastes: 0, jumps: 0, activeMs: 0, typedChars: 0, leaves: 0 });
   const last = React.useRef(0);
-  const prevLen = React.useRef(0);
+  const prevLen = React.useRef({}); // per field, so two boxes do not confuse each other
 
   // Only count time while the student is actually writing: gaps over 4s are pauses.
   const touch = React.useCallback(() => {
@@ -28,20 +28,26 @@ export function useEffortTracker({ onBlocked } = {}) {
     if (onBlocked) onBlocked(kind);
   };
 
-  const props = {
+  // Spread onto a <textarea> or <input>; `key` names the field.
+  const fieldProps = (key) => ({
     onPaste: block('paste'),
     onDrop: block('drop'),
     onContextMenu: block('menu'),
     onKeyDown: touch,
     onChange: (e) => {
       const len = e.target.value.length;
-      const grew = len - prevLen.current;
+      const grew = len - (prevLen.current[key] || 0);
       if (grew > RULES.jumpChars) stats.current.jumps += 1;
       if (grew > 0) stats.current.typedChars += grew;
-      prevLen.current = len;
+      prevLen.current[key] = len;
       touch();
     },
-  };
+  });
 
-  return { props, snapshot: () => ({ ...stats.current }), addActive: (ms) => { stats.current.activeMs += ms; } };
+  return {
+    fieldProps,
+    props: fieldProps('default'),
+    snapshot: () => ({ ...stats.current }),
+    addActive: (ms) => { stats.current.activeMs += ms; },
+  };
 }

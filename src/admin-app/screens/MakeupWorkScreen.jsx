@@ -5,8 +5,10 @@ import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Input } from '../../design-system/components/forms/Input.jsx';
 import { Select } from '../../design-system/components/forms/Select.jsx';
 import { Switch } from '../../design-system/components/forms/Switch.jsx';
+import { withBase } from '../../lib/url.js';
 import { InfoButton } from '../guide/InfoButton.jsx';
 import { analyzeEffort, formatDuration } from '../../makeup/effort.js';
+import { parseTranscript, parseTime, checkTranscript, formatTimestamp } from '../../makeup/transcript.js';
 
 const KINDS = [
   { value: 'scripture', label: 'Scripture' }, { value: 'video', label: 'Video' },
@@ -14,8 +16,41 @@ const KINDS = [
   { value: 'lesson', label: 'Self-guided lesson' }, { value: 'podcast', label: 'Podcast' },
   { value: 'proclamation', label: 'In-depth study (e.g. a Proclamation)' },
 ];
+const NEEDS_TRANSCRIPT = ['video', 'audio', 'podcast'];
 const row = { display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'flex-end' };
 const grow = (n) => ({ flex: `${n} 1 180px`, minWidth: 0 });
+
+// Paste or upload a caption file (.vtt or .srt). Shows what was understood before anything is saved,
+// because a transcript is also the captions for students who cannot hear the audio.
+function TranscriptEditor({ raw, setRaw, durationText, setDurationText }) {
+  const parsed = React.useMemo(() => parseTranscript(raw), [raw]);
+  const duration = parseTime(durationText) ?? (Number(durationText) > 0 ? Number(durationText) : null);
+  const check = raw.trim() ? checkTranscript(parsed.segments, duration || 0) : null;
+  const small = { fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', margin: 0 };
+  async function onFile(e) { const f = e.target.files?.[0]; if (f) setRaw(await f.text()); e.target.value = ''; }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', width: '100%' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ flex: '0 1 130px' }}><Input label="Length (m:ss)" value={durationText} onChange={(e) => setDurationText(e.target.value)} placeholder="4:10" /></div>
+        <label style={{ ...small, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          Upload captions (.vtt or .srt)
+          <input type="file" accept=".vtt,.srt,text/vtt" onChange={onFile} />
+        </label>
+      </div>
+      <label style={{ ...small, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        Or paste the captions
+        <textarea className="input" rows={5} value={raw} onChange={(e) => setRaw(e.target.value)} placeholder={'WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nFirst line of the talk…'} style={{ fontFamily: 'var(--font-mono, monospace)' }} />
+      </label>
+      {raw.trim() && (
+        <div role="status" style={{ ...small, color: parsed.errors.length || (check && !check.ok) ? 'var(--color-error)' : 'var(--color-success)' }}>
+          {parsed.segments.length} line{parsed.segments.length === 1 ? '' : 's'} read{parsed.segments.length ? `, ${formatTimestamp(parsed.segments[0].start)} to ${formatTimestamp(parsed.segments[parsed.segments.length - 1].end)}` : ''}.
+          {[...parsed.errors, ...(check?.problems || [])].map((m) => <div key={m}>{m}</div>)}
+          {(check?.warnings || []).map((m) => <div key={m} style={{ color: 'var(--color-warning)' }}>{m}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Admin side of Makeup Work: who gets the emails (classes), what students can
 // learn from (sources), and what has come in. Independent of how the student
@@ -28,6 +63,9 @@ export function MakeupWorkScreen() {
   const [msg, setMsg] = React.useState('');
   const [newClass, setNewClass] = React.useState({ name: '', teacher_name: '', teacher_email: '', code: '' });
   const [newSource, setNewSource] = React.useState({ kind: 'scripture', title: '', reference: '', embed_url: '', minutes: 6, one_time: false });
+  const [newRaw, setNewRaw] = React.useState('');
+  const [newDur, setNewDur] = React.useState('');
+  const [editing, setEditing] = React.useState(null); // { id, raw, dur }
 
   const load = React.useCallback(async () => {
     const [c, s, u, st] = await Promise.all([
@@ -44,7 +82,23 @@ export function MakeupWorkScreen() {
   async function run(promise, ok) { const { error } = await promise; if (error) flash(`Couldn't save: ${error.message}`); else { flash(ok); await load(); } }
 
   const addClass = () => run(supabaseBrowser.from('makeup_classes').insert({ ...newClass, code: newClass.code || null, teacher_name: newClass.teacher_name || null }).then((r) => { if (!r.error) setNewClass({ name: '', teacher_name: '', teacher_email: '', code: '' }); return r; }), 'Class added.');
-  const addSource = () => run(supabaseBrowser.from('makeup_sources').insert({ ...newSource, reference: newSource.reference || null, embed_url: newSource.embed_url || null }).then((r) => { if (!r.error) setNewSource({ kind: 'scripture', title: '', reference: '', embed_url: '', minutes: 6, one_time: false }); return r; }), 'Source added.');
+  const newParsed = React.useMemo(() => parseTranscript(newRaw), [newRaw]);
+  const newDuration = parseTime(newDur) ?? (Number(newDur) > 0 ? Number(newDur) : null);
+  const newNeeds = NEEDS_TRANSCRIPT.includes(newSource.kind);
+  const newCheck = checkTranscript(newParsed.segments, newDuration || 0);
+  const newOk = newSource.title.trim() && (!newNeeds || (newCheck.ok && !newParsed.errors.length));
+  const addSource = () => run(supabaseBrowser.from('makeup_sources').insert({
+    ...newSource, reference: newSource.reference || null, embed_url: newSource.embed_url || null,
+    duration_seconds: newDuration ? Math.round(newDuration) : null, transcript: newParsed.segments.length ? newParsed.segments : null,
+    active: !newNeeds || newCheck.ok,
+  }).then((r) => { if (!r.error) { setNewSource({ kind: 'scripture', title: '', reference: '', embed_url: '', minutes: 6, one_time: false }); setNewRaw(''); setNewDur(''); } return r; }), 'Source added.');
+  const editParsed = React.useMemo(() => parseTranscript(editing?.raw || ''), [editing?.raw]);
+  const saveTranscript = () => {
+    const dur = parseTime(editing.dur) ?? (Number(editing.dur) > 0 ? Number(editing.dur) : null);
+    const chk = checkTranscript(editParsed.segments, dur || 0);
+    if (!chk.ok || editParsed.errors.length) { flash(`Can't save: ${[...editParsed.errors, ...chk.problems][0]}`); return; }
+    run(supabaseBrowser.from('makeup_sources').update({ transcript: editParsed.segments, duration_seconds: Math.round(dur) }).eq('id', editing.id).then((r) => { if (!r.error) setEditing(null); return r; }), 'Transcript saved.');
+  };
 
   function exportCsv() {
     const head = ['When', 'Student', 'Class', 'Days covered', 'Learned by', 'Truth', 'Where', 'Understanding', 'Why it matters', 'Commitment', 'Blessing', 'Active time', 'Signal'];
@@ -67,6 +121,7 @@ export function MakeupWorkScreen() {
           <Switch checked={enabled} onChange={async (e) => { setEnabled(e.target.checked); await supabaseBrowser.from('site_settings').update({ makeup_work_enabled: e.target.checked }).eq('id', true); }} />
           Makeup Work is open to students
         </label>
+        <div style={{ marginTop: 'var(--space-3)' }}><a className="btn btn-secondary btn-sm" href={withBase('/admin/makeup-work/test')} style={{ textDecoration: 'none' }}>Try the student experience →</a></div>
         {msg && <p role="status" style={{ ...small, marginTop: 'var(--space-3)' }}>{msg}</p>}
       </Card>
 
@@ -94,16 +149,26 @@ export function MakeupWorkScreen() {
       </Card>
 
       <Card title="Sources students can learn from">
-        <p style={small}>Scripture and talks can carry text for the built-in reader; videos and audio use an embed address.</p>
+        <p style={small}>Scripture and talks can carry text for the built-in reader. Videos, audio and podcasts use an embed address and <strong>must have a transcript with timestamps</strong>: students read along, jump to a line, and cite the moment they found a truth. It is also the captions for anyone who cannot hear it.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', margin: 'var(--space-3) 0' }}>
           {sources.length === 0 && <p style={small}>No sources yet. Add one below.</p>}
           {sources.map((s) => (
             <div key={s.id} style={{ ...row, alignItems: 'center', padding: 'var(--space-2) var(--space-3)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
               <div style={grow(2)}><strong>{s.title}</strong><div style={small}>{KINDS.find((k) => k.value === s.kind)?.label} · {s.minutes} min{s.reference ? ` · ${s.reference}` : ''}{s.one_time ? ' · once per student' : ''}</div></div>
+              {NEEDS_TRANSCRIPT.includes(s.kind) && (
+                <span style={small}>{s.transcript?.length ? `Transcript: ${s.transcript.length} lines · ${formatTimestamp(s.duration_seconds || 0)}` : 'No transcript, so students cannot see it'}</span>
+              )}
               <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--fs-small)' }}>
-                <Switch checked={s.active} onChange={(e) => run(supabaseBrowser.from('makeup_sources').update({ active: e.target.checked }).eq('id', s.id), 'Updated.')} /> Shown
+                <Switch checked={s.active} disabled={NEEDS_TRANSCRIPT.includes(s.kind) && !s.transcript?.length} onChange={(e) => run(supabaseBrowser.from('makeup_sources').update({ active: e.target.checked }).eq('id', s.id), 'Updated.')} /> Shown
               </label>
+              {NEEDS_TRANSCRIPT.includes(s.kind) && <Button variant="outline" size="sm" onClick={() => setEditing(editing?.id === s.id ? null : { id: s.id, raw: '', dur: s.duration_seconds ? formatTimestamp(s.duration_seconds) : '' })}>{s.transcript?.length ? 'Replace transcript' : 'Add transcript'}</Button>}
               <Button variant="ghost" size="sm" onClick={() => run(supabaseBrowser.from('makeup_sources').delete().eq('id', s.id), 'Source removed.')}>Remove</Button>
+              {editing?.id === s.id && (
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                  <TranscriptEditor raw={editing.raw} setRaw={(raw) => setEditing({ ...editing, raw })} durationText={editing.dur} setDurationText={(dur) => setEditing({ ...editing, dur })} />
+                  <div><Button variant="secondary" size="sm" onClick={saveTranscript}>Save transcript</Button></div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -114,7 +179,8 @@ export function MakeupWorkScreen() {
           <div style={grow(2)}><Input label="Embed address (video/audio)" value={newSource.embed_url} onChange={(e) => setNewSource({ ...newSource, embed_url: e.target.value })} placeholder="https://…" /></div>
           <div style={{ flex: '0 1 90px' }}><Input label="Minutes" type="number" value={newSource.minutes} onChange={(e) => setNewSource({ ...newSource, minutes: Number(e.target.value) || 6 })} /></div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--fs-small)' }}><Switch checked={newSource.one_time} onChange={(e) => setNewSource({ ...newSource, one_time: e.target.checked })} /> Once per student</label>
-          <Button variant="secondary" disabled={!newSource.title.trim()} onClick={addSource}>Add source</Button>
+          {newNeeds && <TranscriptEditor raw={newRaw} setRaw={setNewRaw} durationText={newDur} setDurationText={setNewDur} />}
+          <Button variant="secondary" disabled={!newOk} onClick={addSource}>Add source</Button>
         </div>
       </Card>
 

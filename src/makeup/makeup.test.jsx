@@ -62,6 +62,20 @@ describe('analyzeEffort', () => {
   });
 });
 
+describe('skipping through the video or audio', () => {
+  it('is flagged when too little was actually played', () => {
+    const base = { text: 'x'.repeat(100), stats: { typedChars: 100, activeMs: 40000 } };
+    expect(analyzeEffort({ ...base, stats: { ...base.stats, watchedSeconds: 200, sourceSeconds: 240 } }).ok).toBe(true);
+    const e = analyzeEffort({ ...base, stats: { ...base.stats, watchedSeconds: 40, sourceSeconds: 240 } });
+    expect(e.ok).toBe(false);
+    expect(e.reasons.join(' ')).toMatch(/played only 0:40 of the 4:00/);
+  });
+  it('also applies to a spoken answer, and is ignored when there was no media', () => {
+    expect(analyzeEffort({ mode: 'voice', voiceSeconds: 20, stats: { watchedSeconds: 10, sourceSeconds: 240 } }).ok).toBe(false);
+    expect(analyzeEffort({ mode: 'voice', voiceSeconds: 20, stats: { watchedSeconds: 0, sourceSeconds: 0 } }).ok).toBe(true);
+  });
+});
+
 describe('composeTeacherEmail', () => {
   const sub = { student_name: 'Maya <b>', class_name: 'Period 2', days_total: 2, source_title: 'Faith in action', source_titles: ['Faith in action', 'Two talks'], mode: 'text', truth: 'If we listen then we learn', truth_ref: '1 Nephi 3:7', understanding: 'It helps with stress.', response: 'It made me think.', commit_kind: 'serve', commitment: 'Call my grandma', blessing: 'make me kinder', active_seconds: 300, paste_attempts: 0, sudden_jumps: 0, typed_chars: 40, page_leaves: 0 };
   it('reads like a note, with the signal', () => {
@@ -69,6 +83,7 @@ describe('composeTeacherEmail', () => {
     expect(m.subject).toBe('Makeup work from Maya <b> (Period 2)');
     expect(m.text).toContain('Covers 2 days');
     expect(m.text).toContain('Faith in action, Two talks');
+    expect(composeTeacherEmail({ ...sub, watched_seconds: 100, source_seconds: 300 }).text).toContain('played 1:40 of 5:00');
     expect(m.text).toContain('Call my grandma');
     expect(m.text).toContain('If we listen then we learn');
     expect(m.text).toContain('make me kinder');

@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { MakeupTestPage } from '../../../admin-app/pages/MakeupTestPage.jsx';
+---
+
+<BaseLayout title="Try Makeup Work" noindex>
+  <MakeupTestPage client:only="react" />
+</BaseLayout>

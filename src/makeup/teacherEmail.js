@@ -7,8 +7,10 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 export function composeTeacherEmail(sub) {
   const effort = analyzeEffort({ mode: sub.mode, text: sub.response, voiceSeconds: sub.voice_seconds, stats: {
     pastes: sub.paste_attempts, jumps: sub.sudden_jumps, activeMs: (sub.active_seconds || 0) * 1000, typedChars: sub.typed_chars, leaves: sub.page_leaves,
+    watchedSeconds: sub.watched_seconds, sourceSeconds: sub.source_seconds,
   } });
   const dayLine = sub.days_total > 1 ? `Covers ${sub.days_total} days` : 'Covers 1 day';
+  const played = sub.source_seconds > 0 ? ` · played ${formatDuration(sub.watched_seconds || 0)} of ${formatDuration(sub.source_seconds)}` : '';
   const learned = (sub.source_titles && sub.source_titles.length ? sub.source_titles.join(', ') : sub.source_title) || 'a lesson';
   const words = sub.mode === 'voice'
     ? `(Spoken response, ${formatDuration(sub.voice_seconds || 0)})`
@@ -16,7 +18,7 @@ export function composeTeacherEmail(sub) {
   const subject = `Makeup work from ${sub.student_name} (${sub.class_name})`;
   const text = [
     `${sub.student_name} finished makeup work for ${sub.class_name}.`,
-    `${dayLine} · learned by ${learned} · ${formatDuration(sub.active_seconds || 0)} active`,
+    `${dayLine} · learned by ${learned}${played} · ${formatDuration(sub.active_seconds || 0)} active`,
     '',
     `A truth they found${sub.truth_ref ? ` (${sub.truth_ref})` : ''}:`,
     sub.truth,
@@ -36,7 +38,7 @@ export function composeTeacherEmail(sub) {
   ].join('\n');
   const html = `<div style="font-family:Helvetica,Arial,sans-serif;max-width:560px;line-height:1.5;color:#1a1a1d">
 <p><strong>${esc(sub.student_name)}</strong> finished makeup work for ${esc(sub.class_name)}.</p>
-<p style="color:#5d5e66;font-size:14px">${esc(dayLine)} · learned by ${esc(learned)} · ${esc(formatDuration(sub.active_seconds || 0))} active</p>
+<p style="color:#5d5e66;font-size:14px">${esc(dayLine)} · learned by ${esc(learned)}${esc(played)} · ${esc(formatDuration(sub.active_seconds || 0))} active</p>
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">A truth they found${sub.truth_ref ? ` (${esc(sub.truth_ref)})` : ''}</h3>
 <p style="margin-top:0">${esc(sub.truth)}</p>
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">How it could help someone their age</h3>
