@@ -8,7 +8,7 @@ A short guide for new admins. The same content is in the admin itself: open **Gu
 
 This is where you edit the public website. Nothing you do here goes live until you press Publish, so you can explore safely.
 
-- The menu on the left is your map: Pages, Content (announcements, events, photos), Directories, Team, History, Diagnostics.
+- The menu on the left is your map: Pages, Content (announcements, events, photos), Directories, Makeup Work, Team, History, Diagnostics.
 - Look for the small (i) buttons beside features. They explain what the thing is, and "Demonstrate for me" jumps to that slide of this guide.
 - You can reopen this guide any time from "Guide" in the left menu.
 
@@ -89,28 +89,39 @@ Lists of people (faculty, staff, councils) shown as cards on the site.
 - Choose a directory, then add or edit people: name, role, photo and bio.
 - Visitors click a card to see the full profile.
 
-## 11. Team
+## 11. Makeup Work
+
+Where students make up missed class time, and where you set it up.
+
+- Add each class and the teacher's email. Every submission is emailed to that teacher.
+- Add the sources students can learn from: scripture, videos, audio or talks.
+- Switch "Makeup Work is open to students" on when you are ready.
+- Recent submissions are listed here with a plain-language note about how each was written. Download them as a spreadsheet any time.
+
+**Tip:** Responses are kept for 90 days, then deleted automatically.
+
+## 12. Team
 
 Who can sign in to this admin.
 
 - Invite a new admin by email. They get a link to set their password.
 - Everyone here can edit everything, so only invite people you trust.
 
-## 12. History
+## 13. History
 
 A record of changes: what was edited, when, and by whom.
 
 - Use it to see what changed if something looks wrong.
 - If a publish ever fails to go live, a red notice at the top of the admin links here.
 
-## 13. Diagnostics and page health
+## 14. Diagnostics and page health
 
 Checks that help keep the site in good shape, plus a few tools.
 
 - Page health flags things worth fixing, like an image with no description.
 - The same notes show on the Pages list as small badges.
 
-## 14. Accessibility
+## 15. Accessibility
 
 Almost all of it is automatic: page headings, link names, color contrast, keyboard use and reduced-motion are handled for you.
 
