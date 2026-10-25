@@ -52,7 +52,9 @@ const organizationSchema = {
     <meta property="og:type" content={ogType} />
     <meta property="og:title" content={title} />
     {description && <meta property="og:description" content={description} />}
-    {ogImage && <meta property="og:image" content={new URL(ogImage, Astro.site)} />}
+    {/* A page's own image wins; otherwise a default so shared links always show a preview. */}
+    <meta property="og:image" content={new URL(ogImage || '/og-default.png', Astro.site)} />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta property="og:url" content={canonicalURL} />
     {ogType === 'article' && publishedTime && <meta property="article:published_time" content={publishedTime} />}
 
