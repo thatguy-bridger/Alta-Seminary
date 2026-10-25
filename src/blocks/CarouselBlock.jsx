@@ -856,7 +856,7 @@ function TickerTrack({ items, visible, speed, paused, fit, aspectRatio, showBack
       <style>{TICKER_CSS}</style>
       <div
         className="alta-ticker__track"
-        style={{ display: 'flex', width: `${layout.trackWidthPct}%`, animation: `alta-ticker ${layout.seconds}s linear infinite`, animationPlayState: paused ? 'paused' : 'running' }}
+        style={{ display: 'flex', width: `${layout.trackWidthPct}%`, animationName: 'alta-ticker', animationDuration: `${layout.seconds}s`, animationTimingFunction: 'linear', animationIterationCount: 'infinite', animationPlayState: paused ? 'paused' : 'running' }}
       >
         {track.map((item, i) => {
           const isCopy = i >= base.length;

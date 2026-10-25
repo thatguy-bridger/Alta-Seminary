@@ -291,9 +291,9 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
     if (S.learnIndex < learnSources.length - 1) upd({ learnIndex: S.learnIndex + 1 }); else advance({ learned: true });
   };
 
-  const submit = async () => {
+  const submit = async (state = S) => {
     setStatus({ state: 'sending', error: '', result: null });
-    const { rpc, row } = buildSubmission({ S, classes, sources, stats: tracker.snapshot(), mediaTotals: mediaTotals.current, code: S.code });
+    const { rpc, row } = buildSubmission({ S: state, classes, sources, stats: tracker.snapshot(), mediaTotals: mediaTotals.current, code: state.code });
     try {
       const result = await onSubmit({ rpc, row });
       if (result && result.ok === false) { setStatus({ state: 'error', error: result.error || 'That did not send. Please try again.', result: null }); return; }
@@ -315,12 +315,13 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   };
   const skipStep = () => {
     if (step === 'done') return;
-    if (step === 'commit') { setS((s) => ({ ...s, ...sampleFill() })); setTimeout(submit, 0); return; }
-    setS((s) => ({ ...s, ...sampleFill(), step: step === 'learn' ? s.step + 1 : s.step + 1, learnIndex: 0 }));
+    if (step === 'commit') { const filled = { ...S, ...sampleFill() }; setS(filled); submit(filled); return; }  // submit what was just filled in, not the older state
+    setS((s) => ({ ...s, ...sampleFill(), step: s.step + 1, learnIndex: 0 }));
   };
 
   /* ----- screens ----- */
-  const Heading = ({ children }) => <h2 className="mw-h" tabIndex={-1} ref={headingRef}>{children}</h2>;
+  // One stable component, so the heading is not torn down and rebuilt on every keystroke elsewhere on the screen.
+  const Heading = React.useMemo(() => ({ children }) => <h2 className="mw-h" tabIndex={-1} ref={headingRef}>{children}</h2>, []);
   const clsObj = classes.find((c) => c.id === S.cls);
 
   const beginScreen = (() => {
@@ -343,9 +344,9 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const pick = (g) => {
     sound.play('tick');
     if (n === 1) { upd({ picks: [g], sourceIds: resolvePicks([g]) }); setTimeout(() => advance({ sourceIds: resolvePicks([g]) }), 220); return; }
-    if (S.picks.length < n) upd({ picks: [...S.picks, g] }); else setToast('All picked. Tap a number to take one off.');
+    if (S.picks.length < n) setS((s) => (s.picks.length < n ? { ...s, picks: [...s.picks, g] } : s)); else setToast('All picked. Tap a number to take one off.');
   };
-  const surprise = () => { sound.play('tick'); const picks = [...S.picks]; while (picks.length < n) picks.push(available[Math.floor(Math.random() * available.length)]); upd({ picks }); };
+  const surprise = () => { sound.play('tick'); setS((s) => { const picks = [...s.picks]; while (picks.length < n) picks.push(available[Math.floor(Math.random() * available.length)]); return { ...s, picks }; }); };
   const chooseScreen = (
     <>
       <p className="mw-eyebrow">Choose how to learn</p>
@@ -360,7 +361,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
               <button className="mw-opt" onClick={() => pick(g)}>
                 <svg viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: G.icon }} /><b>{G.label}</b><span>{G.desc}</span>
               </button>
-              <span className="mw-badges">{pos.map((p) => <button key={p} className="mw-bd" aria-label={`Remove pick ${p}: ${G.label}`} onClick={() => { sound.play('untick'); upd({ picks: S.picks.filter((_, i) => i !== p - 1) }); }}>{p}</button>)}</span>
+              <span className="mw-badges">{pos.map((p) => <button key={p} className="mw-bd" aria-label={`Remove pick ${p}: ${G.label}`} onClick={() => { sound.play('untick'); setS((s) => ({ ...s, picks: s.picks.filter((_, i) => i !== p - 1) })); }}>{p}</button>)}</span>
             </div>
           );
         })}
@@ -457,7 +458,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
           </>
         )}
         {status.state === 'error' && <p className="mw-err" role="alert">{status.error}</p>}
-        <div><button className="mw-cta" disabled={!ok || status.state === 'sending'} onClick={submit}>{status.state === 'sending' ? 'Sending…' : 'Finish'}</button></div>
+        <div><button className="mw-cta" disabled={!ok || status.state === 'sending'} onClick={() => submit()}>{status.state === 'sending' ? 'Sending…' : 'Finish'}</button></div>
       </>
     );
   })();

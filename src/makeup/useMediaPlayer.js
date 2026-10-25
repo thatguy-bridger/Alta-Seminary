@@ -67,7 +67,7 @@ export function useMediaPlayer({ url, type, durationHint = 0 }) {
   }, [url, type]);
 
   const api = React.useMemo(() => ({
-    play: () => (type === 'youtube' ? ytRef.current?.playVideo() : mediaRef.current?.play()),
+    play: () => (type === 'youtube' ? ytRef.current?.playVideo() : mediaRef.current?.play()?.catch(() => {})), // a blocked or interrupted play() is not an error to show
     pause: () => (type === 'youtube' ? ytRef.current?.pauseVideo() : mediaRef.current?.pause()),
     seek: (t) => { if (type === 'youtube') ytRef.current?.seekTo(t, true); else if (mediaRef.current) mediaRef.current.currentTime = t; },
   }), [type]);

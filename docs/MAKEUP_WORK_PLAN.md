@@ -105,3 +105,15 @@ docs/prototypes/makeup-work-concepts.html    the four clickable designs
 - **Send back with a note** when effort is not enough (the worksheet's "redo if no full effort"). Phase 3.
 - **Assess Your Learning** makeup, if the school wants it in the app.
 - Nothing here talks to WISE. Spreadsheet download and the teacher email are the bridge.
+
+## Status update: the beta is built
+
+- **Student journey** (`src/makeup/MakeupJourney.jsx`): the Ridgeline design, all seven steps, built as a real component. Reachable only from the admin: **Makeup Work, then "Try the student experience"** (`/admin/makeup-work/test`). Nothing on the public site links to it.
+- **Admin test page:** skip tools (back, fill in, skip step) that can be switched off to take it as a student would; phone width; sample content when the library is empty; drafts included; a test never saves unless "Really save" is on; the test run shows the email the teacher would get.
+- **Videos and audio** play with a live, timestamped transcript: the spoken line lights up, clicking a line jumps there, a "Cite" button records the moment as where the student found their truth, and only seconds actually played count. YouTube and direct audio/video files are supported. Transcripts (.vtt or .srt) are required to show a video or audio source to students.
+- **Artwork:** a public-domain painting of the Savior on every step (Bloch and Hofmann), with credits.
+- **Sound:** see `MAKEUP_WORK_SOUND.md`.
+- **Library:** see `MAKEUP_WORK_LIBRARY.md`.
+- **Library loaded:** 189 lessons (75 scriptures, 97 conference talks, 17 audio talks with real timestamped captions). The "Reader text" decision above is now: loaded from public sources, with the caveats in `MAKEUP_WORK_LIBRARY.md` (get the school's permission in writing).
+- **Tested:** 243 automated tests across the site (about 100 of them for Makeup Work: rules, effort signals, transcripts, played-time tracking, the journey with and without skip tools, the admin test page, sound); 23 measured audio checks in a real browser; a real browser run with the real library, including actual audio playback from the Church's server, a click-to-jump transcript line, and played time that ignores skipping ahead; the database's submit function (wrong code, repeat, weekly cap, repeated sources, transcript required, real library ids).
+- **Still not built:** voice recording, the teacher email being sent (function written, not deployed), the public student page and its on/off switch, the review queue, video lessons from the Church (audio with captions is loaded instead), and the Proclamations.

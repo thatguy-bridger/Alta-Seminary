@@ -113,8 +113,9 @@ describe('CarouselBlock smooth slider', () => {
 
   it('scrolls continuously with a CSS animation instead of stepping', async () => {
     mounted = await renderInBrowser(<CarouselBlock items={buttons} smoothScroll smoothVisible="2" smoothSpeed="slow" />);
-    expect(track().style.animation).toContain('alta-ticker');
-    expect(track().style.animation).toContain('linear infinite');
+    expect(track().style.animationName).toBe('alta-ticker');
+    expect(track().style.animationTimingFunction).toBe('linear');
+    expect(track().style.animationIterationCount).toBe('infinite');
   });
 
   it('has no arrows or dots (nothing to click between)', async () => {

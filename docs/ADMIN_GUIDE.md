@@ -94,8 +94,9 @@ Lists of people (faculty, staff, councils) shown as cards on the site.
 Where students make up missed class time, and where you set it up.
 
 - Add each class and the teacher's email. Every submission is emailed to that teacher.
-- Add the sources students can learn from: scripture, videos, audio or talks.
-- Switch "Makeup Work is open to students" on when you are ready.
+- A starting library of scriptures, conference talks and audio talks is already loaded. Search it, switch lessons off, or add your own. Videos and audio need a transcript with timestamps.
+- Press "Try the student experience" to take it exactly as a student would. Turn on the skip tools to jump through the steps, and turn them off to go through it for real.
+- It is still a beta: students cannot reach it yet. Switch "Makeup Work is open to students" on only when you are ready.
 - Recent submissions are listed here with a plain-language note about how each was written. Download them as a spreadsheet any time.
 
 **Tip:** Responses are kept for 90 days, then deleted automatically.

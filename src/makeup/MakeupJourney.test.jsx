@@ -44,6 +44,21 @@ describe('MakeupJourney', () => {
     expect(new Set(seen).size).toBe(7);   // a different painting each step
   });
 
+  it('counts every tap on the picker, even several in the same instant', async () => {
+    mounted = await renderInBrowser(<MakeupJourney classes={SAMPLE_CLASSES} sources={SAMPLE_SOURCES} onSubmit={async () => ({ ok: true })} />);
+    const setVal = (el, v) => { Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };
+    setVal(document.querySelector('#mw-name'), 'Maya');
+    [...document.querySelectorAll('.mw-chip')].find((b) => b.textContent === 'Period 2').click();
+    [...document.querySelectorAll('.mw-chip')].find((b) => b.textContent === '3').click();
+    await tick(3200);                       // the quiet moment before "Begin"
+    btn('Begin').click(); await tick(100);
+    const opts = [...document.querySelectorAll('.mw-opt')];
+    opts[0].click(); opts[0].click(); opts[1].click();            // three taps with no pause between them
+    await tick(60);
+    expect(document.querySelectorAll('.mw-bd').length).toBe(3);
+    expect(btn('Continue').disabled).toBe(false);
+  }, 10000);
+
   it('the skip tools are only there when switched on', async () => {
     mounted = await renderInBrowser(<MakeupJourney classes={SAMPLE_CLASSES} sources={SAMPLE_SOURCES} onSubmit={async () => ({ ok: true })} />);
     expect(document.querySelector('.mw-skip')).toBeNull();
@@ -62,6 +77,9 @@ describe('MakeupJourney', () => {
     expect(rpc.p_student_name).toBe('Test Student');
     expect(rpc.p_source_ids.length).toBeGreaterThan(0);
     expect(row.truth.length).toBeGreaterThan(10);
+    expect(rpc.p_commit_kind).toBeTruthy();                     // skipping the last step still sends a complete answer
+    expect(rpc.p_commitment.length).toBeGreaterThan(10);
+    expect(rpc.p_blessing.length).toBeGreaterThan(3);
     expect(document.body.textContent).toContain('Test run: nothing was saved.');
   });
 
