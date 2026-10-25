@@ -15,10 +15,49 @@ import { analyzeEffort, formatDuration } from './effort.js';
 import { buildSubmission } from './submission.js';
 import { composeTeacherEmail } from './teacherEmail.js';
 import { silentWavUrl } from './sampleContent.js';
+import { artFor, artCredit } from './art.js';
+import { useSoundscape } from './useSoundscape.js';
 
 const N = STEPS.length;
 const WATCHED_ENOUGH = 0.75;
 const RIDGE_PTS = [[0, 22], [9, 12], [17, 18], [27, 5], [37, 16], [46, 9], [57, 19], [68, 4], [79, 14], [88, 8], [100, 15]];
+
+/* ---------- sound: a speaker button, and quiet options ---------- */
+function SoundControl({ sound }) {
+  const [open, setOpen] = React.useState(false);
+  if (!sound.supported) return null;
+  const { prefs } = sound;
+  return (
+    <div className="mw-sound">
+      <button type="button" className="mw-sbtn" aria-pressed={prefs.on} aria-label={prefs.on ? 'Sound is on. Turn sound off' : 'Sound is off. Turn sound on'} onClick={() => sound.update({ on: !prefs.on })}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z" />{prefs.on ? <><path d="M16 9a4 4 0 0 1 0 6" /><path d="M18.5 6.5a8 8 0 0 1 0 11" /></> : <path d="M17 9l5 6M22 9l-5 6" />}</svg>
+      </button>
+      <button type="button" className="mw-sbtn small" aria-expanded={open} aria-label="Sound options" onClick={() => setOpen((o) => !o)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <div className="mw-spanel" role="group" aria-label="Sound options">
+          <label><input type="checkbox" checked={prefs.music} onChange={(e) => sound.update({ music: e.target.checked })} /> Quiet music</label>
+          <label><input type="checkbox" checked={prefs.fx} onChange={(e) => sound.update({ fx: e.target.checked })} /> Soft sounds</label>
+          <label className="vol">Volume<input type="range" min="0" max="1" step="0.05" value={prefs.volume} onChange={(e) => sound.update({ volume: Number(e.target.value) })} aria-label="Volume" /></label>
+          {!prefs.on && <p className="mw-fine">Sound is off. Tap the speaker to turn it on.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- a painting of the Savior at the top of each step ---------- */
+function StepArt({ step, short }) {
+  const art = artFor(step);
+  if (!art) return null;
+  return (
+    <figure className={`mw-art${short ? ' short' : ''}`}>
+      <img src={withBase(art.src)} alt={art.alt} loading="eager" decoding="async" />
+      <figcaption>{artCredit(art)}</figcaption>
+    </figure>
+  );
+}
 
 /* ---------- the mountain scene ---------- */
 function Scene({ stage, stepRaw }) {
@@ -140,7 +179,7 @@ function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipE
   const lineRefs = React.useRef([]);
   const done = playedFraction(p.played, total) >= WATCHED_ENOUGH;
 
-  React.useEffect(() => { onProgress({ played: p.played, duration: total, done }); }, [p.played, total, done]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { onProgress({ played: p.played, duration: total, done, playing: p.playing }); }, [p.played, total, done, p.playing]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { // keep the spoken line in view inside the transcript box, without moving the page
     const box = listRef.current, el = lineRefs.current[idx];
     if (box && el) box.scrollTop = Math.max(0, el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2);
@@ -191,11 +230,12 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const [S, setS] = React.useState(() => ({ ...initialState(), picks: [], word: '', code: '', closer: '', styleOffset: Math.floor(Math.random() * 3) }));
   const [cites, setCites] = React.useState([]);
   const [toast, setToast] = React.useState('');
+  const soundRef = React.useRef(null);
   const [status, setStatus] = React.useState({ state: 'idle', error: '', result: null });
   const mediaTotals = React.useRef({ watched: 0, source: 0, readSeconds: 0 });
   const learn = React.useRef({ done: false, played: 0, duration: 0, readSeconds: 0 });
   const [learnDone, setLearnDone] = React.useState(false);
-  const tracker = useEffortTracker({ onBlocked: (kind) => setToast(kind === 'drop' ? 'Dropping text is turned off here.' : kind === 'paste' ? 'Pasting is turned off. Write it in your own words.' : '') });
+  const tracker = useEffortTracker({ onBlocked: (kind) => { if (kind !== 'menu') soundRef.current && soundRef.current.play('thud'); setToast(kind === 'drop' ? 'Dropping text is turned off here.' : kind === 'paste' ? 'Pasting is turned off. Write it in your own words.' : ''); } });
   const upd = (patch) => setS((s) => ({ ...s, ...patch }));
   const sampleUrls = React.useRef({});
 
@@ -205,6 +245,15 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const cur = learnSources[S.learnIndex];
   const stepRaw = S.step + (step === 'learn' && learnSources.length > 1 ? (S.learnIndex / learnSources.length) * 0.9 : 0);
 
+  const sound = useSoundscape(stepRaw);
+  soundRef.current = sound;
+  const prevStep = React.useRef(0);
+  React.useEffect(() => { // a breath of air between steps, and a small flourish at the end
+    if (S.step !== prevStep.current && S.step > 0) sound.play(S.step === STEPS.length - 1 ? 'finish' : 'swell');
+    prevStep.current = S.step;
+  }, [S.step]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (learnDone) sound.play('ding'); }, [learnDone]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (step !== 'learn') sound.duck(false); }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { headingRef.current && headingRef.current.focus({ preventScroll: true }); }, [S.step, S.learnIndex]);
   React.useEffect(() => { if (!toast) return undefined; const id = setTimeout(() => setToast(''), 2600); return () => clearTimeout(id); }, [toast]);
   React.useEffect(() => { // the quiet moment before "Begin"
@@ -214,7 +263,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   React.useEffect(() => { learn.current = { done: false, played: 0, duration: 0, readSeconds: 0 }; setLearnDone(false); }, [S.learnIndex, S.step]);
 
   const available = Object.keys(GROUPS).filter((g) => sources.some((x) => groupOf(x.kind) === g));
-  const advance = (patch = {}) => setS((s) => ({ ...s, ...patch, step: Math.min(N - 1, s.step + 1) }));
+  const advance = (patch = {}) => { sound.play('chime'); setS((s) => ({ ...s, ...patch, step: Math.min(N - 1, s.step + 1) })); };
   const goBack = () => setS((s) => ({ ...s, step: Math.max(0, s.step - 1), learnIndex: 0 }));
 
   // choose a specific source for each pick, avoiding repeats within a journey when there is a choice
@@ -285,17 +334,18 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
         <div><div className="mw-lbl" id="mw-cl">Your class</div><div className="mw-row" role="group" aria-labelledby="mw-cl">{classes.map((c) => <button key={c.id} className="mw-chip" aria-pressed={S.cls === c.id} onClick={() => upd({ cls: c.id })}>{c.name}</button>)}</div></div>
         {clsObj?.requires_code && <div className="mw-field"><label htmlFor="mw-code">Class code from your teacher</label><input id="mw-code" type="text" autoComplete="off" value={S.code} onChange={(e) => upd({ code: e.target.value })} /></div>}
         <div><div className="mw-lbl" id="mw-dl">Days you missed</div><div className="mw-row" role="group" aria-labelledby="mw-dl">{[1, 2, 3, 4].map((d) => <button key={d} className="mw-chip" aria-pressed={S.days === d} onClick={() => upd({ days: d })}>{d === 4 ? '4 or more' : d}</button>)}</div></div>
-        <div><button className="mw-cta" disabled={!ok} onClick={() => advance()}>{S.settled ? 'Begin' : 'Take a moment…'}</button></div>
+        <div className="mw-row" style={{ alignItems: 'center' }}><button className="mw-cta" disabled={!ok} onClick={() => advance()}>{S.settled ? 'Begin' : 'Take a moment…'}</button>{sound.supported && !sound.prefs.on && <button className="mw-ghost" onClick={() => sound.update({ on: true })}>Turn on quiet music</button>}</div>
         <p className="mw-fine">{S.days ? `About ${estimateMinutes(S.days)} minutes, start to finish.` : `About ${RULES.minutesPerDay} minutes for each day you missed.`}</p>
       </>
     );
   })();
 
   const pick = (g) => {
+    sound.play('tick');
     if (n === 1) { upd({ picks: [g], sourceIds: resolvePicks([g]) }); setTimeout(() => advance({ sourceIds: resolvePicks([g]) }), 220); return; }
     if (S.picks.length < n) upd({ picks: [...S.picks, g] }); else setToast('All picked. Tap a number to take one off.');
   };
-  const surprise = () => { const picks = [...S.picks]; while (picks.length < n) picks.push(available[Math.floor(Math.random() * available.length)]); upd({ picks }); };
+  const surprise = () => { sound.play('tick'); const picks = [...S.picks]; while (picks.length < n) picks.push(available[Math.floor(Math.random() * available.length)]); upd({ picks }); };
   const chooseScreen = (
     <>
       <p className="mw-eyebrow">Choose how to learn</p>
@@ -310,7 +360,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
               <button className="mw-opt" onClick={() => pick(g)}>
                 <svg viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: G.icon }} /><b>{G.label}</b><span>{G.desc}</span>
               </button>
-              <span className="mw-badges">{pos.map((p) => <button key={p} className="mw-bd" aria-label={`Remove pick ${p}: ${G.label}`} onClick={() => upd({ picks: S.picks.filter((_, i) => i !== p - 1) })}>{p}</button>)}</span>
+              <span className="mw-badges">{pos.map((p) => <button key={p} className="mw-bd" aria-label={`Remove pick ${p}: ${G.label}`} onClick={() => { sound.play('untick'); upd({ picks: S.picks.filter((_, i) => i !== p - 1) }); }}>{p}</button>)}</span>
             </div>
           );
         })}
@@ -336,8 +386,8 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
         <p className="mw-quote">{hint}</p>
         {isAV ? (media ? (
           <MediaStage key={cur.id + S.learnIndex} src={cur} mediaUrl={media.url} mediaType={media.type} cites={cites}
-            onCite={(c) => { setCites((x) => (x.some((y) => y.sourceId === c.sourceId && Math.round(y.seconds) === Math.round(c.seconds)) ? x.filter((y) => !(y.sourceId === c.sourceId && Math.round(y.seconds) === Math.round(c.seconds))) : [...x, c])); }}
-            onProgress={({ played, duration, done }) => { learn.current.played = played; learn.current.duration = duration; if (done !== learn.current.done) { learn.current.done = done; setLearnDone(done); } }} />
+            onCite={(c) => { sound.play('cite'); setCites((x) => (x.some((y) => y.sourceId === c.sourceId && Math.round(y.seconds) === Math.round(c.seconds)) ? x.filter((y) => !(y.sourceId === c.sourceId && Math.round(y.seconds) === Math.round(c.seconds))) : [...x, c])); }}
+            onProgress={({ played, duration, done, playing }) => { sound.duck(!!playing); learn.current.played = played; learn.current.duration = duration; if (done !== learn.current.done) { learn.current.done = done; setLearnDone(done); } }} />
         ) : <p className="mw-err">This video or audio address is not one we can play. An admin can fix it.</p>) : (
           <Reader key={cur.id + S.learnIndex} src={cur} onSeconds={(t) => { learn.current.readSeconds = t; }} onDone={(d) => { if (d !== learn.current.done) { learn.current.done = d; setLearnDone(d); } }} />
         )}
@@ -447,11 +497,11 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const wide = step === 'learn' && cur && AV_KINDS.includes(cur.kind);
 
   return (
-    <div ref={stageRef} className={`mw-stage${phone ? ' phone' : ''}`}>
+    <div ref={stageRef} className={`mw-stage${phone ? ' phone' : ''}`} onPointerDown={sound.wake}>
       <Scene stage={stageRef} stepRaw={stepRaw} />
-      <div className="mw-tbar"><img src={logo.src} alt="Alta Seminary" /></div>
+      <div className="mw-tbar"><img src={logo.src} alt="Alta Seminary" /><SoundControl sound={sound} /></div>
       <RidgeProgress stepRaw={stepRaw} />
-      <div className="mw-body"><section className={`mw-card${wide ? ' wide' : ''}`} key={`${S.step}-${S.learnIndex}`}>{screens[step]}</section></div>
+      <div className="mw-body"><section className={`mw-card${wide ? ' wide' : ''}`} key={`${S.step}-${S.learnIndex}`}><StepArt step={step} short={wide} />{screens[step]}</section></div>
       <div className={`mw-toast${toast ? ' show' : ''}`} role="status">{toast}</div>
       {skipTools && (
         <div className="mw-skip" role="group" aria-label="Testing tools">

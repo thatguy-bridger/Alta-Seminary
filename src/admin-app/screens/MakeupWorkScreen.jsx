@@ -66,15 +66,20 @@ export function MakeupWorkScreen() {
   const [newRaw, setNewRaw] = React.useState('');
   const [newDur, setNewDur] = React.useState('');
   const [editing, setEditing] = React.useState(null); // { id, raw, dur }
+  const [srcQuery, setSrcQuery] = React.useState('');
+  const [srcKind, setSrcKind] = React.useState('');
+  const [srcShown, setSrcShown] = React.useState(30);
 
   const load = React.useCallback(async () => {
     const [c, s, u, st] = await Promise.all([
       supabaseBrowser.from('makeup_classes').select('*').order('sort_order').order('name'),
-      supabaseBrowser.from('makeup_sources').select('*').order('sort_order').order('title'),
+      supabaseBrowser.from('makeup_sources').select('id, kind, title, minutes, reference, active, one_time, duration_seconds, author, series, sort_order').order('sort_order').order('title').limit(2000),
       supabaseBrowser.from('makeup_submissions').select('*').order('created_at', { ascending: false }).limit(100),
       supabaseBrowser.from('site_settings').select('makeup_work_enabled').eq('id', true).maybeSingle(),
     ]);
-    setClasses(c.data || []); setSources(s.data || []); setSubs(u.data || []); setEnabled(!!st.data?.makeup_work_enabled);
+    const av = await supabaseBrowser.from('makeup_sources').select('id, transcript').in('kind', ['video', 'audio', 'podcast']);
+    const lines = new Map((av.data || []).map((x) => [x.id, x.transcript?.length || 0]));
+    setClasses(c.data || []); setSources((s.data || []).map((x) => ({ ...x, transcript_lines: lines.get(x.id) ?? null }))); setSubs(u.data || []); setEnabled(!!st.data?.makeup_work_enabled);
   }, []);
   React.useEffect(() => { load(); }, [load]);
 
@@ -112,6 +117,9 @@ export function MakeupWorkScreen() {
   }
 
   if (!classes || !sources || !subs) return <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>;
+  const q = srcQuery.trim().toLowerCase();
+  const filteredSources = sources.filter((x) => (!srcKind || x.kind === srcKind) && (!q || [x.title, x.reference, x.author, x.series].some((f) => (f || '').toLowerCase().includes(q))));
+  const kindCounts = KINDS.map((k) => `${sources.filter((x) => x.kind === k.value).length} ${k.label.toLowerCase()}`).filter((t) => !t.startsWith('0 ')).join(' · ');
   const small = { fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', margin: 0 };
 
   return (
@@ -150,18 +158,25 @@ export function MakeupWorkScreen() {
 
       <Card title="Sources students can learn from">
         <p style={small}>Scripture and talks can carry text for the built-in reader. Videos, audio and podcasts use an embed address and <strong>must have a transcript with timestamps</strong>: students read along, jump to a line, and cite the moment they found a truth. It is also the captions for anyone who cannot hear it.</p>
+        {sources.length > 0 && (
+          <div style={{ ...row, margin: 'var(--space-3) 0 0' }}>
+            <div style={grow(2)}><Input label="Search the library" value={srcQuery} onChange={(e) => { setSrcQuery(e.target.value); setSrcShown(30); }} placeholder="Title, scripture, speaker…" /></div>
+            <div style={grow(1)}><Select label="Type" value={srcKind} onChange={(e) => { setSrcKind(e.target.value); setSrcShown(30); }} options={[{ value: '', label: 'All types' }, ...KINDS]} /></div>
+          </div>
+        )}
+        <p style={{ ...small, margin: 'var(--space-2) 0' }}>{sources.length} in the library{kindCounts ? ` (${kindCounts})` : ''}. Showing {Math.min(srcShown, filteredSources.length)} of {filteredSources.length}.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', margin: 'var(--space-3) 0' }}>
           {sources.length === 0 && <p style={small}>No sources yet. Add one below.</p>}
-          {sources.map((s) => (
+          {filteredSources.slice(0, srcShown).map((s) => (
             <div key={s.id} style={{ ...row, alignItems: 'center', padding: 'var(--space-2) var(--space-3)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
-              <div style={grow(2)}><strong>{s.title}</strong><div style={small}>{KINDS.find((k) => k.value === s.kind)?.label} · {s.minutes} min{s.reference ? ` · ${s.reference}` : ''}{s.one_time ? ' · once per student' : ''}</div></div>
+              <div style={grow(2)}><strong>{s.title}</strong><div style={small}>{KINDS.find((k) => k.value === s.kind)?.label} · {s.minutes} min{s.reference ? ` · ${s.reference}` : ''}{s.series && s.series !== s.reference ? ` · ${s.series}` : ''}{s.one_time ? ' · once per student' : ''}</div></div>
               {NEEDS_TRANSCRIPT.includes(s.kind) && (
-                <span style={small}>{s.transcript?.length ? `Transcript: ${s.transcript.length} lines · ${formatTimestamp(s.duration_seconds || 0)}` : 'No transcript, so students cannot see it'}</span>
+                <span style={small}>{s.transcript_lines ? `Transcript: ${s.transcript_lines} lines · ${formatTimestamp(s.duration_seconds || 0)}` : 'No transcript, so students cannot see it'}</span>
               )}
               <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--fs-small)' }}>
-                <Switch checked={s.active} disabled={NEEDS_TRANSCRIPT.includes(s.kind) && !s.transcript?.length} onChange={(e) => run(supabaseBrowser.from('makeup_sources').update({ active: e.target.checked }).eq('id', s.id), 'Updated.')} /> Shown
+                <Switch checked={s.active} disabled={NEEDS_TRANSCRIPT.includes(s.kind) && !s.transcript_lines} onChange={(e) => run(supabaseBrowser.from('makeup_sources').update({ active: e.target.checked }).eq('id', s.id), 'Updated.')} /> Shown
               </label>
-              {NEEDS_TRANSCRIPT.includes(s.kind) && <Button variant="outline" size="sm" onClick={() => setEditing(editing?.id === s.id ? null : { id: s.id, raw: '', dur: s.duration_seconds ? formatTimestamp(s.duration_seconds) : '' })}>{s.transcript?.length ? 'Replace transcript' : 'Add transcript'}</Button>}
+              {NEEDS_TRANSCRIPT.includes(s.kind) && <Button variant="outline" size="sm" onClick={() => setEditing(editing?.id === s.id ? null : { id: s.id, raw: '', dur: s.duration_seconds ? formatTimestamp(s.duration_seconds) : '' })}>{s.transcript_lines ? 'Replace transcript' : 'Add transcript'}</Button>}
               <Button variant="ghost" size="sm" onClick={() => run(supabaseBrowser.from('makeup_sources').delete().eq('id', s.id), 'Source removed.')}>Remove</Button>
               {editing?.id === s.id && (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
@@ -172,6 +187,7 @@ export function MakeupWorkScreen() {
             </div>
           ))}
         </div>
+        {filteredSources.length > srcShown && <div style={{ marginBottom: 'var(--space-3)' }}><Button variant="outline" size="sm" onClick={() => setSrcShown((n) => n + 40)}>Show more</Button></div>}
         <div style={row}>
           <div style={grow(1)}><Select label="Type" value={newSource.kind} onChange={(e) => setNewSource({ ...newSource, kind: e.target.value })} options={KINDS} /></div>
           <div style={grow(2)}><Input label="Title" value={newSource.title} onChange={(e) => setNewSource({ ...newSource, title: e.target.value })} /></div>

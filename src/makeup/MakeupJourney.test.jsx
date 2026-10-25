@@ -29,6 +29,21 @@ describe('MakeupJourney', () => {
     expect(btn('Take a moment…').disabled).toBe(true);
   });
 
+  it('puts a painting of the Savior, with its credit, at the top of every step', async () => {
+    mounted = await renderInBrowser(<MakeupJourney classes={SAMPLE_CLASSES} sources={SAMPLE_SOURCES} onSubmit={async () => ({ ok: true })} skipTools />);
+    const seen = [];
+    for (let i = 0; i < 7; i++) {
+      const img = document.querySelector('.mw-art img');
+      expect(img, `step ${i}`).not.toBeNull();
+      expect(img.alt.length).toBeGreaterThan(20);
+      expect(document.querySelector('.mw-art figcaption').textContent).toMatch(/,/);
+      seen.push(img.getAttribute('src'));
+      if (document.body.textContent.includes('Well done')) break;
+      btn('Skip step').click(); await tick(60);
+    }
+    expect(new Set(seen).size).toBe(7);   // a different painting each step
+  });
+
   it('the skip tools are only there when switched on', async () => {
     mounted = await renderInBrowser(<MakeupJourney classes={SAMPLE_CLASSES} sources={SAMPLE_SOURCES} onSubmit={async () => ({ ok: true })} />);
     expect(document.querySelector('.mw-skip')).toBeNull();
