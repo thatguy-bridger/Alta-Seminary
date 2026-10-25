@@ -1,5 +1,7 @@
 # Makeup Work: concept
 
+> **Later update.** After researching how seminaries already do makeup work, the journey now follows the pattern they use (truth, understand, feel, apply), missing several days is one comprehensive journey (no per-day repeat), and the chosen look is **Ridgeline**. See `MAKEUP_WORK_RESEARCH.md` and `MAKEUP_WORK_PLAN.md`. The text below is the first concept.
+
 Status: concept for review. Nothing here is built yet. Decisions marked **(decide)** are yours.
 
 ## What you told me

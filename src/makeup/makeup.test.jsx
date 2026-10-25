@@ -2,16 +2,18 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import React from 'react';
 import { renderInBrowser } from '../test/render.js';
-import { initialState, canAdvance, advance, nextDay, sessionsFor, estimateMinutes, RULES, STEPS } from './journey.js';
+import { initialState, canAdvance, advance, daysCovered, sourcesNeeded, wordsNeeded, estimateMinutes, RULES, STEPS } from './journey.js';
 import { analyzeEffort } from './effort.js';
 import { composeTeacherEmail } from './teacherEmail.js';
 import { useEffortTracker } from './useEffortTracker.js';
 
 describe('journey rules', () => {
-  it('caps sessions and estimates time', () => {
-    expect(sessionsFor(7)).toBe(RULES.maxSessions);
-    expect(estimateMinutes(2)).toBe(30);
-    expect(sessionsFor(0)).toBe(0);
+  it('grows one journey with the days missed, instead of repeating it', () => {
+    expect(daysCovered(7)).toBe(RULES.maxSessions);
+    expect(estimateMinutes(2)).toBe(60);
+    expect(daysCovered(0)).toBe(0);
+    expect([1, 2, 3, 4].map(sourcesNeeded)).toEqual([1, 2, 3, 3]);
+    expect(wordsNeeded(3)).toBe(RULES.minWords + 2 * RULES.extraWordsPerSource);
   });
   it('gates each step with the right condition', () => {
     let s = initialState();
@@ -21,19 +23,25 @@ describe('journey rules', () => {
     s = advance({ ...s, settled: true });
     expect(STEPS[s.step]).toBe('choose');
     expect(advance(s)).toBe(s);                     // no source yet
-    s = advance({ ...s, sourceId: 'x' });
+    s = { ...s, days: 2 };
+    expect(advance({ ...s, sourceIds: ['a'] }).step).toBe(1);  // two days missed means two sources
+    s = advance({ ...s, sourceIds: ['a', 'b'] });
     s = advance({ ...s, learned: true });
-    expect(STEPS[s.step]).toBe('reflect');
-    expect(canAdvance({ ...s, text: 'too short' })).toBe(false);
-    expect(canAdvance({ ...s, text: Array(RULES.minWords).fill('word').join(' ') })).toBe(true);
-    expect(canAdvance({ ...s, mode: 'voice', voiceSeconds: RULES.minVoiceSeconds - 1 })).toBe(false);
-    expect(canAdvance({ ...s, mode: 'voice', voiceSeconds: RULES.minVoiceSeconds })).toBe(true);
-  });
-  it('starts the next day at "choose" and keeps who they are', () => {
-    const s = initialState({ name: 'Maya', cls: 'Period 2', days: 2, day: 1, step: 5 });
-    const n = nextDay(s);
-    expect(n).toMatchObject({ name: 'Maya', cls: 'Period 2', days: 2, day: 2, step: 1, settled: true, text: '' });
-    expect(nextDay(n)).toBe(n); // no day 3 owed
+    expect(STEPS[s.step]).toBe('truth');
+    expect(canAdvance({ ...s, truth: 'too short', where: '1 Nephi 3:7' })).toBe(false);
+    expect(canAdvance({ ...s, truth: 'If we obey then the Lord will prepare a way', where: '' })).toBe(false);
+    s = advance({ ...s, truth: 'If we obey then the Lord will prepare a way', where: '1 Nephi 3:7' });
+    expect(STEPS[s.step]).toBe('understand');
+    const eight = Array(wordsNeeded(2)).fill('word').join(' ');
+    expect(canAdvance({ ...s, understanding: eight, text: 'short' })).toBe(false);
+    expect(canAdvance({ ...s, understanding: eight, text: eight })).toBe(true);
+    expect(canAdvance({ ...s, mode: 'voice', voiceSeconds: 10 })).toBe(false);  // two sources: longer than the base 10s
+    expect(canAdvance({ ...s, mode: 'voice', voiceSeconds: 15 })).toBe(true);
+    s = advance({ ...s, understanding: eight, text: eight });
+    expect(STEPS[s.step]).toBe('commit');
+    expect(canAdvance({ ...s, inv: 'serve', commit: 'help my brother', bless: 'short' })).toBe(false);
+    expect(canAdvance({ ...s, inv: '', commit: 'help my brother', bless: 'make me kinder' })).toBe(false);
+    expect(canAdvance({ ...s, inv: 'serve', commit: 'help my brother', bless: 'make me kinder' })).toBe(true);
   });
 });
 
@@ -54,12 +62,15 @@ describe('analyzeEffort', () => {
 });
 
 describe('composeTeacherEmail', () => {
-  const sub = { student_name: 'Maya <b>', class_name: 'Period 2', day_number: 1, days_total: 2, source_title: 'Faith in action', mode: 'text', response: 'It made me think.', commitment: 'Call my grandma', active_seconds: 300, paste_attempts: 0, sudden_jumps: 0, typed_chars: 40, page_leaves: 0 };
+  const sub = { student_name: 'Maya <b>', class_name: 'Period 2', days_total: 2, source_title: 'Faith in action', source_titles: ['Faith in action', 'Two talks'], mode: 'text', truth: 'If we listen then we learn', truth_ref: '1 Nephi 3:7', understanding: 'It helps with stress.', response: 'It made me think.', commit_kind: 'serve', commitment: 'Call my grandma', blessing: 'make me kinder', active_seconds: 300, paste_attempts: 0, sudden_jumps: 0, typed_chars: 40, page_leaves: 0 };
   it('reads like a note, with the signal', () => {
     const m = composeTeacherEmail(sub);
     expect(m.subject).toBe('Makeup work from Maya <b> (Period 2)');
-    expect(m.text).toContain('Day 1 of 2');
+    expect(m.text).toContain('Covers 2 days');
+    expect(m.text).toContain('Faith in action, Two talks');
     expect(m.text).toContain('Call my grandma');
+    expect(m.text).toContain('If we listen then we learn');
+    expect(m.text).toContain('make me kinder');
     expect(m.text).toContain('Looks typed live');
   });
   it('escapes student-entered text in the HTML', () => {

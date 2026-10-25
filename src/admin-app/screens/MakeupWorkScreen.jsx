@@ -10,7 +10,9 @@ import { analyzeEffort, formatDuration } from '../../makeup/effort.js';
 
 const KINDS = [
   { value: 'scripture', label: 'Scripture' }, { value: 'video', label: 'Video' },
-  { value: 'audio', label: 'Audio' }, { value: 'talk', label: 'Talk / article' },
+  { value: 'audio', label: 'Audio' }, { value: 'talk', label: 'Conference talk / article' },
+  { value: 'lesson', label: 'Self-guided lesson' }, { value: 'podcast', label: 'Podcast' },
+  { value: 'proclamation', label: 'In-depth study (e.g. a Proclamation)' },
 ];
 const row = { display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'flex-end' };
 const grow = (n) => ({ flex: `${n} 1 180px`, minWidth: 0 });
@@ -25,7 +27,7 @@ export function MakeupWorkScreen() {
   const [enabled, setEnabled] = React.useState(false);
   const [msg, setMsg] = React.useState('');
   const [newClass, setNewClass] = React.useState({ name: '', teacher_name: '', teacher_email: '', code: '' });
-  const [newSource, setNewSource] = React.useState({ kind: 'scripture', title: '', reference: '', embed_url: '', minutes: 6 });
+  const [newSource, setNewSource] = React.useState({ kind: 'scripture', title: '', reference: '', embed_url: '', minutes: 6, one_time: false });
 
   const load = React.useCallback(async () => {
     const [c, s, u, st] = await Promise.all([
@@ -42,14 +44,14 @@ export function MakeupWorkScreen() {
   async function run(promise, ok) { const { error } = await promise; if (error) flash(`Couldn't save: ${error.message}`); else { flash(ok); await load(); } }
 
   const addClass = () => run(supabaseBrowser.from('makeup_classes').insert({ ...newClass, code: newClass.code || null, teacher_name: newClass.teacher_name || null }).then((r) => { if (!r.error) setNewClass({ name: '', teacher_name: '', teacher_email: '', code: '' }); return r; }), 'Class added.');
-  const addSource = () => run(supabaseBrowser.from('makeup_sources').insert({ ...newSource, reference: newSource.reference || null, embed_url: newSource.embed_url || null }).then((r) => { if (!r.error) setNewSource({ kind: 'scripture', title: '', reference: '', embed_url: '', minutes: 6 }); return r; }), 'Source added.');
+  const addSource = () => run(supabaseBrowser.from('makeup_sources').insert({ ...newSource, reference: newSource.reference || null, embed_url: newSource.embed_url || null }).then((r) => { if (!r.error) setNewSource({ kind: 'scripture', title: '', reference: '', embed_url: '', minutes: 6, one_time: false }); return r; }), 'Source added.');
 
   function exportCsv() {
-    const head = ['When', 'Student', 'Class', 'Day', 'Source', 'Mode', 'Response', 'Commitment', 'Active time', 'Signal'];
+    const head = ['When', 'Student', 'Class', 'Days covered', 'Learned by', 'Truth', 'Where', 'Understanding', 'Why it matters', 'Commitment', 'Blessing', 'Active time', 'Signal'];
     const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = (subs || []).map((s) => {
       const e = analyzeEffort({ mode: s.mode, text: s.response, voiceSeconds: s.voice_seconds, stats: { pastes: s.paste_attempts, jumps: s.sudden_jumps, activeMs: s.active_seconds * 1000, typedChars: s.typed_chars, leaves: s.page_leaves } });
-      return [new Date(s.created_at).toLocaleString(), s.student_name, s.class_name, `${s.day_number}/${s.days_total}`, s.source_title, s.mode, s.mode === 'voice' ? '(voice)' : s.response, s.commitment, formatDuration(s.active_seconds), e.label].map(q).join(',');
+      return [new Date(s.created_at).toLocaleString(), s.student_name, s.class_name, s.days_total, (s.source_titles?.length ? s.source_titles.join('; ') : s.source_title), s.truth, s.truth_ref, s.understanding, s.mode === 'voice' ? '(voice)' : s.response, s.commitment, s.blessing, formatDuration(s.active_seconds), e.label].map(q).join(',');
     });
     const url = URL.createObjectURL(new Blob([[head.map(q).join(','), ...lines].join('\n')], { type: 'text/csv' }));
     const a = document.createElement('a'); a.href = url; a.download = 'makeup-work.csv'; a.click(); URL.revokeObjectURL(url);
@@ -97,7 +99,7 @@ export function MakeupWorkScreen() {
           {sources.length === 0 && <p style={small}>No sources yet. Add one below.</p>}
           {sources.map((s) => (
             <div key={s.id} style={{ ...row, alignItems: 'center', padding: 'var(--space-2) var(--space-3)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
-              <div style={grow(2)}><strong>{s.title}</strong><div style={small}>{KINDS.find((k) => k.value === s.kind)?.label} · {s.minutes} min{s.reference ? ` · ${s.reference}` : ''}</div></div>
+              <div style={grow(2)}><strong>{s.title}</strong><div style={small}>{KINDS.find((k) => k.value === s.kind)?.label} · {s.minutes} min{s.reference ? ` · ${s.reference}` : ''}{s.one_time ? ' · once per student' : ''}</div></div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--fs-small)' }}>
                 <Switch checked={s.active} onChange={(e) => run(supabaseBrowser.from('makeup_sources').update({ active: e.target.checked }).eq('id', s.id), 'Updated.')} /> Shown
               </label>
@@ -111,6 +113,7 @@ export function MakeupWorkScreen() {
           <div style={grow(1)}><Input label="Reference (optional)" value={newSource.reference} onChange={(e) => setNewSource({ ...newSource, reference: e.target.value })} placeholder="1 Nephi 3:7" /></div>
           <div style={grow(2)}><Input label="Embed address (video/audio)" value={newSource.embed_url} onChange={(e) => setNewSource({ ...newSource, embed_url: e.target.value })} placeholder="https://…" /></div>
           <div style={{ flex: '0 1 90px' }}><Input label="Minutes" type="number" value={newSource.minutes} onChange={(e) => setNewSource({ ...newSource, minutes: Number(e.target.value) || 6 })} /></div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--fs-small)' }}><Switch checked={newSource.one_time} onChange={(e) => setNewSource({ ...newSource, one_time: e.target.checked })} /> Once per student</label>
           <Button variant="secondary" disabled={!newSource.title.trim()} onClick={addSource}>Add source</Button>
         </div>
       </Card>
@@ -127,9 +130,11 @@ export function MakeupWorkScreen() {
                   <strong>{s.student_name}</strong> · {s.class_name} · {new Date(s.created_at).toLocaleDateString()} · <span style={{ color: e.ok ? 'var(--color-success)' : 'var(--color-warning)' }}>{e.label}</span>
                 </summary>
                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-small)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', paddingTop: 'var(--space-2)' }}>
-                  <div style={small}>Day {s.day_number} of {s.days_total} · {s.source_title} · {formatDuration(s.active_seconds)} active{s.notified_at ? '' : ' · not emailed'}</div>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{s.mode === 'voice' ? `(Spoken response, ${formatDuration(s.voice_seconds)})` : s.response}</div>
-                  <div><em>Will do:</em> {s.commitment}</div>
+                  <div style={small}>Covers {s.days_total} day{s.days_total > 1 ? 's' : ''} · {(s.source_titles?.length ? s.source_titles.join(', ') : s.source_title) || 'a lesson'} · {formatDuration(s.active_seconds)} active{s.notified_at ? '' : ' · not emailed'}</div>
+                  {s.truth && <div><em>Truth{s.truth_ref ? ` (${s.truth_ref})` : ''}:</em> {s.truth}</div>}
+                  {s.understanding && <div style={{ whiteSpace: 'pre-wrap' }}><em>Could help someone their age:</em> {s.understanding}</div>}
+                  <div style={{ whiteSpace: 'pre-wrap' }}><em>Why it matters to them:</em> {s.mode === 'voice' ? `(Spoken response, ${formatDuration(s.voice_seconds)})` : s.response}</div>
+                  <div><em>Will do{s.commit_kind ? ` (${s.commit_kind})` : ''}:</em> {s.commitment}{s.blessing ? ` — it will bless their life: ${s.blessing}` : ''}</div>
                   <div style={small}>{e.reasons.join(' · ')}</div>
                 </div>
               </details>

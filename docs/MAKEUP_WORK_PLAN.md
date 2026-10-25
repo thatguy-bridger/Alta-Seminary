@@ -1,6 +1,12 @@
 # Makeup Work: build plan
 
-Companion to `MAKEUP_WORK_CONCEPT.md`. Interactive design directions: `docs/prototypes/makeup-work-concepts.html` (also published as an artifact).
+Companion to `MAKEUP_WORK_CONCEPT.md` and `MAKEUP_WORK_RESEARCH.md`.
+
+**Where it stands (updated):**
+- Direction: **Ridgeline** (`docs/prototypes/makeup-work-ridgeline.html`): flat, in the app's own logo, fonts and colors; a red line traces a ridge as you go; outlined mountains like the Alta artwork; background steps from night to morning; one small flat sun in the brand red. The earlier four directions and the glassy "First Light" are kept in `docs/prototypes/` for reference only.
+- Content follows the seminary pattern found in the research: read, find a truth, understand it, feel it, apply it. Seven short screens.
+- Multiple missed days are **one comprehensive journey**, not a repeat per day: one more way to learn per missed day (up to three), slightly longer answers, one truth that ties it together. There is no "Day 1 of 2".
+- 30 minutes per missed day by default (a setting), per what existing worksheets expect (30 to 60).
 
 ## What is already done (prefired)
 
@@ -8,13 +14,14 @@ Everything that does not depend on which design you pick is built, tested and, w
 
 | Piece | Where | State |
 |---|---|---|
-| Journey rules: the 6 steps, the gate on each, sessions per days missed, next-day reset | `src/makeup/journey.js` | Done, tested |
+| Journey rules: the 7 steps, the gate on each, how the journey grows with days missed | `src/makeup/journey.js` | Done, tested |
 | Effort signals: plain-language "looks typed live / worth a conversation" with reasons | `src/makeup/effort.js` | Done, tested |
 | Writing-box tracker: blocks paste/drop/right-click, counts attempts, jumps, active time, page leaves. Stores counts, never keystrokes | `src/makeup/useEffortTracker.js` | Done, tested |
-| Teacher email wording (text + HTML, escaped) | `src/makeup/teacherEmail.js` | Done, tested |
+| Teacher email wording: truth, understanding, why it matters, what they will do, signal (text + HTML, escaped) | `src/makeup/teacherEmail.js` | Done, tested |
 | Starter prompts and sample sources (drafts for the school to edit) | `src/makeup/prompts.js` | Done |
 | Database: classes (teacher email, optional code), source library, submissions | migration `0034_makeup_work.sql` | **Live**, tested (wrong code rejected, repeat throttled, anon cannot read or purge) |
-| Safe student submit: a function that checks class and code, caps lengths, throttles repeats | `submit_makeup()` | Live |
+| Structure for the truth / understand / feel / apply answers, several sources, longer source types, minutes-per-day setting | migration `0035_makeup_work_structure.sql` | **Live** |
+| Safe student submit: checks class and code, caps lengths, throttles repeats, **enforces Alta's 7-makeups-a-week limit** | `submit_makeup()` | Live, tested |
 | Public read views: class names (no emails/codes), active sources | `public_makeup_classes`, `public_makeup_sources` | Live |
 | Auto-delete after 90 days | `purge_makeup_submissions` + nightly schedule | Live |
 | Teacher email sender | `supabase/functions/makeup-notify` | Written, **not deployed** (needs an email service) |
@@ -26,7 +33,7 @@ Nothing is visible to students yet. The public `/makeup-work` page is unchanged 
 
 ### 1. Student journey (the visible part). ~1 to 2 days once a design is chosen
 
-- One React component `MakeupJourney` with a `skin` prop. The four prototype directions are skins over the same logic in `src/makeup/`. Only the markup and CSS differ.
+- One React component `MakeupJourney`, styled like the Ridgeline prototype, driven by the logic in `src/makeup/`. (If you later want another look, only markup and CSS change.)
 - Load classes and sources from the two public views. Call `submit_makeup()` on finish.
 - Wire `useEffortTracker` to the reflection box. Wire the done-screen "what your teacher receives" from `analyzeEffort`.
 - Mount it on `/makeup-work` when `site_settings.makeup_work_enabled` is on; otherwise show a quiet "not open right now".
@@ -58,7 +65,7 @@ Review queue (approve / ask to redo), printable per-student record, teacher exce
 
 | Decision | Assumed default | Why it matters |
 |---|---|---|
-| Which design direction | Stillness for phones and Chromebooks equally; it is the calmest and the lightest to build | Skin only; logic is shared |
+| Which design direction | Ridgeline | Decided in practice; tell me if not |
 | Class codes | Optional per class, off until a teacher wants one | With no sign-in, a code is the only thing stopping strangers |
 | Retention | 90 days | Set in `purge_makeup_submissions` |
 | Email service | Resend, one address per class | Sending needs an account |
@@ -89,3 +96,11 @@ docs/prototypes/makeup-work-concepts.html    the four clickable designs
 3. Email, once the Resend account exists.
 4. Switch it on from the admin.
 5. Voice and the review queue, driven by what teachers say.
+
+## Added after the research
+
+- **Reading makeup checklist** (required passages per course, progress saved) to replace the separate Google Form. Needs the official passage list; not built.
+- **Teacher pre-assigns** what a class should study for a day, like mySeminary lets teachers do. Not built.
+- **Send back with a note** when effort is not enough (the worksheet's "redo if no full effort"). Phase 3.
+- **Assess Your Learning** makeup, if the school wants it in the app.
+- Nothing here talks to WISE. Spreadsheet download and the teacher email are the bridge.
