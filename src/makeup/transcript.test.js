@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTime, formatTimestamp, timestampRef, parseTranscript, normalizeSegments, activeIndex, coverage, checkTranscript, playedFraction, transcriptText } from './transcript.js';
+import { parseTime, formatTimestamp, timestampRef, parseTranscript, normalizeSegments, activeIndex, currentIndex, coverage, checkTranscript, playedFraction, transcriptText } from './transcript.js';
 
 describe('times', () => {
   it('reads the formats captions use', () => {
@@ -93,4 +93,18 @@ it('counts only what was played', () => {
   expect(playedFraction(30, 120)).toBe(0.25);
   expect(playedFraction(500, 120)).toBe(1);
   expect(playedFraction(5, 0)).toBe(0);
+});
+
+describe('currentIndex', () => {
+  const segs = [{ start: 1, end: 5, text: 'a' }, { start: 6, end: 10, text: 'b' }, { start: 30, end: 35, text: 'c' }];
+  it('is the line that most recently began, and holds through a pause in the speaking', () => {
+    expect(currentIndex(segs, 0)).toBe(-1);                  // before the talk begins
+    expect(currentIndex(segs, 1)).toBe(0);
+    expect(currentIndex(segs, 5.5)).toBe(0);                 // a short gap
+    expect(currentIndex(segs, 20)).toBe(1);                  // a long silence: the last line stays lit (activeIndex would let go)
+    expect(activeIndex(segs, 20)).toBe(-1);
+    expect(currentIndex(segs, 30)).toBe(2);
+    expect(currentIndex(segs, 9999)).toBe(2);                // after the end, the last line
+    expect(currentIndex([], 5)).toBe(-1);
+  });
 });

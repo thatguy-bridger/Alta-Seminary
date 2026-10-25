@@ -125,6 +125,14 @@ describe('submissions in the admin', () => {
     expect(record.textContent).not.toContain('Maya');
   });
 
+  it('shows the answers a student gave to questions while studying, in the list and the printed record', async () => {
+    await render([sub({ id: 'q', student_name: 'Ana', pause_answers: [{ lesson: 'Come Home', unit: 'seconds', at: '95', question: 'What stood out?', answer: 'The part about coming back' }] })]);
+    expect(row('Ana').textContent).toContain('Questions while studying');
+    expect(row('Ana').textContent).toContain('What stood out?');
+    expect(row('Ana').textContent).toContain('The part about coming back');
+    expect(document.querySelector('#makeup-print').textContent).toContain('While studying (Come Home, at 1:35)');
+  });
+
   it('says so when there is nothing yet', async () => {
     await render([]);
     expect(document.body.textContent).toContain('Nothing yet.');

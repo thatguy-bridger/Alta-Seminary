@@ -10,7 +10,7 @@ function installFakeYouTube() {
   players = [];
   class Player {
     constructor(el, opts) {
-      Object.assign(this, { el, opts, t: 0, state: -1, duration: 600, destroyed: false });
+      Object.assign(this, { el, opts, t: 0, state: -1, duration: 600, destroyed: false, muted: false, volume: 100 });
       players.push(this);
       queueMicrotask(() => opts.events.onReady({ target: this }));
     }
@@ -20,6 +20,8 @@ function installFakeYouTube() {
     playVideo() { this.state = 1; }
     pauseVideo() { this.state = 2; }
     seekTo(t) { this.t = t; }
+    isMuted() { return this.muted; }
+    getVolume() { return this.volume; }
     destroy() { this.destroyed = true; }
   }
   window.YT = { Player };
@@ -78,6 +80,25 @@ describe('the YouTube player', () => {
     expect(probe.played).toBe(2);
     await read(p, 306);                           // steady playing after that counts
     expect(probe.played).toBe(3);
+  });
+
+  it('counts the played seconds when the sound was off, whether muted or turned all the way down', async () => {
+    const p = players[0];
+    p.state = 1;
+    await read(p, 10); await read(p, 10.6); await read(p, 11.2); await read(p, 11.8);          // sound on
+    expect(probe.mutedPlayed).toBe(0);
+    p.muted = true;
+    await read(p, 12.4); await read(p, 13); await read(p, 13.6); await read(p, 14.2);          // muted
+    expect(probe.mutedPlayed).toBeGreaterThanOrEqual(2);
+    const muted = probe.mutedPlayed;
+    p.muted = false; p.volume = 0;                                                             // the volume turned to nothing counts too
+    await read(p, 14.8); await read(p, 15.4); await read(p, 16);
+    expect(probe.mutedPlayed).toBeGreaterThan(muted);
+    p.volume = 80;
+    await read(p, 16.6); await read(p, 17.2);
+    const after = probe.mutedPlayed;
+    await read(p, 17.8); await read(p, 18.4);
+    expect(probe.mutedPlayed).toBe(after);                                                     // sound on again: no more silent seconds
   });
 
   it('sends play, pause and seek through to the player', () => {

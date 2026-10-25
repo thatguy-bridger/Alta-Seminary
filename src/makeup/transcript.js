@@ -22,6 +22,11 @@ export function formatTimestamp(seconds) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+// A transcript back into WebVTT text, so an existing one can be opened for editing in the same box used to add one.
+const pad2 = (n) => String(n).padStart(2, '0');
+const vttTime = (sec) => { const t = Math.max(0, sec); return `${pad2(Math.floor(t / 3600))}:${pad2(Math.floor((t % 3600) / 60))}:${(t % 60).toFixed(3).padStart(6, '0')}`; };
+export const segmentsToVtt = (segs) => `WEBVTT\n\n${(segs || []).map((s) => `${vttTime(s.start)} --> ${vttTime(s.end)}\n${s.text}`).join('\n\n')}\n`;
+
 export const timestampRef = (title, seconds) => `${title} · ${formatTimestamp(seconds)}`;
 
 const cleanText = (t) => t.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
@@ -59,6 +64,17 @@ export function normalizeSegments(segs) {
     .map((s) => ({ start: s.start, end: Math.max(s.end, s.start + 0.5), text: s.text.trim() }))
     .sort((a, b) => a.start - b.start)
     .slice(0, MAX_SEGMENTS);
+}
+
+// The line that most recently began, which stays current through a pause in the speaking until the next line starts.
+// (The transcript view uses this so the highlight never goes dark and the lines never all dim at once.)
+export function currentIndex(segs, t) {
+  let lo = 0, hi = segs.length - 1, found = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (segs[mid].start <= t) { found = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  return found;
 }
 
 // Which line is being spoken at time t? Short gaps between lines keep the previous one lit.

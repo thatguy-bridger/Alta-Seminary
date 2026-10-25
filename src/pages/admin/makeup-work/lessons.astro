@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { MakeupLessonsPage } from '../../../admin-app/pages/MakeupLessonsPage.jsx';
+---
+
+<BaseLayout title="Makeup Work lessons" noindex>
+  <MakeupLessonsPage client:only="react" />
+</BaseLayout>

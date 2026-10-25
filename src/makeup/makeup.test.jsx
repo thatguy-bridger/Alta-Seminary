@@ -97,6 +97,26 @@ describe('composeTeacherEmail', () => {
     expect(m.html).toContain('Maya &lt;b&gt;');
     expect(m.html).not.toContain('<b>');
   });
+  it('includes the answers to questions that paused the student, with the lesson and where each appeared', () => {
+    const m = composeTeacherEmail({ ...sub, pause_answers: [
+      { lesson: 'Come Home', unit: 'seconds', at: '95', question: 'What stood out?', answer: 'The part about <b>coming</b> back' },
+      { lesson: 'Alma 5', unit: 'paragraph', at: '2', question: 'Why?', answer: 'Because it changes us' }] });
+    expect(m.text).toContain('Questions they answered while studying:');
+    expect(m.text).toContain('- What stood out? (Come Home, at 1:35)\n  The part about <b>coming</b> back');
+    expect(m.text).toContain('- Why? (Alma 5, after paragraph 2)');
+    expect(m.html).toContain('Questions they answered while studying');
+    expect(m.html).toContain('The part about &lt;b&gt;coming&lt;/b&gt; back');          // escaped, like everything a student writes
+    expect(m.html).not.toContain('<b>coming</b>');
+    expect(composeTeacherEmail(sub).text).not.toContain('Questions they answered');
+    expect(composeTeacherEmail({ ...sub, pause_answers: [{ question: 'Blank', answer: '' }] }).text).not.toContain('Questions they answered');
+  });
+  it('includes a note when the player\'s sound was off for much of the time, and counts it toward the signal', () => {
+    const m = composeTeacherEmail({ ...sub, watched_seconds: 600, source_seconds: 700, muted_seconds: 420 });
+    expect(m.text).toContain('Worth a conversation');
+    expect(m.text).toContain("the player's sound was off for 7:00 of the 10:00 played (they may have followed the transcript instead)");
+    expect(m.html).toContain('the player&#39;s sound was off'.replace('&#39;', "'"));
+    expect(composeTeacherEmail({ ...sub, watched_seconds: 600, source_seconds: 700, muted_seconds: 0 }).text).not.toContain('sound was off');
+  });
   it('shows voice responses as such', () => {
     const m = composeTeacherEmail({ ...sub, mode: 'voice', voice_seconds: 42 });
     expect(m.text).toContain('Answered out loud (0:42)');

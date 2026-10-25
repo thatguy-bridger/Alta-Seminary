@@ -1,4 +1,5 @@
 import { analyzeEffort, formatDuration } from './effort.js';
+import { formatTimestamp } from './transcript.js';
 
 // The admin's view of submissions: which to show, how each is doing, and what the spreadsheet holds.
 // Pure functions, so they can be tested without a screen.
@@ -13,8 +14,16 @@ export function filterSubmissions(subs, { cls = '', status = '' } = {}) {
 // The same signal the teacher's email shows, including whether video and audio were really played.
 export const effortOf = (s) => analyzeEffort({
   mode: s.mode, text: s.response, voiceSeconds: s.voice_seconds,
-  stats: { pastes: s.paste_attempts, jumps: s.sudden_jumps, activeMs: (s.active_seconds || 0) * 1000, typedChars: s.typed_chars, leaves: s.page_leaves, watchedSeconds: s.watched_seconds, sourceSeconds: s.source_seconds },
+  stats: { pastes: s.paste_attempts, jumps: s.sudden_jumps, activeMs: (s.active_seconds || 0) * 1000, typedChars: s.typed_chars, leaves: s.page_leaves, watchedSeconds: s.watched_seconds, sourceSeconds: s.source_seconds, mutedSeconds: s.muted_seconds },
 });
+
+// The answers a student gave to pause questions, ready to show: the question, where it appeared, and the answer.
+export function pauseLines(s) {
+  return (Array.isArray(s.pause_answers) ? s.pause_answers : []).filter((a) => a && String(a.answer || '').trim()).map((a) => ({
+    question: a.question, answer: a.answer, lesson: a.lesson || '',
+    where: a.unit === 'paragraph' ? `after paragraph ${a.at}` : `at ${formatTimestamp(Number(a.at) || 0)}`,
+  }));
+}
 
 export const learnedBy = (s) => (s.source_titles?.length ? s.source_titles.join('; ') : s.source_title) || 'a lesson';
 
@@ -40,9 +49,10 @@ export function emailMessage(status, detail) {
 
 const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 export function submissionsCsv(subs) {
-  const head = ['When', 'Student', 'Class', 'Days covered', 'Learned by', 'Truth', 'Where', 'Understanding', 'Why it matters', 'Spoken', 'Commitment', 'Blessing', 'Active time', 'Signal', 'Review', 'Review note', 'Emailed'];
+  const head = ['When', 'Student', 'Class', 'Days covered', 'Learned by', 'Truth', 'Where', 'Understanding', 'Why it matters', 'Questions while studying', 'Spoken', 'Commitment', 'Blessing', 'Active time', 'Signal', 'Review', 'Review note', 'Emailed'];
   const lines = subs.map((s) => [
     new Date(s.created_at).toLocaleString(), s.student_name, s.class_name, s.days_total, learnedBy(s), s.truth, s.truth_ref, s.understanding, s.response,
+    pauseLines(s).map((a) => `${a.question} (${a.where}): ${a.answer}`).join(' | '),
     s.mode === 'voice' ? `Yes (${formatDuration(s.voice_seconds || 0)})` : 'No', s.commitment, s.blessing, formatDuration(s.active_seconds || 0), effortOf(s).label,
     REVIEW[reviewOf(s)], s.review_note, s.notified_at ? 'Yes' : 'No',
   ].map(q).join(','));

@@ -32,6 +32,15 @@ YouTube is the default for video: no files to host, the Church publishes there, 
 - **Also supported:** a direct video file (`.mp4`, `.webm`). The Church publishes `.mp4` files for each talk with the captions built in, at the same host as the audio, but browsers other than Safari do not show built-in captions, so YouTube is the simpler default.
 - **If a video is taken down or made private,** that lesson shows "This video could not be played." Switch it off in the admin or swap the link.
 
+## Pictures
+
+Every lesson has a picture, shown on its card in the admin and beside its title when a student studies it.
+
+- **Videos:** YouTube's own picture for the video (automatic).
+- **Talks and audio talks:** the image the Church itself shows for the talk, filled in once from the Church's site. It loads from the Church's own address; replace it with your own if you prefer.
+- **Scriptures and Proclamations:** one of 11 public-domain paintings of the Savior (Carl Bloch and Heinrich Hofmann; credits are in `src/makeup/thumbnails.js` and shown on hover), assigned in turn within each collection so neighbouring lessons differ.
+- **Any lesson:** choose another painting, upload your own, or paste an address, from the Picture section of the lesson. "Use the automatic picture" goes back to the default.
+
 ## Be careful with this
 
 - This copies Church-owned text and captions into our database. The school has permission to use the Church's text and captions in the library (confirmed by the site owner). Keep the permission on file, and use whatever attribution wording it asks for. Each talk shows its speaker and conference; each scripture shows its reference.

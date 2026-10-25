@@ -103,3 +103,36 @@ describe('the admin test page', () => {
     expect(document.body.textContent).not.toContain('Well done');
   });
 });
+
+describe('previewing one lesson from the lessons page', () => {
+  const setSearch = (q) => window.history.replaceState({}, '', `/admin/makeup-work/test${q}`);
+  afterEach(() => setSearch(''));
+
+  it('starts at that lesson, even a hidden one, and never saves', async () => {
+    h.client = client(realTables);
+    setSearch('?lesson=s2');                                  // "A draft verse", which is not shown to students
+    mounted = await renderInBrowser(<MakeupTestScreen />); await tick(80);
+    expect(document.body.textContent).toContain('Previewing A draft verse');
+    expect(document.querySelector('.mw-h').textContent).toBe('A draft verse');
+    expect(document.body.textContent).toContain('A lesson preview never saves anything');
+    expect(toggle('Really save the submission').disabled).toBe(true);
+    expect([...document.querySelectorAll('a')].find((a) => a.textContent === 'Edit this lesson').getAttribute('href')).toContain('lessons?edit=s2');
+    for (let i = 0; i < 4 && !document.body.textContent.includes('Well done'); i++) { btn('Skip step').click(); await tick(80); }
+    expect(document.body.textContent).toContain('Well done');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('says so when the lesson is gone', async () => {
+    h.client = client(realTables);
+    setSearch('?lesson=missing');
+    mounted = await renderInBrowser(<MakeupTestScreen />); await tick(80);
+    expect(document.querySelector('[role=alert]').textContent).toContain('could not be found');
+  });
+
+  it('can preview an audio lesson that has no transcript yet (an admin is still setting it up)', async () => {
+    h.client = client(realTables);
+    setSearch('?lesson=s3');
+    mounted = await renderInBrowser(<MakeupTestScreen />); await tick(80);
+    expect(document.querySelector('.mw-h').textContent).toBe('Audio with no transcript');
+  });
+});

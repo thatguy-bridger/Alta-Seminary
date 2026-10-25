@@ -35,6 +35,13 @@ describe('buildSubmission', () => {
     expect(spoken).toMatchObject({ p_mode: 'voice', p_voice_seconds: 42 });
     expect(spoken.p_active_seconds).toBe(typed.p_active_seconds + 42);
   });
+  it('records how long the player\'s sound was off, for the database and for the teacher\'s note', () => {
+    const quiet = buildSubmission({ S, classes, sources, stats, mediaTotals: { watched: 600, source: 700, readSeconds: 0, muted: 419.6 } });
+    expect(quiet.rpc.p_muted_seconds).toBe(420);
+    expect(quiet.row.muted_seconds).toBe(420);
+    expect(composeTeacherEmail(quiet.row).text).toContain("the player's sound was off for 7:00");
+    expect(buildSubmission({ S, classes, sources, stats }).rpc.p_muted_seconds).toBe(0);           // nothing watched, nothing to note
+  });
   it('is at least one day even if days was never set', () => {
     expect(buildSubmission({ S: { ...S, days: 0 }, classes, sources, stats }).rpc.p_days_total).toBe(1);
   });

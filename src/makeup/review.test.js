@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterSubmissions, reviewOf, effortOf, emailState, emailMessage, submissionsCsv, learnedBy, REVIEW } from './review.js';
+import { filterSubmissions, reviewOf, effortOf, emailState, emailMessage, submissionsCsv, learnedBy, pauseLines, REVIEW } from './review.js';
 
 const sub = (over = {}) => ({
   id: 'a', student_name: 'Maya', class_name: 'Period 2', created_at: '2026-10-25T15:00:00Z', days_total: 2, source_titles: ['Come Home', 'Alma 5'], mode: 'text',
@@ -66,5 +66,22 @@ describe('the spreadsheet', () => {
   it('is just the header when there is nothing', () => {
     expect(submissionsCsv([]).split('\n')).toHaveLength(1);
     expect(Object.keys(REVIEW)).toEqual(['new', 'accepted', 'redo']);
+  });
+});
+
+describe('answers to pause questions', () => {
+  const answers = [{ lesson: 'Come Home', unit: 'seconds', at: '95', question: 'What stood out?', answer: 'The part about coming back' }, { lesson: 'Alma 5', unit: 'paragraph', at: '2', question: 'Why?', answer: 'Because it changes us' }, { question: 'Blank', answer: '  ' }, null];
+  it('lists them with where each question appeared, skipping empty ones', () => {
+    expect(pauseLines(sub({ pause_answers: answers }))).toEqual([
+      { question: 'What stood out?', answer: 'The part about coming back', lesson: 'Come Home', where: 'at 1:35' },
+      { question: 'Why?', answer: 'Because it changes us', lesson: 'Alma 5', where: 'after paragraph 2' },
+    ]);
+    expect(pauseLines(sub())).toEqual([]);
+    expect(pauseLines(sub({ pause_answers: 'junk' }))).toEqual([]);
+  });
+  it('puts them in the spreadsheet', () => {
+    const csv = submissionsCsv([sub({ pause_answers: answers })]);
+    expect(csv).toContain('"Questions while studying"');
+    expect(csv).toContain('What stood out? (at 1:35): The part about coming back | Why? (after paragraph 2): Because it changes us');
   });
 });

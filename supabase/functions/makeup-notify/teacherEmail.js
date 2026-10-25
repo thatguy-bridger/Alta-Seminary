@@ -7,7 +7,7 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 export function composeTeacherEmail(sub) {
   const effort = analyzeEffort({ mode: sub.mode, text: sub.response, voiceSeconds: sub.voice_seconds, stats: {
     pastes: sub.paste_attempts, jumps: sub.sudden_jumps, activeMs: (sub.active_seconds || 0) * 1000, typedChars: sub.typed_chars, leaves: sub.page_leaves,
-    watchedSeconds: sub.watched_seconds, sourceSeconds: sub.source_seconds,
+    watchedSeconds: sub.watched_seconds, sourceSeconds: sub.source_seconds, mutedSeconds: sub.muted_seconds,
   } });
   const dayLine = sub.days_total > 1 ? `Covers ${sub.days_total} days` : 'Covers 1 day';
   const played = sub.source_seconds > 0 ? ` · played ${formatDuration(sub.watched_seconds || 0)} of ${formatDuration(sub.source_seconds)}` : '';
@@ -15,6 +15,9 @@ export function composeTeacherEmail(sub) {
   const words = sub.response;
   // Spoken answers are the words the student's browser heard; say so, so a misheard word is not blamed on the student.
   const spoken = sub.mode === 'voice' ? `Answered out loud (${formatDuration(sub.voice_seconds || 0)}) and written down by the student's browser, so a small mistake in the words may be the browser's.` : '';
+  // Questions that appeared while studying ("pause questions"), with the student's short answers.
+  const where = (a) => (a.unit === 'paragraph' ? `after paragraph ${a.at}` : `at ${formatDuration(Number(a.at) || 0)}`);
+  const pauses = Array.isArray(sub.pause_answers) ? sub.pause_answers.filter((a) => a && a.answer) : [];
   const subject = `Makeup work from ${sub.student_name} (${sub.class_name})`;
   const text = [
     `${sub.student_name} finished makeup work for ${sub.class_name}.`,
@@ -23,6 +26,7 @@ export function composeTeacherEmail(sub) {
     '',
     `A truth they found${sub.truth_ref ? ` (${sub.truth_ref})` : ''}:`,
     sub.truth,
+    ...(pauses.length ? ['', 'Questions they answered while studying:', ...pauses.flatMap((a) => [`- ${a.question}${a.lesson ? ` (${a.lesson}, ${where(a)})` : ''}`, `  ${a.answer}`])] : []),
     '',
     'How it could help someone their age:',
     sub.understanding,
@@ -42,6 +46,7 @@ export function composeTeacherEmail(sub) {
 <p style="color:#5d5e66;font-size:14px">${esc(dayLine)} · learned by ${esc(learned)}${esc(played)} · ${esc(formatDuration(sub.active_seconds || 0))} active</p>${spoken ? `\n<p style="color:#5d5e66;font-size:14px;margin-top:-8px"><em>${esc(spoken)}</em></p>` : ''}
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">A truth they found${sub.truth_ref ? ` (${esc(sub.truth_ref)})` : ''}</h3>
 <p style="margin-top:0">${esc(sub.truth)}</p>
+${pauses.length ? `<h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">Questions they answered while studying</h3>${pauses.map((a) => `<p style="margin:0 0 8px"><span style="color:#5d5e66;font-size:14px">${esc(a.question)}${a.lesson ? ` (${esc(a.lesson)}, ${esc(where(a))})` : ''}</span><br>${esc(a.answer)}</p>`).join('')}` : ''}
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">How it could help someone their age</h3>
 <p style="white-space:pre-wrap;margin-top:0">${esc(sub.understanding)}</p>
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">Why it matters to them</h3>
