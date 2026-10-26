@@ -95,7 +95,7 @@ export function sectionsFor(lessons) {
 
 /* ---------- editing ---------- */
 export const blankLesson = (kind = 'scripture', over = {}) => ({
-  id: null, kind, title: '', description: '', reference: '', author: '', series: '', minutes: 6, one_time: false, active: false, sort_order: 0,
+  id: null, kind, title: '', description: '', reference: '', author: '', series: '', minutes: 6, one_time: false, active: false, show_images: false, sort_order: 0,
   body: '', embed_url: '', duration_text: '', thumbnail_url: '', guide_line: '', min_mode: 'auto', min_seconds: '', pauses: [], transcript_raw: null, transcript_lines: 0, origin_url: '', ...over,
 });
 
@@ -104,7 +104,7 @@ export function draftFromRow(row, existingLines = 0) {
   const text = isTextKind(row.kind);
   return {
     id: row.id, kind: row.kind, title: row.title || '', description: row.description || '', reference: row.reference || '', author: row.author || '', series: row.series || '',
-    minutes: row.minutes ?? 6, one_time: !!row.one_time, active: !!row.active, sort_order: row.sort_order ?? 0, body: row.body || '', embed_url: row.embed_url || '',
+    minutes: row.minutes ?? 6, one_time: !!row.one_time, active: !!row.active, show_images: !!row.show_images, sort_order: row.sort_order ?? 0, body: row.body || '', embed_url: row.embed_url || '',
     duration_text: row.duration_seconds ? formatTimestamp(row.duration_seconds) : '', thumbnail_url: row.thumbnail_url || '', guide_line: row.guide_line || '',
     min_mode: Number.isFinite(row.min_seconds) ? 'custom' : 'auto', min_seconds: Number.isFinite(row.min_seconds) ? String(row.min_seconds) : '',
     pauses: (Array.isArray(row.pauses) ? row.pauses : []).map((p) => ({ at: text ? String(p.at) : formatTimestamp(p.at), question: p.question || '' })),
@@ -169,7 +169,7 @@ export function rowFromDraft(d, { transcript } = {}) {
   const length = text ? null : parseLength(d.duration_text);
   const row = {
     kind: d.kind, title: d.title.trim(), description: d.description.trim() || null, reference: d.reference.trim() || null, author: d.author.trim() || null,
-    series: d.series.trim() || null, minutes: Math.round(Number(d.minutes)) || 6, one_time: !!d.one_time, active: !!d.active && v.canShow,
+    series: d.series.trim() || null, minutes: Math.round(Number(d.minutes)) || 6, one_time: !!d.one_time, active: !!d.active && v.canShow, show_images: !!d.show_images,
     body: text ? d.body.replace(/\r/g, '').trim() || null : null, embed_url: text ? null : d.embed_url.trim() || null,
     duration_seconds: length ? Math.round(length) : null, thumbnail_url: d.thumbnail_url.trim() || null, guide_line: d.guide_line.trim() || null,
     min_seconds: d.min_mode === 'custom' ? Math.round(Number(d.min_seconds)) : null, pauses: v.pauses, sort_order: d.sort_order ?? 0,

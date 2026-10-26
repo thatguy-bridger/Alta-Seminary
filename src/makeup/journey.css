@@ -21,12 +21,12 @@
 .mw-tbar{position:absolute;inset:0 0 auto 0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;z-index:5}
 .mw-tbar img{display:block;height:34px;width:auto}
 .mw-sound{position:relative;display:flex;align-items:center;gap:2px}
-.mw-sbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--s-line);background:color-mix(in srgb,var(--s-card) 80%,transparent);color:var(--s-fg);display:grid;place-items:center;padding:0;cursor:pointer}
+.mw-sbtn,.mw-tbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--s-line);background:color-mix(in srgb,var(--s-card) 80%,transparent);color:var(--s-fg);display:grid;place-items:center;padding:0;cursor:pointer}
 .mw-sbtn.small{width:24px;height:24px}
 .mw-sbtn[aria-pressed="true"]{border-color:var(--s-acc);color:var(--s-acc)}
-.mw-sbtn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mw-sbtn svg,.mw-tbtn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .mw-sbtn.small svg{width:14px;height:14px}
-.mw-sbtn:focus-visible{outline:2px solid var(--s-fg);outline-offset:2px}
+.mw-sbtn:focus-visible,.mw-tbtn:focus-visible{outline:2px solid var(--s-fg);outline-offset:2px}
 .mw-spanel{position:absolute;top:calc(100% + 8px);right:0;z-index:10;width:220px;background:var(--s-card);border:1px solid var(--s-line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;font-size:.9rem;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .mw-spanel label{display:flex;align-items:center;gap:8px;cursor:pointer}
 .mw-spanel label.vol{flex-direction:column;align-items:stretch;gap:4px;color:var(--s-mut);font-size:.8rem}
@@ -153,3 +153,28 @@
 .mw-skip button{border:1px dashed #e8b04a;background:rgba(20,20,22,.85);color:#f0c872;border-radius:6px;font:inherit;font-size:.78rem;padding:4px 10px;cursor:pointer}
 .mw-skip span{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:#f0c872;align-self:center}
 @media (prefers-reduced-motion: reduce){.mw-recdot{animation:none}.mw-card{animation:none}.mw-mt .strip,.mw-sun{transition:none}}
+
+/* Notes: a button in the header on every step, and a panel over the lesson (a video keeps playing underneath). */
+.mw-tools{display:flex;align-items:center;gap:8px}
+.mw-notesbtn{position:relative}
+.mw-notesbtn[aria-expanded="true"]{border-color:var(--s-acc);color:var(--s-acc)}
+.mw-notesbtn .mw-dot{position:absolute;top:-2px;right:-2px;width:10px;height:10px;border-radius:50%;background:var(--s-acc);border:2px solid var(--s-card)}
+.mw-notes{position:absolute;z-index:12;left:10px;right:10px;bottom:10px;max-height:min(62%,460px);display:flex;flex-direction:column;gap:10px;padding:14px 16px 16px;
+  background:var(--s-card);color:var(--s-fg);border:1px solid var(--s-line);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.38);animation:mw-notes-in .22s ease-out}
+.mw-notes-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mw-notes-head h3{margin:0;font-family:var(--font-serif,Georgia,serif);font-size:1.15rem;font-weight:600}
+.mw-notes-x{width:30px;height:30px;border-radius:50%;border:1px solid var(--s-line);background:none;color:inherit;display:grid;place-items:center;padding:0;cursor:pointer}
+.mw-notes-x svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.mw-notes-x:focus-visible,.mw-link:focus-visible{outline:2px solid var(--s-fg);outline-offset:2px}
+.mw-notes-box{flex:1 1 auto;min-height:150px;resize:none;font:inherit;font-size:1rem;line-height:1.55;color:inherit;background:var(--s-field);border:1px solid var(--s-line);border-radius:10px;padding:11px 13px}
+.mw-notes-foot{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mw-notes-foot .mw-ghost:disabled{opacity:.45;cursor:default}
+@media (min-width:700px){
+  .mw-stage:not(.phone) .mw-notes{left:auto;right:16px;top:76px;bottom:16px;width:360px;max-height:none}
+}
+@keyframes mw-notes-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.mw-notes{animation:none}}
+
+/* The quiet line at the foot of each card: your place is kept, and how to begin again. */
+.mw-saved{margin-top:6px;padding-top:12px;border-top:1px solid var(--s-line)}
+.mw-link{background:none;border:0;padding:0;font:inherit;color:var(--s-acc);text-decoration:underline;cursor:pointer}

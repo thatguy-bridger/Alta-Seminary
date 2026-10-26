@@ -20,7 +20,7 @@ const AUDIO_TRANSCRIPT = T([
 ]);
 
 export const SAMPLE_SOURCES = [
-  { id: 'sample-read', kind: 'scripture', title: 'Doing what the Lord asks', reference: '1 Nephi 3:7', minutes: 4, description: 'A scripture and a short thought.',
+  { id: 'sample-read', kind: 'scripture', title: 'Doing what the Lord asks', reference: '1 Nephi 3:7', minutes: 4, show_images: true, description: 'A scripture and a short thought.',
     body: 'I will go and do the things which the Lord hath commanded, for I know that the Lord giveth no commandments unto the children of men, save he shall prepare a way that they may accomplish the thing which he commandeth them.' },
   { id: 'sample-audio', kind: 'audio', title: 'A sample recording', minutes: 5, description: 'Silent practice audio with a transcript.', embed_url: 'sample:audio', duration_seconds: 60, transcript: AUDIO_TRANSCRIPT },
   { id: 'sample-video', kind: 'video', title: 'A sample clip', minutes: 5, description: 'Silent practice audio with a transcript.', embed_url: 'sample:audio', duration_seconds: 60, transcript: AUDIO_TRANSCRIPT },

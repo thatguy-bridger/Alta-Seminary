@@ -44,10 +44,21 @@ export function useEffortTracker({ onBlocked } = {}) {
     },
   });
 
+  const COUNTS = ['pastes', 'jumps', 'activeMs', 'typedChars', 'leaves'];
   return {
     fieldProps,
     props: fieldProps('default'),
     snapshot: () => ({ ...stats.current }),
     addActive: (ms) => { stats.current.activeMs += ms; },
+    // Kept with the student's saved progress. The length of each box has to come back with the words in it, or the first
+    // key pressed after returning would look like all of that text appearing at once.
+    export: () => ({ stats: { ...stats.current }, prevLen: { ...prevLen.current } }),
+    restore(saved = {}) {
+      const s = saved.stats || {};
+      COUNTS.forEach((k) => { if (Number.isFinite(s[k]) && s[k] >= 0) stats.current[k] = s[k]; });
+      const p = saved.prevLen || {};
+      prevLen.current = Object.fromEntries(Object.entries(p).filter(([, v]) => Number.isFinite(v) && v >= 0));
+    },
+    reset() { stats.current = { pastes: 0, jumps: 0, activeMs: 0, typedChars: 0, leaves: 0 }; prevLen.current = {}; last.current = 0; },
   };
 }

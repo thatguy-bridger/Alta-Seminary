@@ -17,6 +17,7 @@ export function LessonCard({ lesson: l, onEdit, onToggle }) {
     l.duration_seconds ? formatTimestamp(l.duration_seconds) : `${l.minutes} min`,
     l.one_time && 'Once per student',
     pauses > 0 && `${pauses} question${pauses > 1 ? 's' : ''}`,
+    l.show_images && 'Pictures on',
     l.guide_line && 'Own guiding line',
     Number.isFinite(l.min_seconds) && 'Set time',
   ].filter(Boolean);

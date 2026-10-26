@@ -116,8 +116,8 @@ export function LessonEditor({ id, initialKind = 'scripture', onClose, onOpen, o
 
       <Card title="How students see it">
         <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center', flexWrap: 'wrap' }}>
-          <img src={t.src} alt="" style={{ width: 160, aspectRatio: '16/9', objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}
-            onError={(e) => { if (!e.currentTarget.dataset.fell) { e.currentTarget.dataset.fell = '1'; e.currentTarget.src = paintingFor(draft.id || draft.title).src; } }} />
+          {draft.show_images && <img src={t.src} alt="" style={{ width: 160, aspectRatio: '16/9', objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}
+            onError={(e) => { if (!e.currentTarget.dataset.fell) { e.currentTarget.dataset.fell = '1'; e.currentTarget.src = paintingFor(draft.id || draft.title).src; } }} />}
           <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 'var(--fs-caption)', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--color-primary, #a32030)', fontWeight: 700 }}>{GROUPS[groupOf(draft.kind)]?.label || kindInfo(draft.kind).label}</span>
             <strong style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem' }}>{draft.title || 'Untitled lesson'}</strong>
@@ -149,7 +149,11 @@ export function LessonEditor({ id, initialKind = 'scripture', onClose, onOpen, o
           <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--fs-small)' }}>
             <Switch checked={draft.active && v.canShow} disabled={!v.canShow && !draft.active} onChange={(e) => set({ active: e.target.checked })} label="Shown to students" /> Shown to students
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--fs-small)' }}>
+            <Switch checked={draft.show_images} onChange={(e) => set({ show_images: e.target.checked })} label="Show pictures to students" /> Show pictures to students
+          </label>
         </div>
+        <p className="ls-help" style={{ marginTop: 6 }}>Pictures are off unless you turn them on. When on, this lesson's page shows its picture and a painting of the Savior at the top of each step; when off, the lesson stays plain and quiet.</p>
         {!v.canShow && <p className="ls-help" style={{ marginTop: 6 }}>Cannot be shown to students yet: {v.showBlockers.join(', ')}.</p>}
         {draft.active && !v.canShow && <p className="ls-err" role="status">This lesson will be hidden when you save, until that is fixed.</p>}
       </Card>

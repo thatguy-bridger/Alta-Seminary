@@ -144,6 +144,32 @@ describe('the lessons page', () => {
     expect(document.body.textContent).toContain('Hiding 1 lesson.');
   });
 
+  it('tags a lesson whose pictures are on, and no other', async () => {
+    await render([text('s1', 'Alma 5', 'Book of Mormon', { show_images: true }), text('s2', 'Genesis 1', 'Old Testament')]);
+    expect([...card('Alma 5').querySelectorAll('.ls-tag')].map((t) => t.textContent)).toContain('Pictures on');
+    expect([...card('Genesis 1').querySelectorAll('.ls-tag')].map((t) => t.textContent)).not.toContain('Pictures on');
+  });
+
+  it('turns pictures on or off for a whole collection, and only that collection', async () => {
+    await render([text('s1', 'Alma 5', 'Book of Mormon'), text('s2', 'Genesis 1', 'Old Testament'), text('s4', 'Exodus 20', 'Old Testament')]);
+    const head = (name) => [...document.querySelectorAll('.ls-sechead')].find((s) => s.textContent.includes(name));
+    const press = (name, label) => act(async () => [...head(name).querySelectorAll('button')].find((b) => b.textContent.trim() === label).click());
+    const on = (id) => db.tables.makeup_sources.find((r) => r.id === id).show_images;
+    expect([on('s1'), on('s2'), on('s4')].every((v) => !v)).toBe(true);                    // all plain to begin with
+    await press('Old Testament', 'Pictures on'); await act(() => tick(40));
+    expect([on('s2'), on('s4')]).toEqual([true, true]);
+    expect(on('s1')).toBeFalsy();                                                          // the other collection is untouched
+    expect(document.body.textContent).toContain('Pictures on for 2 lessons.');
+    expect([...card('Genesis 1').querySelectorAll('.ls-tag')].map((t) => t.textContent)).toContain('Pictures on');
+    await press('Old Testament', 'Pictures on'); await act(() => tick(40));
+    expect(document.body.textContent).toContain('Pictures are already on for everything here.');
+    await press('Old Testament', 'Pictures off'); await act(() => tick(40));
+    expect([on('s2'), on('s4')]).toEqual([false, false]);
+    expect(document.body.textContent).toContain('Pictures off for 2 lessons.');
+    await press('Old Testament', 'Pictures off'); await act(() => tick(40));
+    expect(document.body.textContent).toContain('Pictures are already off for everything here.');
+  });
+
   it('a bulk "Show all" leaves unfinished lessons hidden', async () => {
     await render([text('a', 'A', 'Misc'), { id: 'b', kind: 'video', title: 'B', series: 'Misc', active: false, embed_url: null }, { id: 'c', kind: 'video', title: 'C', series: 'Misc', active: false, embed_url: 'https://youtu.be/OJ2pLI0tZvY', duration_seconds: 60, transcript: [{ start: 1, end: 3, text: 'Hi' }] }]);
     await act(() => [...document.querySelectorAll('.ls-sechead')].find((s) => s.textContent.startsWith('Videos')).querySelectorAll('button')[0].click());   // Show all

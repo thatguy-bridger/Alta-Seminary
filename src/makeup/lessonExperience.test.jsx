@@ -33,6 +33,58 @@ async function start(lessons, props = {}) {
   return onSubmit;
 }
 
+describe('pictures are off unless the lesson turns them on', () => {
+  const art = () => document.querySelector('.mw-art');
+  it('shows no picture at all for a lesson that has not turned them on', async () => {
+    await start([verse({ thumbnail_url: 'https://example.org/mine.jpg' })]);
+    expect(document.querySelector('.mw-lthumb')).toBeNull();
+    expect(art()).toBeNull();
+    expect(document.querySelector('.mw-lhead-text .mw-h').textContent).toBe('A verse');       // the title is still there
+    await mounted.unmount(); document.body.innerHTML = '';
+    await start([audio()]);
+    expect(document.querySelector('.mw-media.audio .cover')).toBeNull();                       // just the audio controls
+    expect(document.querySelector('.mw-media.audio audio')).not.toBeNull();
+    expect(art()).toBeNull();
+  });
+
+  it('shows the painting at the top of the lesson and of each later step when it is on', async () => {
+    await start([verse({ show_images: true })]);
+    expect(art()).not.toBeNull();
+    expect(document.querySelector('.mw-lthumb')).not.toBeNull();
+    const seen = [art().querySelector('img').getAttribute('src')];
+    for (let i = 0; i < 4; i++) { await act(() => btn('Skip step').click()); await act(() => tick(60)); seen.push(art()?.querySelector('img').getAttribute('src')); }
+    expect(seen.every(Boolean)).toBe(true);                                                    // truth, understand, commit and the finish
+    expect(new Set(seen).size).toBe(5);
+  });
+
+  it('keeps every step plain when the lesson has them off, all the way to the end', async () => {
+    await start([verse()]);
+    for (let i = 0; i < 4; i++) { expect(art()).toBeNull(); await act(() => btn('Skip step').click()); await act(() => tick(60)); }
+    expect(document.body.textContent).toContain('Well done');
+    expect(art()).toBeNull();
+  });
+
+  it('uses the first two steps without any picture, since no lesson has been chosen yet', async () => {
+    const onSubmit = vi.fn(async () => ({ ok: true }));
+    mounted = await renderInBrowser(<MakeupJourney classes={SAMPLE_CLASSES} sources={[verse({ show_images: true })]} onSubmit={onSubmit} skipTools />);
+    await act(() => tick(30));
+    expect(art()).toBeNull();                                                                  // the beginning
+    await act(() => btn('Skip step').click()); await act(() => tick(40));
+    expect(art()).toBeNull();                                                                  // choosing
+    await act(() => btn('Skip step').click()); await act(() => tick(40));
+    expect(art()).not.toBeNull();                                                              // the lesson that has pictures on
+  });
+
+  it('shows pictures on the shared steps if any lesson in the journey has them on', async () => {
+    const onSubmit = vi.fn(async () => ({ ok: true }));
+    mounted = await renderInBrowser(<MakeupJourney classes={SAMPLE_CLASSES} sources={[verse({ id: 'A' }), audio({ id: 'B', show_images: true })]} onSubmit={onSubmit} skipTools startAtLesson="A" />);
+    await act(() => tick(30));
+    expect(art()).toBeNull();                                                                  // the lesson in front of them has none
+    await act(() => btn('Skip step').click()); await act(() => tick(40));                      // truth: sample fill chooses lessons for the journey
+    expect(document.querySelector('.mw-h')).not.toBeNull();
+  });
+});
+
 describe('the header', () => {
   it('has a soft fade behind the logo and ridge, above the scrolling content but below the header itself', async () => {
     await start([verse()]);
@@ -58,18 +110,18 @@ describe('the lesson header', () => {
   const thumb = () => document.querySelector('.mw-lthumb');
 
   it('shows the picture an admin chose, or the automatic one', async () => {
-    await start([verse({ thumbnail_url: 'https://example.org/mine.jpg' })]);
+    await start([verse({ show_images: true, thumbnail_url: 'https://example.org/mine.jpg' })]);
     expect(thumb().getAttribute('src')).toBe('https://example.org/mine.jpg');
     await mounted.unmount(); document.body.innerHTML = '';
-    await start([verse()]);
+    await start([verse({ show_images: true })]);
     expect(thumb().getAttribute('src')).toMatch(/^\/makeup\/thumbs\/.+\.webp$/);
     await mounted.unmount(); document.body.innerHTML = '';
-    await start([audio({ embed_url: 'https://www.youtube.com/watch?v=OJ2pLI0tZvY' })]);
+    await start([audio({ show_images: true, embed_url: 'https://www.youtube.com/watch?v=OJ2pLI0tZvY' })]);
     expect(thumb().getAttribute('src')).toBe('https://i.ytimg.com/vi/OJ2pLI0tZvY/hqdefault.jpg');
   });
 
   it('falls back to a painting if the chosen picture cannot be loaded', async () => {
-    await start([verse({ thumbnail_url: 'https://example.org/gone.jpg' })]);
+    await start([verse({ show_images: true, thumbnail_url: 'https://example.org/gone.jpg' })]);
     await act(() => { thumb().dispatchEvent(new Event('error')); });
     expect(thumb().getAttribute('src')).toMatch(/^\/makeup\/thumbs\//);
     const fallback = thumb().getAttribute('src');
@@ -298,8 +350,8 @@ describe('the flowing transcript', () => {
     expect(lines()[1].querySelector('.mw-cite').textContent).toBe('Cited');
   });
 
-  it('shows a picture for audio, above its controls', async () => {
-    await start([talk()]);
+  it('shows a picture for audio, above its controls, when pictures are on', async () => {
+    await start([{ ...talk(), show_images: true }]);
     const media = document.querySelector('.mw-media');
     expect(media.className).toContain('audio');
     expect(media.querySelector('.cover img').getAttribute('src')).toMatch(/^\/makeup\/thumbs\//);

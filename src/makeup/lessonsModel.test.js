@@ -82,6 +82,16 @@ describe('editing a lesson', () => {
     expect(rowFromDraft(draftFromRow(verse())).min_seconds).toBeNull();
   });
 
+  it('keeps pictures off unless the lesson turns them on, and carries the choice both ways', () => {
+    expect(draftFromRow(verse()).show_images).toBe(false);                               // a lesson from before the switch existed
+    expect(draftFromRow({ ...verse(), show_images: null }).show_images).toBe(false);
+    expect(draftFromRow({ ...verse(), show_images: true }).show_images).toBe(true);
+    expect(rowFromDraft(draftFromRow(verse())).show_images).toBe(false);
+    expect(rowFromDraft(draftFromRow({ ...verse(), show_images: true })).show_images).toBe(true);
+    expect(rowFromDraft({ ...draftFromRow(verse()), show_images: true }).show_images).toBe(true);
+    expect(blankLesson('talk').show_images).toBe(false);                                 // a new lesson starts plain
+  });
+
   it('knows when nothing has changed', () => {
     const d = draftFromRow(video(), 150);
     expect(isDirty(d, { ...d, transcript_lines: 99 })).toBe(false);

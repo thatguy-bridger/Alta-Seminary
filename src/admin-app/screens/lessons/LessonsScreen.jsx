@@ -56,6 +56,14 @@ export function LessonsScreen() {
     load();
   }
 
+  async function bulkPictures(section, on) {
+    const ids = section.lessons.filter((l) => !!l.show_images !== on).map((l) => l.id);
+    if (!ids.length) { flash(on ? 'Pictures are already on for everything here.' : 'Pictures are already off for everything here.'); return; }
+    const { error: e } = await supabaseBrowser.from('makeup_sources').update({ show_images: on }).in('id', ids);
+    if (e) flash(`Couldn't save: ${e.message}`); else flash(`Pictures ${on ? 'on' : 'off'} for ${ids.length} lesson${ids.length > 1 ? 's' : ''}.`);
+    load();
+  }
+
   if (editing) return <LessonEditor key={editing.id || 'new'} id={editing.id} initialKind={editing.kind} onClose={closeEditor} onOpen={(id) => edit({ id })} onSaved={load} flash={flash} msg={msg} />;
   if (error) return <p role="alert" style={{ color: 'var(--color-error)' }}>Couldn't load the lessons: {error}</p>;
   if (!lessons) return <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>;
@@ -117,6 +125,8 @@ export function LessonsScreen() {
               <span className="spacer" />
               <Button variant="ghost" size="sm" onClick={() => bulk(s, true)}>Show all</Button>
               <Button variant="ghost" size="sm" onClick={() => bulk(s, false)}>Hide all</Button>
+              <Button variant="ghost" size="sm" onClick={() => bulkPictures(s, true)}>Pictures on</Button>
+              <Button variant="ghost" size="sm" onClick={() => bulkPictures(s, false)}>Pictures off</Button>
             </div>
             <div className="ls-grid">
               {cards.map((l) => <LessonCard key={l.id} lesson={l} onEdit={() => edit({ id: l.id })} onToggle={(on2) => toggle(l, on2)} />)}

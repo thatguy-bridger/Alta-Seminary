@@ -229,6 +229,43 @@ describe('the picture', () => {
   });
 });
 
+describe('pictures on or off', () => {
+  const sw = () => document.querySelector('label[aria-label="Show pictures to students"] input');
+  const preview = () => [...document.querySelectorAll('.card')].find((c) => c.textContent.startsWith('How students see it'));
+
+  it('are off for a lesson that has not turned them on: the switch is off and the preview has no picture', async () => {
+    await render([VERSE]);
+    expect(sw().checked).toBe(false);
+    expect(preview().querySelector('img')).toBeNull();
+    expect(document.body.textContent).toContain('Pictures are off unless you turn them on');
+  });
+
+  it('turn on, show the picture in the preview, and are saved with the lesson', async () => {
+    await render([VERSE]);
+    await act(() => sw().click());
+    expect(document.body.textContent).toContain('Unsaved changes');
+    expect(preview().querySelector('img')).not.toBeNull();
+    await act(() => btn('Save changes').click()); await act(() => tick(40));
+    expect(row('L1').show_images).toBe(true);
+    expect(writes('update')[0].payload.show_images).toBe(true);
+  });
+
+  it('turn off again, and that is saved too', async () => {
+    await render([{ ...VERSE, show_images: true }]);
+    expect(sw().checked).toBe(true);
+    expect(preview().querySelector('img')).not.toBeNull();
+    await act(() => sw().click());
+    expect(preview().querySelector('img')).toBeNull();
+    await act(() => btn('Save changes').click()); await act(() => tick(40));
+    expect(row('L1').show_images).toBe(false);
+  });
+
+  it('are not a change by themselves when left alone', async () => {
+    await render([{ ...VERSE, show_images: true }]);
+    expect(btn('Save changes').disabled).toBe(true);
+  });
+});
+
 describe('the experience', () => {
   it('saves a guiding line, and clears it when emptied', async () => {
     await render([VERSE]);

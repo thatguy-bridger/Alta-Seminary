@@ -33,6 +33,12 @@ export function duotoneFor(colors, stepRaw) {
   return [1, 2, 3].map((i) => [mixc(colors[i], '#000000', lerp(0.62, 0.45, day)), mixc(colors[i], '#ffffff', lerp(0.3, 0.52, day))]);
 }
 
+// The nearest mountains are a flat grey fill that goes through that layer's duotone, so the very bottom edge of the
+// stage is always this one color. On a phone the browser's own toolbar sits under that edge; painting the page with
+// this color keeps the strip behind the toolbar from showing as a black bar.
+export const FILL_GRAY = 76;
+export const stageBottomColor = ([dark, light]) => mixc(dark, light, FILL_GRAY / 255);
+
 // Random tile, direction, size and start for each of the three layers.
 export function rollScene(rand = Math.random) {
   const keys = Object.keys(TILE_URLS);

@@ -26,8 +26,11 @@ const soundOffYouTube = (p) => { try { return !!(p.isMuted && p.isMuted()) || (p
 // One interface over a YouTube video and a plain audio/video file:
 // the current time (for the live transcript), play / pause / seek (for clicking a
 // transcript line), and how many seconds were really played (for the teacher).
-export function useMediaPlayer({ url, type, durationHint = 0 }) {
-  const [state, setState] = React.useState({ ready: false, playing: false, time: 0, duration: durationHint, error: '' });
+// `resume` ({ seen, quiet, time }) puts back a student's place after they closed the page: which seconds were already
+// played, and where to wait. It is used once, the first time the player is set up.
+export function useMediaPlayer({ url, type, durationHint = 0, resume }) {
+  const resumeRef = React.useRef(resume);
+  const [state, setState] = React.useState({ ready: false, playing: false, time: resume?.time || 0, duration: durationHint, error: '' });
   const [played, setPlayed] = React.useState(0);
   const [mutedPlayed, setMutedPlayed] = React.useState(0);   // how many of those seconds the player's sound was off
   const mediaRef = React.useRef(null);   // <audio>/<video>
@@ -36,7 +39,11 @@ export function useMediaPlayer({ url, type, durationHint = 0 }) {
   const tracker = React.useRef(createPlayedTracker());
 
   React.useEffect(() => {
-    tracker.current.reset(); setPlayed(0); setMutedPlayed(0);
+    tracker.current.reset();
+    const back = resumeRef.current; resumeRef.current = null;
+    if (back) tracker.current.restore(back);
+    setPlayed(tracker.current.count()); setMutedPlayed(tracker.current.mutedCount());
+    const startAt = back && Number.isFinite(back.time) && back.time > 1 ? back.time : 0;   // wait where they stopped; never start by itself
     let timer = 0, cancelled = false;
     const push = (time, playing, duration, muted = false) => {
       const n = tracker.current.tick(time, playing, muted);
@@ -52,9 +59,9 @@ export function useMediaPlayer({ url, type, durationHint = 0 }) {
         ytRef.current = new YT.Player(mount, {
           videoId: youtubeId(url), width: '100%', height: '100%',
           host: 'https://www.youtube-nocookie.com',   // privacy-enhanced mode: no tracking cookies until the student plays
-          playerVars: { rel: 0, modestbranding: 1, playsinline: 1, cc_load_policy: 1 },
+          playerVars: { rel: 0, modestbranding: 1, playsinline: 1, cc_load_policy: 1, ...(startAt ? { start: Math.floor(startAt) } : {}) },
           events: {
-            onReady: (e) => { timer = setInterval(() => { const p = e.target; push(p.getCurrentTime() || 0, p.getPlayerState() === 1, p.getDuration() || 0, soundOffYouTube(p)); }, 250); push(0, false, e.target.getDuration() || 0); },
+            onReady: (e) => { timer = setInterval(() => { const p = e.target; push(p.getCurrentTime() || 0, p.getPlayerState() === 1, p.getDuration() || 0, soundOffYouTube(p)); }, 250); push(startAt, false, e.target.getDuration() || 0); },
             onError: () => setState((s) => ({ ...s, error: 'This video could not be played.' })),
           },
         });
@@ -62,7 +69,9 @@ export function useMediaPlayer({ url, type, durationHint = 0 }) {
     } else {
       const el = mediaRef.current;
       if (el) {
-        const read = () => push(el.currentTime || 0, !el.paused && !el.ended, Number.isFinite(el.duration) ? el.duration : 0, !!el.muted || el.volume === 0);
+        let waiting = !!startAt;   // until the file can be moved to where they stopped, that place is still the place (never 0)
+        const read = () => push(waiting ? startAt : el.currentTime || 0, !el.paused && !el.ended, Number.isFinite(el.duration) ? el.duration : 0, !!el.muted || el.volume === 0);
+        if (startAt) el.addEventListener('loadedmetadata', () => { if (el.currentTime < startAt) el.currentTime = startAt; waiting = false; }, { once: true });
         el.addEventListener('loadedmetadata', read);
         el.addEventListener('error', () => setState((s) => ({ ...s, error: 'This file could not be played.' })));
         timer = setInterval(read, 250);
@@ -78,5 +87,5 @@ export function useMediaPlayer({ url, type, durationHint = 0 }) {
     seek: (t) => { if (type === 'youtube') ytRef.current?.seekTo(t, true); else if (mediaRef.current) mediaRef.current.currentTime = t; },
   }), [type]);
 
-  return { ...state, played, mutedPlayed, mediaRef, hostRef, ...api };
+  return { ...state, played, mutedPlayed, mediaRef, hostRef, ...api, exportPlayed: () => tracker.current.export() };
 }

@@ -60,5 +60,5 @@ export function StudentPage() {
   React.useEffect(() => { let live = true; loadStudentData(supabaseBrowser).then((d) => { if (live) setData(d); }); return () => { live = false; }; }, []);
   if (data.state === 'loading') return <div className="mw-stage full" aria-busy="true" />;
   if (data.state !== 'ready') return <Quiet state={data.state} />;
-  return <MakeupJourney full classes={data.classes} sources={data.sources} onSubmit={({ rpc }) => submitMakeup(supabaseBrowser, rpc)} />;
+  return <MakeupJourney full persist classes={data.classes} sources={data.sources} onSubmit={({ rpc }) => submitMakeup(supabaseBrowser, rpc)} />;
 }
