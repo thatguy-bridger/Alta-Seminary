@@ -178,3 +178,12 @@
 /* The quiet line at the foot of each card: your place is kept, and how to begin again. */
 .mw-saved{margin-top:6px;padding-top:12px;border-top:1px solid var(--s-line)}
 .mw-link{background:none;border:0;padding:0;font:inherit;color:var(--s-acc);text-decoration:underline;cursor:pointer}
+
+/* Pointing out the notes button, once: a soft pulse and one line beneath it. Still ring and text if motion is reduced. */
+.mw-notewrap{position:relative;display:inline-flex}
+.mw-notesbtn.mw-hint{border-color:var(--s-acc);color:var(--s-acc);animation:mw-hint-pulse 1.6s ease-out infinite}
+.mw-hint-tip{position:absolute;top:calc(100% + 12px);right:-6px;z-index:11;width:max-content;max-width:200px;padding:9px 12px;border-radius:10px;font-size:.84rem;line-height:1.4;text-align:left;
+  background:var(--s-card);color:var(--s-fg);border:1px solid var(--s-acc);box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:none;animation:mw-notes-in .3s ease-out}
+.mw-hint-tip::before{content:"";position:absolute;top:-6px;right:19px;width:10px;height:10px;transform:rotate(45deg);background:var(--s-card);border-left:1px solid var(--s-acc);border-top:1px solid var(--s-acc)}
+@keyframes mw-hint-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--s-acc) 55%,transparent)}70%,100%{box-shadow:0 0 0 12px transparent}}
+@media (prefers-reduced-motion:reduce){.mw-notesbtn.mw-hint{animation:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--s-acc) 40%,transparent)}.mw-hint-tip{animation:none}}

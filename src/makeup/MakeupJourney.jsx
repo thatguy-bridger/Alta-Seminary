@@ -23,7 +23,7 @@ import { thumbnailFor, paintingFor, paintingCredit } from './thumbnails.js';
 import { byline } from './byline.js';
 import { glideTo, stopGlide, prefersReducedMotion } from './glide.js';
 import { speechSupported } from './useSpeech.js';
-import { NotesButton, NotesPanel } from './Notes.jsx';
+import { NotesButton, NotesPanel, takeNotesHint } from './Notes.jsx';
 import { readProgress, writeProgress, clearProgress, hasProgress, emptyTotals, learnKey } from './progress.js';
 
 const N = STEPS.length;
@@ -387,6 +387,8 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const draftPause = (key, text) => setPauseDrafts((d) => ({ ...d, [key]: text }));
   const [notes, setNotes] = React.useState(restored ? restored.notes : '');
   const [notesOpen, setNotesOpen] = React.useState(false);
+  const [notesHint, setNotesHint] = React.useState(false);       // pointing out the notes button, the first time only
+  React.useEffect(() => { if (!notesHint) return undefined; const id = setTimeout(() => setNotesHint(false), 9000); return () => clearTimeout(id); }, [notesHint]);
   const [toast, setToast] = React.useState('');
   const soundRef = React.useRef(null);
   const [status, setStatus] = React.useState({ state: 'idle', error: '', result: null });
@@ -559,7 +561,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
         <div><div className="mw-lbl" id="mw-cl">Your class</div><div className="mw-row" role="group" aria-labelledby="mw-cl">{classes.map((c) => <button key={c.id} className="mw-chip" aria-pressed={S.cls === c.id} onClick={() => upd({ cls: c.id })}>{c.name}</button>)}</div></div>
         {clsObj?.requires_code && <div className="mw-field"><label htmlFor="mw-code">Class code from your teacher</label><input id="mw-code" type="text" autoComplete="off" value={S.code} onChange={(e) => upd({ code: e.target.value })} /></div>}
         <div><div className="mw-lbl" id="mw-dl">Days you missed</div><div className="mw-row" role="group" aria-labelledby="mw-dl">{[1, 2, 3, 4].map((d) => <button key={d} className="mw-chip" aria-pressed={S.days === d} onClick={() => upd({ days: d })}>{d === 4 ? '4 or more' : d}</button>)}</div></div>
-        <div className="mw-row" style={{ alignItems: 'center' }}><button className="mw-cta" disabled={!ok} onClick={() => advance()}>{S.settled ? 'Begin' : 'Take a moment…'}</button>{sound.supported && !sound.prefs.on && <button className="mw-ghost" onClick={() => sound.update({ on: true })}>Turn on quiet music</button>}</div>
+        <div className="mw-row" style={{ alignItems: 'center' }}><button className="mw-cta" disabled={!ok} onClick={() => { if (takeNotesHint(store)) setNotesHint(true); advance(); }}>{S.settled ? 'Begin' : 'Take a moment…'}</button>{sound.supported && !sound.prefs.on && <button className="mw-ghost" onClick={() => sound.update({ on: true })}>Turn on quiet music</button>}</div>
         <p className="mw-fine">{S.days ? `About ${estimateMinutes(S.days)} minutes, start to finish.` : `About ${RULES.minutesPerDay} minutes for each day you missed.`}</p>
       </>
     );
@@ -767,7 +769,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   return (
     <div ref={stageRef} className={`mw-stage${phone ? ' phone' : ''}${full ? ' full' : ''}`} onPointerDown={sound.wake}>
       <Scene stage={stageRef} stepRaw={stepRaw} page={full} />
-      <div className="mw-tbar"><img src={logo.src} alt="Alta Seminary" /><div className="mw-tools"><NotesButton open={notesOpen} hasNotes={!!notes.trim()} onToggle={() => setNotesOpen((o) => !o)} /><SoundControl sound={sound} /></div></div>
+      <div className="mw-tbar"><img src={logo.src} alt="Alta Seminary" /><div className="mw-tools"><NotesButton open={notesOpen} hasNotes={!!notes.trim()} hint={notesHint} onToggle={() => { setNotesHint(false); setNotesOpen((o) => !o); }} /><SoundControl sound={sound} /></div></div>
       <RidgeProgress stepRaw={stepRaw} />
       <div className="mw-body"><section className={`mw-card${wide ? ' wide' : ''}`} key={`${S.step}-${S.learnIndex}`}>{showArt && <StepArt step={step} short={wide} />}{screens[step]}
         {store && step !== 'done' && hasProgress(S, notes) && (

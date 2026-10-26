@@ -6,12 +6,23 @@ import { wordCount } from './journey.js';
 // progress. Notes are theirs: they are never sent to the teacher, and they are not an answer, so this is a plain box
 // (pasting into it is fine) and is not watched by the effort signal.
 
-export function NotesButton({ open, hasNotes, onToggle }) {
+// The first time a student presses Begin on a device, the notes button is pointed out (a soft pulse and one line), once.
+// The memory is separate from the saved place, so finishing or starting over does not bring it back.
+const HINT_KEY = 'alta-makeup-notes-hint';
+export function takeNotesHint(store) {
+  if (!store) return false;                                    // no storage: cannot remember, so never nag
+  try { if (store.getItem(HINT_KEY)) return false; store.setItem(HINT_KEY, '1'); return true; } catch { return false; }
+}
+
+export function NotesButton({ open, hasNotes, hint = false, onToggle }) {
   return (
-    <button type="button" className="mw-tbtn mw-notesbtn" aria-expanded={open} aria-controls="mw-notes" aria-label={hasNotes ? 'My notes (you have notes)' : 'My notes'} onClick={onToggle}>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z" /><path d="M8 11h8M8 15h6" /></svg>
-      {hasNotes && <i className="mw-dot" aria-hidden="true" />}
-    </button>
+    <span className="mw-notewrap">
+      <button type="button" className={`mw-tbtn mw-notesbtn${hint ? ' mw-hint' : ''}`} aria-expanded={open} aria-controls="mw-notes" aria-label={hasNotes ? 'My notes (you have notes)' : 'My notes'} onClick={onToggle}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z" /><path d="M8 11h8M8 15h6" /></svg>
+        {hasNotes && <i className="mw-dot" aria-hidden="true" />}
+      </button>
+      {hint && !open && <span className="mw-hint-tip" role="status">Take notes here. They stay with you on every step.</span>}
+    </span>
   );
 }
 
