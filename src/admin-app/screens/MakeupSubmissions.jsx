@@ -4,7 +4,8 @@ import { Card } from '../../design-system/components/core/Card.jsx';
 import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Select } from '../../design-system/components/forms/Select.jsx';
 import { formatDuration } from '../../makeup/effort.js';
-import { REVIEW, reviewOf, filterSubmissions, effortOf, learnedBy, emailState, emailMessage, submissionsCsv, pauseLines } from '../../makeup/review.js';
+import { REVIEW, reviewOf, filterSubmissions, effortOf, learnedBy, emailState, emailMessage, submissionsCsv, pauseLines, playbackOf } from '../../makeup/review.js';
+import { Timeline, TimelineKey } from '../../makeup/Timeline.jsx';
 
 const small = { fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-caption)', color: 'var(--text-muted)', margin: 0 };
 const badge = (tone) => ({ display: 'inline-block', padding: '1px 8px', borderRadius: 999, fontSize: 'var(--fs-caption)', border: `1px solid ${tone}`, color: tone });
@@ -19,6 +20,7 @@ function PrintRecord({ s }) {
       <p style={{ margin: '2px 0 8px', fontSize: 13 }}>{new Date(s.created_at).toLocaleDateString()} · covers {s.days_total} day{s.days_total > 1 ? 's' : ''} · {learnedBy(s)} · {formatDuration(s.active_seconds || 0)} active · {REVIEW[reviewOf(s)]}</p>
       {s.truth && <p style={{ margin: '4px 0' }}><b>Truth{s.truth_ref ? ` (${s.truth_ref})` : ''}:</b> {s.truth}</p>}
       {pauseLines(s).map((a, i) => <p key={i} style={{ margin: '4px 0' }}><b>While studying{a.lesson ? ` (${a.lesson}, ${a.where})` : ''}:</b> {a.question} {a.answer}</p>)}
+      {playbackOf(s).map((p, i) => <p key={`p${i}`} style={{ margin: '4px 0' }}><b>Played{p.kind ? ` (${p.kind})` : ''}:</b> {p.title}. {p.summary}</p>)}
       {s.understanding && <p style={{ margin: '4px 0' }}><b>Could help someone their age:</b> {s.understanding}</p>}
       <p style={{ margin: '4px 0' }}><b>Why it matters to them{s.mode === 'voice' ? ' (spoken)' : ''}:</b> {s.response}</p>
       <p style={{ margin: '4px 0' }}><b>Will do{s.commit_kind ? ` (${s.commit_kind})` : ''}:</b> {s.commitment}{s.blessing ? ` It will bless their life: ${s.blessing}` : ''}</p>
@@ -88,6 +90,17 @@ export function MakeupSubmissions({ subs, reload, flash }) {
                 <div style={small}>Covers {s.days_total} day{s.days_total > 1 ? 's' : ''} · {learnedBy(s).replace(/; /g, ', ')} · {formatDuration(s.active_seconds || 0)} active{s.mode === 'voice' ? ` · spoken (${formatDuration(s.voice_seconds || 0)})` : ''}</div>
                 {s.truth && <div><em>Truth{s.truth_ref ? ` (${s.truth_ref})` : ''}:</em> {s.truth}</div>}
                 {pauseLines(s).length > 0 && <div><em>Questions while studying:</em>{pauseLines(s).map((a, i) => <div key={i} style={{ marginLeft: 'var(--space-3)' }}><span style={small}>{a.question}{a.lesson ? ` (${a.lesson}, ${a.where})` : ''}</span><br />{a.answer}</div>)}</div>}
+                {playbackOf(s).length > 0 && (
+                  <div className="mk-played"><em>What they played:</em>
+                    {playbackOf(s).map((p, i) => (
+                      <div key={i} style={{ marginLeft: 'var(--space-3)', marginTop: 6, maxWidth: 560 }}>
+                        <span style={small}>{p.title}{p.kind ? ` (${p.kind})` : ''}: {p.summary}</span>
+                        <div style={{ marginTop: 4 }}><Timeline duration={p.duration} seen={p.seen} reached={p.reached} played={p.played} /></div>
+                      </div>
+                    ))}
+                    <div style={{ ...small, marginLeft: 'var(--space-3)', marginTop: 4 }}><TimelineKey /></div>
+                  </div>
+                )}
                 {s.understanding && <div style={{ whiteSpace: 'pre-wrap' }}><em>Could help someone their age:</em> {s.understanding}</div>}
                 <div style={{ whiteSpace: 'pre-wrap' }}><em>Why it matters to them:</em> {s.response}</div>
                 <div><em>Will do{s.commit_kind ? ` (${s.commit_kind})` : ''}:</em> {s.commitment}{s.blessing ? ` — it will bless their life: ${s.blessing}` : ''}</div>

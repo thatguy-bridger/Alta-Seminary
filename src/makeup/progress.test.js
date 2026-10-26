@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PROGRESS_KEY, KEEP_DAYS, readProgress, writeProgress, clearProgress, hasProgress, learnKey } from './progress.js';
+import { PROGRESS_KEY, KEEP_DAYS, readProgress, writeProgress, clearProgress, hasProgress, learnKey, totalsFrom } from './progress.js';
 import { initialState } from './journey.js';
 import { createPlayedTracker, toRanges, fromRanges } from './playedTracker.js';
 
@@ -8,7 +8,7 @@ const NOW = Date.UTC(2026, 9, 25, 12);
 const classes = [{ id: 'c1' }, { id: 'c2' }];
 const sources = [{ id: 's1' }, { id: 's2' }, { id: 's3' }];
 const base = (over = {}) => ({ ...initialState(), step: 3, name: 'Maya', cls: 'c1', days: 1, settled: true, learned: true, sourceIds: ['s1'], picks: ['read'], truth: 'If we act then He helps', ...over });
-const saved = (data = {}, extra = {}) => ({ [PROGRESS_KEY]: JSON.stringify({ v: 1, savedAt: NOW - 60_000, S: base(), ...data, ...extra }) });
+const saved = (data = {}, extra = {}) => ({ [PROGRESS_KEY]: JSON.stringify({ v: 2, savedAt: NOW - 60_000, S: base(), ...data, ...extra }) });
 const read = (store, over = {}) => readProgress(store, { now: NOW, classes, sources, ...over });
 
 describe('saving and reading a place', () => {
@@ -16,7 +16,7 @@ describe('saving and reading a place', () => {
     const store = memory();
     const S = base({ truth: 'A truth I found', understanding: 'In my words' });
     expect(writeProgress(store, { S, notes: 'remember: ask Dad', cites: [{ sourceId: 's1', title: 'T', seconds: 41 }], pauseAnswers: { k: 'my answer' }, pauseDrafts: { j: 'half a' },
-      tracker: { stats: { pastes: 1, typedChars: 90 }, prevLen: { truth: 16 } }, totals: { watched: 30, source: 60, readSeconds: 5, muted: 2 }, voiceParts: { under: 4, feel: 3 } }, { now: NOW - 1000 })).toBe(true);
+      tracker: { stats: { pastes: 1, typedChars: 90 }, prevLen: { truth: 16 } }, lessons: { [learnKey(0, 's1')]: { played: 30, duration: 60, readSeconds: 5, mutedPlayed: 2, time: 31.5, reached: 40, seen: [[0, 29]], quiet: [[0, 1]], done: true } }, voiceParts: { under: 4, feel: 3 } }, { now: NOW - 1000 })).toBe(true);
     const back = read(store);
     expect(back.S).toMatchObject({ step: 3, name: 'Maya', truth: 'A truth I found', understanding: 'In my words', sourceIds: ['s1'], learned: true });
     expect(back.notes).toBe('remember: ask Dad');
@@ -24,7 +24,7 @@ describe('saving and reading a place', () => {
     expect(back.pauseAnswers).toEqual({ k: 'my answer' });
     expect(back.pauseDrafts).toEqual({ j: 'half a' });
     expect(back.tracker).toEqual({ stats: { pastes: 1, typedChars: 90 }, prevLen: { truth: 16 } });
-    expect(back.totals).toEqual({ watched: 30, source: 60, readSeconds: 5, muted: 2 });
+    expect(back.lessons).toEqual({ '0:s1': { played: 30, duration: 60, readSeconds: 5, mutedPlayed: 2, time: 31.5, reached: 40, seen: [[0, 29]], quiet: [[0, 1]], done: true } });
     expect(back.voiceParts).toEqual({ under: 4, feel: 3 });
   });
 
@@ -40,7 +40,8 @@ describe('saving and reading a place', () => {
   it('lets go of anything it cannot trust', () => {
     expect(read(memory({ [PROGRESS_KEY]: '{not json' }))).toBeNull();
     expect(read(memory({ [PROGRESS_KEY]: '[]' }))).toBeNull();
-    expect(read(memory(saved({}, { v: 2 })))).toBeNull();                                      // a different layout
+    expect(read(memory(saved({}, { v: 1 })))).toBeNull();                                      // the older layout
+    expect(read(memory(saved({}, { v: 3 })))).toBeNull();                                      // a newer one this page does not know
     expect(read(memory(saved({}, { savedAt: 'yesterday' })))).toBeNull();
     expect(read(memory(saved({}, { savedAt: NOW + 3 * 86400_000 })))).toBeNull();              // from a clock that was wrong
     expect(read(memory(saved({}, { savedAt: NOW - (KEEP_DAYS + 1) * 86400_000 })))).toBeNull(); // too old
@@ -75,13 +76,12 @@ describe('saving and reading a place', () => {
 
 describe('fitting a saved place to what exists now', () => {
   it('sends the student to choose again if a lesson they picked is gone, and keeps the rest', () => {
-    const back = read(memory(saved({ S: base({ step: 4, sourceIds: ['gone'], truth: 'My truth', learnIndex: 0 }), learn: { key: learnKey(0, 'gone'), played: 40, seen: [[0, 39]] }, totals: { watched: 40, source: 60, readSeconds: 0, muted: 0 } })));
+    const back = read(memory(saved({ S: base({ step: 4, sourceIds: ['gone'], truth: 'My truth', learnIndex: 0 }), lessons: { [learnKey(0, 'gone')]: { played: 40, seen: [[0, 39]] } } })));
     expect(back.S.step).toBe(1);                                                               // back to choosing
     expect(back.S.sourceIds).toEqual([]);
     expect(back.S.learned).toBe(false);
     expect(back.S.truth).toBe('My truth');                                                     // what they wrote is not thrown away
-    expect(back.learn).toBeNull();
-    expect(back.totals).toEqual({ watched: 0, source: 0, readSeconds: 0, muted: 0 });
+    expect(back.lessons).toEqual({});
   });
 
   it('starts at the beginning if their class is gone', () => {
@@ -91,11 +91,25 @@ describe('fitting a saved place to what exists now', () => {
     expect(back.S.name).toBe('Maya');
   });
 
-  it('ignores the place in a lesson that is not the one they are on', () => {
-    const wrong = read(memory(saved({ S: base({ step: 2, learned: false, sourceIds: ['s1'] }), learn: { key: learnKey(0, 's2'), played: 20, seen: [[0, 19]] } })));
-    expect(wrong.learn).toBeNull();
-    const right = read(memory(saved({ S: base({ step: 2, learned: false, sourceIds: ['s1'] }), learn: { key: learnKey(0, 's1'), played: 20, duration: 60, readSeconds: 0, mutedPlayed: 0, time: 20.5, seen: [[0, 19]], quiet: [] } })));
-    expect(right.learn).toMatchObject({ key: '0:s1', played: 20, time: 20.5, seen: [[0, 19]] });
+  it('keeps a record only for the lessons they are on, in the places they are on them', () => {
+    const rec = { played: 20, duration: 60, readSeconds: 0, mutedPlayed: 0, time: 20.5, seen: [[0, 19]], quiet: [] };
+    const back = read(memory(saved({ S: base({ step: 2, learned: false, sourceIds: ['s1'] }), lessons: { '0:s1': rec, '0:s2': rec, '1:s1': rec, 'nonsense': rec } })));
+    expect(Object.keys(back.lessons)).toEqual(['0:s1']);
+    expect(back.lessons['0:s1']).toMatchObject({ played: 20, time: 20.5, seen: [[0, 19]], done: false });
+  });
+
+  it('keeps a record for every lesson of a journey, so going back to one finds it as it was', () => {
+    const two = base({ days: 2, sourceIds: ['s1', 's2'], step: 2 });
+    const back = read(memory(saved({ S: two, lessons: { '0:s1': { played: 60, duration: 60, seen: [[0, 59]], done: true }, '1:s2': { played: 5, duration: 90, seen: [[0, 4]], done: false } } })));
+    expect(Object.keys(back.lessons).sort()).toEqual(['0:s1', '1:s2']);
+    expect(back.lessons['0:s1'].done).toBe(true);
+    expect(back.lessons['1:s2'].done).toBe(false);
+  });
+
+  it('never trusts a record: numbers, ranges and the furthest point are put right', () => {
+    const back = read(memory(saved({ S: base({ step: 2, sourceIds: ['s1'] }), lessons: { '0:s1': { played: -5, duration: 'long', readSeconds: 1e12, time: NaN, reached: 3, seen: [[0, 40], 'x'], quiet: 5, done: 'yes' } } })));
+    expect(back.lessons['0:s1']).toEqual({ played: 0, duration: 0, readSeconds: 86400, mutedPlayed: 0, time: 0, reached: 40, seen: [[0, 40]], quiet: [], done: false });   // reached is never less than what was played
+    expect(read(memory(saved({ lessons: 'nope' }))).lessons).toEqual({});
   });
 
   it('asks for as many lessons as the days they missed, or chooses again', () => {
@@ -114,6 +128,22 @@ describe('fitting a saved place to what exists now', () => {
     const store = memory(saved());
     clearProgress(store);
     expect(read(store)).toBeNull();
+  });
+});
+
+describe('the totals the teacher sees', () => {
+  const lessons = { '0:a': { played: 30, duration: 60, readSeconds: 0, mutedPlayed: 4 }, '1:b': { played: 0, duration: 0, readSeconds: 45, mutedPlayed: 0 }, '0:other': { played: 999, duration: 999 } };
+
+  it('are worked out from each lesson in the journey, once, whatever order they were visited in', () => {
+    expect(totalsFrom(lessons, ['a', 'b'])).toEqual({ watched: 30, source: 60, readSeconds: 45, muted: 4 });
+    expect(totalsFrom(lessons, ['a'])).toEqual({ watched: 30, source: 60, readSeconds: 0, muted: 4 });   // only the lessons in this journey
+  });
+
+  it('count a lesson picked twice as two, and a lesson never opened as nothing', () => {
+    const twice = { '0:a': { played: 30, duration: 60 }, '1:a': { played: 20, duration: 60 } };
+    expect(totalsFrom(twice, ['a', 'a'])).toEqual({ watched: 50, source: 120, readSeconds: 0, muted: 0 });
+    expect(totalsFrom({}, ['a', 'b'])).toEqual({ watched: 0, source: 0, readSeconds: 0, muted: 0 });
+    expect(totalsFrom(undefined, ['a'])).toEqual({ watched: 0, source: 0, readSeconds: 0, muted: 0 });
   });
 });
 

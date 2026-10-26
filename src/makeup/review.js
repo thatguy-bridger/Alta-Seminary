@@ -1,5 +1,6 @@
 import { analyzeEffort, formatDuration } from './effort.js';
 import { formatTimestamp } from './transcript.js';
+import { playbackLines } from './playback.js';
 
 // The admin's view of submissions: which to show, how each is doing, and what the spreadsheet holds.
 // Pure functions, so they can be tested without a screen.
@@ -18,6 +19,9 @@ export const effortOf = (s) => analyzeEffort({
 });
 
 // The answers a student gave to pause questions, ready to show: the question, where it appeared, and the answer.
+// What a student played of each recording or video, for reading: the lessons that have a length, with the skipped parts in words.
+export const playbackOf = (s) => playbackLines(s.media_detail);
+
 export function pauseLines(s) {
   return (Array.isArray(s.pause_answers) ? s.pause_answers : []).filter((a) => a && String(a.answer || '').trim()).map((a) => ({
     question: a.question, answer: a.answer, lesson: a.lesson || '',
@@ -49,10 +53,11 @@ export function emailMessage(status, detail) {
 
 const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 export function submissionsCsv(subs) {
-  const head = ['When', 'Student', 'Class', 'Days covered', 'Learned by', 'Truth', 'Where', 'Understanding', 'Why it matters', 'Questions while studying', 'Spoken', 'Commitment', 'Blessing', 'Active time', 'Signal', 'Review', 'Review note', 'Emailed'];
+  const head = ['When', 'Student', 'Class', 'Days covered', 'Learned by', 'Truth', 'Where', 'Understanding', 'Why it matters', 'Questions while studying', 'What they played', 'Spoken', 'Commitment', 'Blessing', 'Active time', 'Signal', 'Review', 'Review note', 'Emailed'];
   const lines = subs.map((s) => [
     new Date(s.created_at).toLocaleString(), s.student_name, s.class_name, s.days_total, learnedBy(s), s.truth, s.truth_ref, s.understanding, s.response,
     pauseLines(s).map((a) => `${a.question} (${a.where}): ${a.answer}`).join(' | '),
+    playbackOf(s).map((m) => `${m.title}: ${m.summary}`).join(' | '),
     s.mode === 'voice' ? `Yes (${formatDuration(s.voice_seconds || 0)})` : 'No', s.commitment, s.blessing, formatDuration(s.active_seconds || 0), effortOf(s).label,
     REVIEW[reviewOf(s)], s.review_note, s.notified_at ? 'Yes' : 'No',
   ].map(q).join(','));

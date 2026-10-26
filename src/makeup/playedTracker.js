@@ -6,8 +6,10 @@ export function createPlayedTracker() {
   const seen = new Set();
   const quiet = new Set();
   let last = null;
+  let reached = 0;   // the furthest the playhead has been, even if it only jumped there: what lies before it and was never played was skipped
   return {
     tick(time, playing, muted = false) {
+      if (Number.isFinite(time) && time > reached) reached = time;
       if (!playing || !Number.isFinite(time)) { last = null; return seen.size; }
       // contiguous playback: a normal forward step. Anything else is a jump (a seek) and earns nothing.
       if (last !== null && time >= last && time - last <= 1.5) {
@@ -20,13 +22,15 @@ export function createPlayedTracker() {
     },
     count: () => seen.size,
     mutedCount: () => quiet.size,
-    reset() { seen.clear(); quiet.clear(); last = null; },
+    reset() { seen.clear(); quiet.clear(); last = null; reached = 0; },
+    reachedAt: () => reached,
     // Saved with the student's progress, and put back when they return: which seconds were played, as compact ranges.
     // (The count alone would let a replay of the same part earn more time after a close and reopen.)
-    export: () => ({ seen: toRanges(seen), quiet: toRanges(quiet) }),
+    export: () => ({ seen: toRanges(seen), quiet: toRanges(quiet), reached }),
     restore(saved = {}) {
       seen.clear(); quiet.clear(); last = null;
       fromRanges(saved.seen).forEach((s) => seen.add(s));
+      reached = Math.max(Number.isFinite(saved.reached) && saved.reached > 0 ? Math.min(saved.reached, MAX_SECONDS) : 0, seen.size ? Math.max(...seen) : 0);
       fromRanges(saved.quiet).forEach((s) => { if (seen.has(s)) quiet.add(s); });   // a muted second was also a played one
       return seen.size;
     },

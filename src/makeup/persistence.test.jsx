@@ -190,7 +190,7 @@ describe('the numbers behind the teacher\'s signal come back too', () => {
   });
 
   it('keeps the totals of lessons already finished', async () => {
-    seed({ totals: { watched: 45, source: 60, readSeconds: 12, muted: 7 } }, { step: 5, learned: true, truth: 'If we act then He will help', where: 'Verse 7', understanding: 'x y z a b c d e f', text: 'x y z a b c d e f', inv: 'serve', commit: 'help my brother', bless: 'be kinder' });
+    seed({ lessons: { '0:L1': { played: 45, duration: 60, readSeconds: 12, mutedPlayed: 7, seen: [[0, 44]], reached: 45, done: true } } }, { step: 5, learned: true, truth: 'If we act then He will help', where: 'Verse 7', understanding: 'x y z a b c d e f', text: 'x y z a b c d e f', inv: 'serve', commit: 'help my brother', bless: 'be kinder' });
     const onSubmit = await open();
     const row = await finish(onSubmit);
     expect(row.watched_seconds).toBe(45);
@@ -201,7 +201,7 @@ describe('the numbers behind the teacher\'s signal come back too', () => {
 
 describe('a lesson partway through', () => {
   it('a reading keeps the time already spent on it', async () => {
-    seed({ learn: { key: '0:L1', played: 0, duration: 0, readSeconds: 100, mutedPlayed: 0, time: 0, seen: [], quiet: [] } }, { step: 2, learned: false });
+    seed({ lessons: { '0:L1': { played: 0, duration: 0, readSeconds: 100, mutedPlayed: 0, time: 0, seen: [], quiet: [] } } }, { step: 2, learned: false });
     await open();
     await act(() => tick(1200));
     expect(document.body.textContent).toContain('Thank you for staying with it');             // 100 of the 30 seconds asked for
@@ -209,28 +209,28 @@ describe('a lesson partway through', () => {
   });
 
   it('closing straight after coming back does not lose the place', async () => {
-    seed({ learn: { key: '0:L1', played: 0, duration: 0, readSeconds: 100, mutedPlayed: 0, time: 0, seen: [], quiet: [] } }, { step: 2, learned: false });
+    seed({ lessons: { '0:L1': { played: 0, duration: 0, readSeconds: 100, mutedPlayed: 0, time: 0, seen: [], quiet: [] } } }, { step: 2, learned: false });
     await open();
     await close();                                                                             // not even a second later
-    expect(saved().learn.readSeconds).toBe(100);
+    expect(saved().lessons['0:L1'].readSeconds).toBe(100);
   });
 
   it('a reading that was not finished still has to be, and keeps counting from where it was', async () => {
-    seed({ learn: { key: '0:L1', played: 0, duration: 0, readSeconds: 10, mutedPlayed: 0, time: 0, seen: [], quiet: [] } }, { step: 2, learned: false });
+    seed({ lessons: { '0:L1': { played: 0, duration: 0, readSeconds: 10, mutedPlayed: 0, time: 0, seen: [], quiet: [] } } }, { step: 2, learned: false });
     await open();
     expect(document.body.textContent).toContain('Read slowly');
     expect(parseFloat(document.querySelector('.mw-meter b').style.width)).toBeCloseTo(33.3, 0);                // 10 of 30 seconds
   });
 
   it('a lesson they were not on does not lend its time to this one', async () => {
-    seed({ learn: { key: '0:SOMETHING-ELSE', played: 0, duration: 0, readSeconds: 100, mutedPlayed: 0, time: 0, seen: [], quiet: [] } }, { step: 2, learned: false });
+    seed({ lessons: { '0:SOMETHING-ELSE': { played: 0, duration: 0, readSeconds: 100, mutedPlayed: 0, time: 0, seen: [], quiet: [] } } }, { step: 2, learned: false });
     await open();
     expect(document.body.textContent).toContain('Read slowly');
     expect(document.querySelector('.mw-meter b').style.width).toBe('0%');
   });
 
   it('a video or audio goes back to where it was stopped, and keeps the seconds already played', async () => {
-    seed({ learn: { key: '0:A1', played: 50, duration: 60, readSeconds: 0, mutedPlayed: 0, time: 50.4, seen: [[0, 49]], quiet: [] } }, { step: 2, learned: false, sourceIds: ['A1'], picks: ['audio'] });
+    seed({ lessons: { '0:A1': { played: 50, duration: 60, readSeconds: 0, mutedPlayed: 0, time: 50.4, seen: [[0, 49]], quiet: [] } } }, { step: 2, learned: false, sourceIds: ['A1'], picks: ['listen'] });
     await open();
     const el = document.querySelector('audio');
     Object.defineProperty(el, 'duration', { configurable: true, value: 60 });
@@ -242,24 +242,24 @@ describe('a lesson partway through', () => {
   });
 
   it('a lesson played a little is still only a little played, so it has to be played on', async () => {
-    seed({ learn: { key: '0:A1', played: 12, duration: 60, readSeconds: 0, mutedPlayed: 0, time: 12, seen: [[0, 11]], quiet: [] } }, { step: 2, learned: false, sourceIds: ['A1'], picks: ['audio'] });
+    seed({ lessons: { '0:A1': { played: 12, duration: 60, readSeconds: 0, mutedPlayed: 0, time: 12, seen: [[0, 11]], quiet: [] } } }, { step: 2, learned: false, sourceIds: ['A1'], picks: ['listen'] });
     await open();
     await act(() => tick(300));
     expect(btn('Continue')).toBeUndefined();
   });
 
   it('records the place in the lesson when saving', async () => {
-    seed({ learn: { key: '0:A1', played: 30, duration: 60, readSeconds: 0, mutedPlayed: 0, time: 31, seen: [[0, 29]], quiet: [] } }, { step: 2, learned: false, sourceIds: ['A1'], picks: ['audio'] });
+    seed({ lessons: { '0:A1': { played: 30, duration: 60, readSeconds: 0, mutedPlayed: 0, time: 31, seen: [[0, 29]], quiet: [] } } }, { step: 2, learned: false, sourceIds: ['A1'], picks: ['listen'] });
     await open();
     await act(() => tick(1700));
     const back = readProgress(localStorage, REAL);
-    expect(back.learn).toMatchObject({ key: '0:A1', played: 30, seen: [[0, 29]] });
-    expect(back.learn.time).toBeCloseTo(31, 0);
+    expect(back.lessons['0:A1']).toMatchObject({ played: 30, seen: [[0, 29]] });
+    expect(back.lessons['0:A1'].time).toBeCloseTo(31, 0);
   });
 
   it('an unfinished answer to a pause question comes back too', async () => {
     const withQuestion = { ...LESSONS[0], pauses: [{ at: 1, question: 'What stood out to you?' }] };
-    seed({ learn: { key: '0:L1', played: 0, duration: 0, readSeconds: 3, mutedPlayed: 0, time: 0, seen: [], quiet: [] } }, { step: 2, learned: false });
+    seed({ lessons: { '0:L1': { played: 0, duration: 0, readSeconds: 3, mutedPlayed: 0, time: 0, seen: [], quiet: [] } } }, { step: 2, learned: false });
     await open({ sources: [withQuestion] });
     const box = document.querySelector('.mw-pause textarea');
     await setVal(box, 'Faith means acting');
@@ -348,7 +348,7 @@ describe('notes', () => {
   });
 
   it('lets the video carry on underneath: it opens over the lesson, it does not replace it', async () => {
-    seed({}, { step: 2, learned: false, sourceIds: ['A1'], picks: ['audio'] });
+    seed({}, { step: 2, learned: false, sourceIds: ['A1'], picks: ['listen'] });
     await open();
     await act(() => notesBtn().click());
     expect(document.querySelector('audio')).not.toBeNull();

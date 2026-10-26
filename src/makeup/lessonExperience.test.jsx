@@ -278,7 +278,7 @@ describe('the flowing transcript', () => {
   it('puts the player first and the transcript underneath it', async () => {
     await start([talk()]);
     const av = document.querySelector('.mw-av');
-    expect([...av.children].map((c) => c.className.split(' ')[0])).toEqual(['mw-media', 'mw-txwrap']);
+    expect([...av.children].map((c) => c.className.split(' ')[0])).toEqual(['mw-media', 'mw-tl-wrap', 'mw-txwrap']);   // the player, its timeline, then the transcript
     expect(av.querySelector('.mw-txwrap > .mw-tx')).not.toBeNull();
     expect(document.querySelector('.mw-tx').getAttribute('aria-label')).toBe('Transcript');
     expect(document.querySelector('.mw-card').className).toContain('wide');

@@ -97,7 +97,7 @@ describe('the test email', () => {
 
 describe('the Supabase function\'s copy of the email wording', () => {
   // The function is deployed on its own, so it carries copies of these two files. They must never drift from the site's.
-  for (const file of ['effort.js', 'teacherEmail.js']) {
+  for (const file of ['effort.js', 'teacherEmail.js', 'playback.js']) {
     it(`${file} is identical to the site's`, () => {
       const site = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
       const fn = readFileSync(new URL(`../../supabase/functions/makeup-notify/${file}`, import.meta.url), 'utf8');

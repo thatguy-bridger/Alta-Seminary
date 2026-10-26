@@ -24,7 +24,9 @@ import { byline } from './byline.js';
 import { glideTo, stopGlide, prefersReducedMotion } from './glide.js';
 import { speechSupported } from './useSpeech.js';
 import { NotesButton, NotesPanel, takeNotesHint } from './Notes.jsx';
-import { readProgress, writeProgress, clearProgress, hasProgress, emptyTotals, learnKey } from './progress.js';
+import { Timeline, TimelineKey } from './Timeline.jsx';
+import { skippedRanges, skippedTotal, mediaDetail, skipStart } from './playback.js';
+import { readProgress, writeProgress, clearProgress, hasProgress, emptyTotals, totalsFrom, learnKey } from './progress.js';
 
 const N = STEPS.length;
 const WATCHED_ENOUGH = 0.75;
@@ -172,6 +174,20 @@ function RidgeProgress({ stepRaw }) {
   );
 }
 
+/* ---------- two little pills by the ridge: back to the last step, forward when this one is finished ---------- */
+function StepNav({ canBack, backLabel, showForward, ready, hint, onBack, onForward }) {
+  return (
+    <div className="mw-nav" role="group" aria-label="Move between steps">
+      {canBack
+        ? <button type="button" className="mw-pill back" aria-label={backLabel} title={backLabel} onClick={onBack}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg></button>
+        : <span />}
+      {showForward
+        ? <button type="button" className={`mw-pill fwd${ready ? ' ready' : ''}`} aria-label={ready ? 'Go forward' : `Go forward. ${hint}`} aria-disabled={!ready} title={ready ? 'Go forward' : hint} onClick={onForward}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></button>
+        : <span />}
+    </div>
+  );
+}
+
 /* ---------- a pause question: it appears at a chosen moment, and its short answer goes to the teacher ---------- */
 function PauseCard({ id, question, where, saved, draft = '', onDraft, onSave, fieldProps, actionLabel }) {
   const [text, setText] = React.useState(saved || draft || '');
@@ -241,15 +257,15 @@ function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, dra
   );
 }
 
-function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipEnabled, answers = {}, onAnswer = () => {}, drafts = {}, onDraft = () => {}, resume, registerMedia, fieldProps }) {
+function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipEnabled, answers = {}, onAnswer = () => {}, drafts = {}, onDraft = () => {}, resume, registerMedia, onLeave, fieldProps }) {
   const duration = src.duration_seconds || 0;
   const p = useMediaPlayer({ url: mediaUrl, type: mediaType, durationHint: duration, resume });
   // Lets the page ask where the player is, and which seconds were played, whenever it saves the student's place.
   const latestPlayer = React.useRef(p); latestPlayer.current = p;
   React.useEffect(() => {
-    if (!registerMedia) return undefined;
-    registerMedia(() => ({ time: latestPlayer.current.time, ...latestPlayer.current.exportPlayed() }));
-    return () => registerMedia(null);
+    const place = () => ({ time: latestPlayer.current.time, ...latestPlayer.current.exportPlayed() });
+    if (registerMedia) registerMedia(place);
+    return () => { if (onLeave) onLeave(place()); if (registerMedia) registerMedia(null); };   // hands its final place over as it goes away
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const segs = src.transcript || [];
   const total = p.duration || duration;
@@ -335,6 +351,17 @@ function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipE
             <div className="frame"><div ref={p.hostRef} /></div>
           )}
         </div>
+        {total > 0 && (() => {
+          const place = p.exportPlayed();
+          const lost = skippedTotal(skippedRanges(place.seen, place.reached, total));
+          return (
+            <div className="mw-tl-wrap">
+              <Timeline duration={total} seen={place.seen} reached={place.reached} played={p.played} time={p.time}
+                onJump={(part) => seekTo(skipStart(segs, part.from, part.to))} jumpLabel={(part) => `Play the skipped part from ${formatTimestamp(skipStart(segs, part.from, part.to))}`} />
+              <p className="mw-fine mw-tl-note"><TimelineKey />{lost > 0 && <span className="mw-tl-lost"> · {formatTimestamp(lost)} skipped. Tap the red to play it and count it.</span>}</p>
+            </div>
+          );
+        })()}
         <div className="mw-txwrap">
         <div className="mw-tx" ref={listRef} role="region" aria-label="Transcript" onWheel={leaveSync} onTouchMove={leaveSync} onScroll={checkCentered}
           onKeyDown={(e) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) leaveSync(e); }}>
@@ -392,12 +419,14 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const [toast, setToast] = React.useState('');
   const soundRef = React.useRef(null);
   const [status, setStatus] = React.useState({ state: 'idle', error: '', result: null });
-  const mediaTotals = React.useRef(restored ? { ...restored.totals } : emptyTotals());
-  const resumeLearn = React.useRef(restored ? restored.learn : null);      // the lesson they were partway through, until they move on
-  const learn = React.useRef({ done: false, played: restored?.learn?.played || 0, duration: restored?.learn?.duration || 0, readSeconds: restored?.learn?.readSeconds || 0, mutedPlayed: restored?.learn?.mutedPlayed || 0 });
+  // A record for every lesson, by its place in the journey: time read, seconds played, where it stopped, how far it got, whether
+  // it is finished. It is what lets a student go back and forth without losing or double-counting anything, and the totals the
+  // teacher sees are worked out from it.
+  const lessons = React.useRef(restored ? restored.lessons : {});
+  const record = (key, patch) => { lessons.current[key] = { ...lessons.current[key], ...patch }; };
   const mediaCollect = React.useRef(null);                                 // the player's place, when a video or audio is open
-  const resumeFor = (src, index) => (resumeLearn.current && resumeLearn.current.key === learnKey(index, src.id) ? resumeLearn.current : undefined);
-  const [learnDone, setLearnDone] = React.useState(false);
+  const resumeFor = (src, index) => lessons.current[learnKey(index, src.id)];
+  const [learnDone, setLearnDone] = React.useState(() => !!(restored && restored.lessons[learnKey(restored.S.learnIndex, restored.S.sourceIds[restored.S.learnIndex])]?.done));
   const tracker = useEffortTracker({ onBlocked: (kind) => { if (kind !== 'menu') soundRef.current && soundRef.current.play('thud'); setToast(kind === 'drop' ? 'Dropping text is turned off here.' : kind === 'paste' ? 'Pasting is turned off. Write it in your own words.' : ''); } });
   const trackerRestored = React.useRef(false);
   if (restored && !trackerRestored.current) {
@@ -430,12 +459,8 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
     if (step !== 'begin' || S.settled) return undefined;
     const id = setTimeout(() => upd({ settled: true }), RULES.settleSeconds * 1000); return () => clearTimeout(id);
   }, [step, S.settled]);
-  const keepRestored = React.useRef(!!restored);
-  React.useEffect(() => {
-    if (keepRestored.current) { keepRestored.current = false; return; }       // the first time is the page opening on a saved place
-    resumeLearn.current = null;
-    learn.current = { done: false, played: 0, duration: 0, readSeconds: 0, mutedPlayed: 0 }; setLearnDone(false);
-  }, [S.learnIndex, S.step]);
+  const lessonKey = cur ? learnKey(S.learnIndex, cur.id) : '';
+  React.useEffect(() => { setLearnDone(!!(lessonKey && lessons.current[lessonKey]?.done)); }, [lessonKey]);   // a lesson already finished stays finished
 
   /* ----- keeping the student's place on their device ----- */
   const voicePartsRef = React.useRef(null);
@@ -444,12 +469,11 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const latest = React.useRef(null);
   latest.current = () => {
     if (S.step >= N - 1 || !hasProgress(S, notes)) return null;
-    const inLearn = step === 'learn' && cur;
-    const place = inLearn && mediaCollect.current ? mediaCollect.current() : {};
+    const live = step === 'learn' && cur && mediaCollect.current ? { [lessonKey]: { ...lessons.current[lessonKey], ...mediaCollect.current() } } : {};
     return {
-      S, cites, pauseAnswers, pauseDrafts, notes, tracker: tracker.export(), totals: mediaTotals.current,
+      S, cites, pauseAnswers, pauseDrafts, notes, tracker: tracker.export(),
       voiceParts: voicePartsRef.current ? voicePartsRef.current.current : { under: 0, feel: 0 },
-      learn: inLearn ? { key: learnKey(S.learnIndex, cur.id), ...learn.current, ...place } : null,
+      lessons: { ...lessons.current, ...live },
     };
   };
   React.useEffect(() => {
@@ -480,7 +504,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
     if (store) clearProgress(store);
     lastSaved.current = ''; finished.current = false;
     tracker.reset();
-    mediaTotals.current = emptyTotals(); resumeLearn.current = null; learn.current = { done: false, played: 0, duration: 0, readSeconds: 0, mutedPlayed: 0 };
+    lessons.current = {};
     if (voicePartsRef.current) voicePartsRef.current.current = { under: 0, feel: 0 };
     setCites([]); setPauseAnswers({}); setPauseDrafts({}); setNotes(''); setNotesOpen(false); setLearnDone(false); setConfirmReset(false);
     setStatus({ state: 'idle', error: '', result: null });
@@ -490,6 +514,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const available = Object.keys(GROUPS).filter((g) => sources.some((x) => groupOf(x.kind) === g));
   const advance = (patch = {}) => { sound.play('chime'); setS((s) => ({ ...s, ...patch, step: Math.min(N - 1, s.step + 1) })); };
   const goBack = () => setS((s) => ({ ...s, step: Math.max(0, s.step - 1), learnIndex: 0 }));
+  const startJourney = () => { if (takeNotesHint(store)) setNotesHint(true); advance(); };
 
   // choose a specific source for each pick, avoiding repeats within a journey when there is a choice
   const resolvePicks = (picks) => {
@@ -511,14 +536,17 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   };
 
   const finishLearnItem = () => {
-    const L = learn.current;
-    mediaTotals.current.watched += L.played; mediaTotals.current.source += L.duration; mediaTotals.current.readSeconds += L.readSeconds; mediaTotals.current.muted += L.mutedPlayed || 0;
     if (S.learnIndex < learnSources.length - 1) upd({ learnIndex: S.learnIndex + 1 }); else advance({ learned: true });
   };
+  // The lessons that were played, with exactly which parts, for the teacher.
+  const playbackDetail = () => learnSources.flatMap((src, i) => {
+    const r = lessons.current[learnKey(i, src.id)];
+    return r && AV_KINDS.includes(src.kind) ? [mediaDetail({ id: src.id, title: src.title, kind: src.kind, duration: r.duration || src.duration_seconds, seen: r.seen, reached: r.reached, played: r.played })] : [];
+  });
 
   const submit = async (state = S) => {
     setStatus({ state: 'sending', error: '', result: null });
-    const { rpc, row } = buildSubmission({ S: state, classes, sources, stats: tracker.snapshot(), mediaTotals: mediaTotals.current, code: state.code, pauseAnswers: answersPayload(learnSources, pauseAnswers) });
+    const { rpc, row } = buildSubmission({ S: state, classes, sources, stats: tracker.snapshot(), mediaTotals: totalsFrom(lessons.current, state.sourceIds.filter((id) => sources.some((x) => x.id === id))), mediaDetail: playbackDetail(), code: state.code, pauseAnswers: answersPayload(learnSources, pauseAnswers) });
     try {
       const result = await onSubmit({ rpc, row });
       if (result && result.ok === false) { setStatus({ state: 'error', error: result.error || 'That did not send. Please try again.', result: null }); return; }
@@ -550,8 +578,9 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const Heading = React.useMemo(() => ({ children }) => <h2 className="mw-h" tabIndex={-1} ref={headingRef}>{children}</h2>, []);
   const clsObj = classes.find((c) => c.id === S.cls);
 
+  const beginReady = !!(S.name.trim() && S.cls && S.days && S.settled && (!clsObj?.requires_code || S.code.trim()));
   const beginScreen = (() => {
-    const ok = S.name.trim() && S.cls && S.days && S.settled && (!clsObj?.requires_code || S.code.trim());
+    const ok = beginReady;
     return (
       <>
         <p className="mw-eyebrow">Alta Seminary makeup work</p>
@@ -560,16 +589,25 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
         <div className="mw-field"><label htmlFor="mw-name">Your first name</label><input id="mw-name" type="text" autoComplete="given-name" value={S.name} onChange={(e) => upd({ name: e.target.value })} /></div>
         <div><div className="mw-lbl" id="mw-cl">Your class</div><div className="mw-row" role="group" aria-labelledby="mw-cl">{classes.map((c) => <button key={c.id} className="mw-chip" aria-pressed={S.cls === c.id} onClick={() => upd({ cls: c.id })}>{c.name}</button>)}</div></div>
         {clsObj?.requires_code && <div className="mw-field"><label htmlFor="mw-code">Class code from your teacher</label><input id="mw-code" type="text" autoComplete="off" value={S.code} onChange={(e) => upd({ code: e.target.value })} /></div>}
-        <div><div className="mw-lbl" id="mw-dl">Days you missed</div><div className="mw-row" role="group" aria-labelledby="mw-dl">{[1, 2, 3, 4].map((d) => <button key={d} className="mw-chip" aria-pressed={S.days === d} onClick={() => upd({ days: d })}>{d === 4 ? '4 or more' : d}</button>)}</div></div>
-        <div className="mw-row" style={{ alignItems: 'center' }}><button className="mw-cta" disabled={!ok} onClick={() => { if (takeNotesHint(store)) setNotesHint(true); advance(); }}>{S.settled ? 'Begin' : 'Take a moment…'}</button>{sound.supported && !sound.prefs.on && <button className="mw-ghost" onClick={() => sound.update({ on: true })}>Turn on quiet music</button>}</div>
+        <div><div className="mw-lbl" id="mw-dl">Days you missed</div><div className="mw-row" role="group" aria-labelledby="mw-dl">{[1, 2, 3, 4].map((d) => <button key={d} className="mw-chip" aria-pressed={S.days === d} onClick={() => setS((s) => (sourcesNeeded(d) === sourcesNeeded(s.days) ? { ...s, days: d } : { ...s, days: d, picks: [], sourceIds: [], learned: false, learnIndex: 0 }))}>{d === 4 ? '4 or more' : d}</button>)}</div></div>
+        <div className="mw-row" style={{ alignItems: 'center' }}><button className="mw-cta" disabled={!ok} onClick={startJourney}>{S.settled ? 'Begin' : 'Take a moment…'}</button>{sound.supported && !sound.prefs.on && <button className="mw-ghost" onClick={() => sound.update({ on: true })}>Turn on quiet music</button>}</div>
         <p className="mw-fine">{S.days ? `About ${estimateMinutes(S.days)} minutes, start to finish.` : `About ${RULES.minutesPerDay} minutes for each day you missed.`}</p>
       </>
     );
   })();
 
+  // Do these picks give the lessons they already have? Then going on keeps those lessons, and everything done in them.
+  const sameChoice = (picks) => picks.length > 0 && S.sourceIds.length === picks.length && S.sourceIds.every((id, i) => groupOf(sources.find((x) => x.id === id)?.kind) === picks[i]);
+  const confirmPicks = (picks) => advance(sameChoice(picks) ? {} : { sourceIds: resolvePicks(picks), learned: false, learnIndex: 0 });
+  const picking = React.useRef(false);
   const pick = (g) => {
     sound.play('tick');
-    if (n === 1) { upd({ picks: [g], sourceIds: resolvePicks([g]) }); setTimeout(() => advance({ sourceIds: resolvePicks([g]) }), 220); return; }
+    if (n === 1) {
+      if (picking.current) return;                                            // a second tap in the same moment does not move on twice
+      picking.current = true; upd({ picks: [g] });
+      setTimeout(() => { picking.current = false; confirmPicks([g]); }, 220);
+      return;
+    }
     if (S.picks.length < n) setS((s) => (s.picks.length < n ? { ...s, picks: [...s.picks, g] } : s)); else setToast('All picked. Tap a number to take one off.');
   };
   const surprise = () => { sound.play('tick'); setS((s) => { const picks = [...s.picks]; while (picks.length < n) picks.push(available[Math.floor(Math.random() * available.length)]); return { ...s, picks }; }); };
@@ -596,7 +634,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
         )}
       </div>
       {n > 1 && <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        <button className="mw-cta" disabled={S.picks.length !== n} onClick={() => advance({ sourceIds: resolvePicks(S.picks) })}>Continue</button>
+        <button className="mw-cta" disabled={S.picks.length !== n} onClick={() => confirmPicks(S.picks)}>Continue</button>
         <span className="mw-fine">{S.picks.length} of {n} picked</span>
       </div>}
     </>
@@ -620,11 +658,11 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
         </div>
         <p className="mw-quote">{hint}</p>
         {isAV ? (media ? (
-          <MediaStage key={cur.id + S.learnIndex} src={cur} mediaUrl={media.url} mediaType={media.type} cites={cites} answers={pauseAnswers} onAnswer={answerPause} drafts={pauseDrafts} onDraft={draftPause} resume={resumeFor(cur, S.learnIndex)} registerMedia={(fn) => { mediaCollect.current = fn; }} fieldProps={tracker.fieldProps}
+          <MediaStage key={cur.id + S.learnIndex} src={cur} mediaUrl={media.url} mediaType={media.type} cites={cites} answers={pauseAnswers} onAnswer={answerPause} drafts={pauseDrafts} onDraft={draftPause} resume={resumeFor(cur, S.learnIndex)} registerMedia={(fn) => { mediaCollect.current = fn; }} onLeave={(place) => record(lessonKey, place)} fieldProps={tracker.fieldProps}
             onCite={(c) => { sound.play('cite'); setCites((x) => (x.some((y) => y.sourceId === c.sourceId && Math.round(y.seconds) === Math.round(c.seconds)) ? x.filter((y) => !(y.sourceId === c.sourceId && Math.round(y.seconds) === Math.round(c.seconds))) : [...x, c])); }}
-            onProgress={({ played, duration, done, playing, mutedPlayed }) => { sound.duck(!!playing); learn.current.played = played; learn.current.duration = duration; learn.current.mutedPlayed = mutedPlayed || 0; if (done !== learn.current.done) { learn.current.done = done; setLearnDone(done); } }} />
+            onProgress={({ played, duration, done, playing, mutedPlayed }) => { sound.duck(!!playing); record(lessonKey, { played, duration, mutedPlayed: mutedPlayed || 0, done }); setLearnDone(done); }} />
         ) : <p className="mw-err">This video or audio address is not one we can play. An admin can fix it.</p>) : (
-          <Reader key={cur.id + S.learnIndex} src={cur} answers={pauseAnswers} onAnswer={answerPause} drafts={pauseDrafts} onDraft={draftPause} startSeconds={resumeFor(cur, S.learnIndex)?.readSeconds || 0} fieldProps={tracker.fieldProps} onSeconds={(t) => { learn.current.readSeconds = t; }} onDone={(d) => { if (d !== learn.current.done) { learn.current.done = d; setLearnDone(d); } }} />
+          <Reader key={cur.id + S.learnIndex} src={cur} answers={pauseAnswers} onAnswer={answerPause} drafts={pauseDrafts} onDraft={draftPause} startSeconds={resumeFor(cur, S.learnIndex)?.readSeconds || 0} fieldProps={tracker.fieldProps} onSeconds={(t) => record(lessonKey, { readSeconds: t })} onDone={(d) => { record(lessonKey, { done: d }); setLearnDone(d); }} />
         )}
         {isAV && <p className="mw-fine">Tap “Cite” on a line of the transcript when something stands out. You can use it in a moment.</p>}
         {learnDone && <button className="mw-cta" onClick={finishLearnItem}>{S.learnIndex < learnSources.length - 1 ? `Next: ${GROUPS[groupOf(learnSources[S.learnIndex + 1].kind)].label}` : 'Continue'}</button>}
@@ -760,6 +798,35 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
     );
   })();
 
+  /* ----- moving between steps: back from anywhere, forward only past a screen that is finished ----- */
+  const sending = status.state === 'sending';
+  const canBack = step !== 'begin' && step !== 'done' && !sending;
+  const backLabel = step === 'learn' && S.learnIndex > 0 ? 'Go back to the last lesson' : 'Go back one step';
+  const forwardReady = !sending && (
+    step === 'begin' ? beginReady
+      : step === 'choose' ? S.picks.length === n
+        : step === 'learn' ? learnDone
+          : step === 'truth' ? canAdvance(S)
+            : step === 'understand' ? canAdvance(S) && (style !== 'word' || !!S.word)
+              : false);
+  const forwardHint = ({
+    begin: 'Add your name, class and the days you missed first.', choose: n === 1 ? 'Pick how you want to learn first.' : `Pick ${n} ways to learn first.`,
+    learn: 'Finish this lesson first. The bar shows what is left.', truth: 'Write what you found, and where, first.', understand: 'Answer both questions first.',
+  })[step] || '';
+  const stepBack = () => {
+    if (!canBack) return;
+    sound.play('untick');
+    if (step === 'learn' && S.learnIndex > 0) { upd({ learnIndex: S.learnIndex - 1 }); return; }
+    setS((s) => ({ ...s, step: Math.max(0, s.step - 1), learnIndex: STEPS[s.step] === 'truth' ? Math.max(0, learnSources.length - 1) : 0 }));   // from the first thing after the lessons, land on the last lesson
+  };
+  const stepForward = () => {
+    if (!forwardReady) { if (forwardHint && !sending) setToast(forwardHint); return; }
+    if (step === 'begin') startJourney();
+    else if (step === 'choose') confirmPicks(S.picks);
+    else if (step === 'learn') finishLearnItem();
+    else advance();
+  };
+
   const screens = { begin: beginScreen, choose: chooseScreen, learn: learnScreen, truth: truthScreen, understand: understandScreen, commit: commitScreen, done: doneScreen };
   const wide = step === 'learn' && cur && AV_KINDS.includes(cur.kind);
   // Pictures are off unless a lesson turns them on: its own page shows them, and so do the steps that follow while
@@ -771,6 +838,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
       <Scene stage={stageRef} stepRaw={stepRaw} page={full} />
       <div className="mw-tbar"><img src={logo.src} alt="Alta Seminary" /><div className="mw-tools"><NotesButton open={notesOpen} hasNotes={!!notes.trim()} hint={notesHint} onToggle={() => { setNotesHint(false); setNotesOpen((o) => !o); }} /><SoundControl sound={sound} /></div></div>
       <RidgeProgress stepRaw={stepRaw} />
+      {step !== 'done' && <StepNav canBack={canBack} backLabel={backLabel} showForward={step !== 'commit'} ready={forwardReady} hint={forwardHint} onBack={stepBack} onForward={stepForward} />}
       <div className="mw-body"><section className={`mw-card${wide ? ' wide' : ''}`} key={`${S.step}-${S.learnIndex}`}>{showArt && <StepArt step={step} short={wide} />}{screens[step]}
         {store && step !== 'done' && hasProgress(S, notes) && (
           <p className="mw-fine mw-saved">Your place is saved on this device. <button type="button" className="mw-link" onClick={() => (confirmReset ? restart() : setConfirmReset(true))}>{confirmReset ? 'Tap again to erase it all and start over' : 'Start over'}</button></p>

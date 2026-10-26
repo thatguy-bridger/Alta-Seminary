@@ -8,7 +8,7 @@ import { STEPS, initialState, sourcesNeeded } from './journey.js';
 import { fromRanges, toRanges } from './playedTracker.js';
 
 export const PROGRESS_KEY = 'alta-makeup-progress';
-export const PROGRESS_VERSION = 1;
+export const PROGRESS_VERSION = 2;           // 2: a record for every lesson (so a student can go back and forth); a version 1 save is let go
 export const KEEP_DAYS = 14;               // a save this old is let go; a returning student starts fresh
 const DAY_MS = 24 * 3600 * 1000;
 const TEXT_MAX = 6000, NOTES_MAX = 30000;
@@ -21,6 +21,18 @@ const strings = (v, limit = 20) => (Array.isArray(v) ? v.filter((x) => typeof x 
 const textMap = (v, limit = 200) => (isObj(v) ? Object.fromEntries(Object.entries(v).filter(([, t]) => typeof t === 'string').slice(0, limit).map(([k, t]) => [k.slice(0, 200), t.slice(0, TEXT_MAX)])) : {});
 
 export const emptyTotals = () => ({ watched: 0, source: 0, readSeconds: 0, muted: 0 });
+
+// The totals the teacher sees, always worked out from each lesson's own record, so going back and forth between lessons can
+// never count anything twice.
+export function totalsFrom(lessons, sourceIds) {
+  const t = emptyTotals();
+  sourceIds.forEach((id, i) => {
+    const r = lessons && lessons[learnKey(i, id)];
+    if (!r) return;
+    t.watched += r.played || 0; t.source += r.duration || 0; t.readSeconds += r.readSeconds || 0; t.muted += r.mutedPlayed || 0;
+  });
+  return t;
+}
 export const learnKey = (index, sourceId) => `${index}:${sourceId}`;
 
 // Is there anything worth keeping? A page that was only opened is not saved.
@@ -43,12 +55,23 @@ function cleanState(raw) {
   };
 }
 
-function cleanLearn(raw) {
-  if (!isObj(raw) || typeof raw.key !== 'string') return null;
+// One lesson's record: how long it was read, which seconds were played, where it stopped and how far it got.
+function cleanLesson(raw) {
+  if (!isObj(raw)) return null;
+  const seen = toRanges(new Set(fromRanges(raw.seen)));
+  const lastSeen = seen.length ? seen[seen.length - 1][1] : 0;
   return {
-    key: raw.key.slice(0, 200), played: whole(raw.played, 86400), duration: count(raw.duration, 86400), readSeconds: whole(raw.readSeconds, 86400), mutedPlayed: whole(raw.mutedPlayed, 86400),
-    time: count(raw.time, 86400), seen: toRanges(new Set(fromRanges(raw.seen))), quiet: toRanges(new Set(fromRanges(raw.quiet))),
+    played: whole(raw.played, 86400), duration: count(raw.duration, 86400), readSeconds: whole(raw.readSeconds, 86400), mutedPlayed: whole(raw.mutedPlayed, 86400),
+    time: count(raw.time, 86400), reached: Math.max(count(raw.reached, 86400), lastSeen), seen, quiet: toRanges(new Set(fromRanges(raw.quiet))), done: raw.done === true,
   };
+}
+
+// Only records for the lessons they are actually on, in the places they are on them.
+function cleanLessons(raw, sourceIds) {
+  const out = {};
+  if (!isObj(raw)) return out;
+  sourceIds.forEach((id, i) => { const rec = cleanLesson(raw[learnKey(i, id)]); if (rec) out[learnKey(i, id)] = rec; });
+  return out;
 }
 
 function cleanCites(raw) {
@@ -66,26 +89,21 @@ export function readProgress(storage, { now = Date.now(), classes = [], sources 
 
   const S = cleanState(saved.S);
   const notes = text(saved.notes, NOTES_MAX);
-  let learn = cleanLearn(saved.learn);
-  let totals = { ...emptyTotals(), ...(isObj(saved.totals) ? Object.fromEntries(Object.keys(emptyTotals()).map((k) => [k, count(saved.totals[k], 1e7)])) : {}) };
 
   // Fit it to what exists now.
   if (S.cls && !classes.some((c) => c.id === S.cls)) S.cls = '';
   if (!S.cls && S.step > 0) S.step = 0;                                      // their class is gone: choose again
   const known = new Set(sources.map((x) => x.id));
-  if (S.sourceIds.some((id) => !known.has(id))) {                            // a lesson was removed: choose again, keep the rest
-    S.sourceIds = []; S.picks = []; S.learned = false; S.learnIndex = 0; learn = null;
-    totals = emptyTotals();
-    if (S.step > STEPS.indexOf('choose')) S.step = STEPS.indexOf('choose');
-  }
-  if (S.sourceIds.length && S.sourceIds.length !== sourcesNeeded(S.days)) { S.sourceIds = []; S.picks = []; S.learned = false; learn = null; if (S.step > STEPS.indexOf('choose')) S.step = STEPS.indexOf('choose'); }
+  const chooseAgain = () => { S.sourceIds = []; S.picks = []; S.learned = false; S.learnIndex = 0; if (S.step > STEPS.indexOf('choose')) S.step = STEPS.indexOf('choose'); };
+  if (S.sourceIds.some((id) => !known.has(id))) chooseAgain();               // a lesson was removed: choose again, keep the rest
+  else if (S.sourceIds.length && S.sourceIds.length !== sourcesNeeded(S.days)) chooseAgain();
   if (S.learnIndex >= Math.max(1, S.sourceIds.length)) S.learnIndex = 0;
-  if (learn && S.sourceIds[S.learnIndex] !== learn.key.split(':').slice(1).join(':')) learn = null;   // it was for a different lesson
+  const lessons = cleanLessons(saved.lessons, S.sourceIds);
 
   if (!hasProgress(S, notes)) return null;
   const tr = isObj(saved.tracker) ? saved.tracker : {};
   return {
-    S, notes, learn, totals, savedAt: saved.savedAt,
+    S, notes, lessons, savedAt: saved.savedAt,
     cites: cleanCites(saved.cites),
     pauseAnswers: textMap(saved.pauseAnswers), pauseDrafts: textMap(saved.pauseDrafts),
     tracker: { stats: isObj(tr.stats) ? tr.stats : {}, prevLen: isObj(tr.prevLen) ? tr.prevLen : {} },

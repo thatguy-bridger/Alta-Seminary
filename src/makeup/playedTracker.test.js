@@ -66,3 +66,46 @@ describe('seconds played with the sound off', () => {
     expect(t.mutedCount()).toBe(0);
   });
 });
+
+describe('how far the playhead has been', () => {
+  const play = (t, from, to, step = 0.25) => { for (let s = from; s <= to; s += step) t.tick(s, true); };
+
+  it('knows the furthest point reached, played or not', () => {
+    const t = createPlayedTracker();
+    expect(t.reachedAt()).toBe(0);
+    play(t, 0, 10);
+    expect(t.reachedAt()).toBe(10);
+    t.tick(95, false);                                   // scrubbed far ahead and paused there
+    expect(t.reachedAt()).toBe(95);
+    t.tick(20, false);                                   // and back again: it has still been to 95
+    expect(t.reachedAt()).toBe(95);
+  });
+
+  it('a small jump leaves a small gap: only what was really played is seen', () => {
+    const t = createPlayedTracker();
+    play(t, 0, 10);                                      // seconds 0 to 10
+    play(t, 14, 20);                                     // a jump of four seconds, then on
+    const { seen, reached } = t.export();
+    expect(seen).toEqual([[0, 10], [14, 20]]);           // 11, 12 and 13 were never played
+    expect(reached).toBe(20);
+  });
+
+  it('keeps what was reached through a close and reopen, and never less than what was played', () => {
+    const a = createPlayedTracker();
+    play(a, 0, 30); a.tick(200, false);
+    const b = createPlayedTracker(); b.restore(a.export());
+    expect(b.reachedAt()).toBe(200);
+    const c = createPlayedTracker(); c.restore({ seen: [[0, 50]], reached: 3 });   // a save that does not add up
+    expect(c.reachedAt()).toBe(50);
+    const d = createPlayedTracker(); d.restore({ seen: [[0, 5]] });                // from before this was saved
+    expect(d.reachedAt()).toBe(5);
+    d.reset();
+    expect(d.reachedAt()).toBe(0);
+  });
+
+  it('ignores a time that is not a number', () => {
+    const t = createPlayedTracker();
+    t.tick(NaN, true); t.tick(undefined, false); t.tick(Infinity, true);
+    expect(t.reachedAt()).toBe(0);                       // none of those is a place in the recording
+  });
+});

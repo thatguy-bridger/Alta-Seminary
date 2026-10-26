@@ -20,6 +20,7 @@ const SUBS = [
   sub({ id: 'c', student_name: 'Eli', review_status: 'redo', review_note: 'Add an example' }),
 ];
 
+const talkDetail = { source_id: 'a1', title: 'A talk', kind: 'audio', duration: 600, played: 192, reached: 300, seen: [[0, 64], [100, 189], [195, 300]], skipped: [] };
 const tick = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 const setVal = async (el, value) => {
   const proto = { SELECT: HTMLSelectElement, TEXTAREA: HTMLTextAreaElement }[el.tagName] || HTMLInputElement;
@@ -137,5 +138,28 @@ describe('submissions in the admin', () => {
     await render([]);
     expect(document.body.textContent).toContain('Nothing yet.');
     expect([...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Print these').disabled).toBe(true);
+  });
+});
+
+describe('what they played', () => {
+  it('shows each recording as the green-and-red bar the student saw, with the skipped parts in words, and nothing to tap', async () => {
+    await render([sub({ id: 'p', student_name: 'Pia', media_detail: [talkDetail] })]);
+    const d = row('Pia');
+    const bar = d.querySelector('.mk-played [role="img"]');
+    expect(bar.getAttribute('aria-label')).toBe('Played 3:12 of 10:00. Skipped 0:40 in 2 parts: 1:05 to 1:40, 3:10 to 3:15.');   // worked out from what was played, not taken on trust
+    expect([...bar.querySelectorAll('[data-kind]')].map((e) => e.dataset.kind)).toEqual(['played', 'skipped', 'played', 'skipped', 'played', 'ahead']);
+    expect(d.querySelector('.mk-played').textContent).toContain('A talk (audio): Played 3:12 of 10:00. Skipped 0:40 in 2 parts');
+    expect(d.querySelector('.mk-played').textContent).toContain('Still to come');                                              // the key
+    expect(d.querySelector('.mw-tl-hit')).toBeNull();                                                                        // for the teacher to look at, not play
+  });
+
+  it('is not shown for a submission with no recordings or videos', async () => {
+    await render([sub({ id: 'q', student_name: 'Quin' })]);
+    expect(row('Quin').querySelector('.mk-played')).toBeNull();
+  });
+
+  it('is in the printed record as words, so it still reads on a black and white page', async () => {
+    await render([sub({ id: 'p', student_name: 'Pia', media_detail: [talkDetail] })]);
+    expect(document.getElementById('makeup-print').textContent).toContain('Played (audio): A talk. Played 3:12 of 10:00. Skipped 0:40 in 2 parts: 1:05 to 1:40, 3:10 to 3:15.');
   });
 });

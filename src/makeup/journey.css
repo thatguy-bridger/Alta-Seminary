@@ -32,7 +32,7 @@
 .mw-spanel label.vol{flex-direction:column;align-items:stretch;gap:4px;color:var(--s-mut);font-size:.8rem}
 .mw-spanel input[type=range]{width:100%;accent-color:#a32030}
 .mw-spanel input[type=checkbox]{accent-color:#a32030;width:16px;height:16px}
-.mw-ridge{position:absolute;left:18px;right:18px;top:44px;height:30px;z-index:5}
+.mw-ridge{position:absolute;left:76px;right:76px;top:44px;height:30px;z-index:5}
 .mw-ridge svg{width:100%;height:100%;overflow:visible}
 .mw-body{position:absolute;inset:0;z-index:4;overflow-y:auto;display:flex;padding:84px 16px 28px}
 .mw-card{margin:auto;width:100%;max-width:560px;background:var(--s-card);border:1px solid var(--s-line);border-radius:14px;padding:26px 26px 24px;display:flex;flex-direction:column;gap:16px;animation:mw-rise .5s ease both;transition:background-color 1.2s,border-color 1.2s}
@@ -187,3 +187,27 @@
 .mw-hint-tip::before{content:"";position:absolute;top:-6px;right:19px;width:10px;height:10px;transform:rotate(45deg);background:var(--s-card);border-left:1px solid var(--s-acc);border-top:1px solid var(--s-acc)}
 @keyframes mw-hint-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--s-acc) 55%,transparent)}70%,100%{box-shadow:0 0 0 12px transparent}}
 @media (prefers-reduced-motion:reduce){.mw-notesbtn.mw-hint{animation:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--s-acc) 40%,transparent)}.mw-hint-tip{animation:none}}
+
+/* The timeline under a recording or video: played, skipped and still to come. */
+.mw-tl-wrap{display:flex;flex-direction:column;gap:6px;padding:2px 2px 0}
+.mw-tl-note{display:flex;flex-wrap:wrap;align-items:center;gap:2px}
+.mw-tl-key{white-space:nowrap}
+.mw-tl-lost{color:#e66a7c}
+.mw-stage.day .mw-tl-lost{color:#b3263c}
+.mw-tl span{transition:flex-basis .3s ease}
+
+/* Two small pills floating at the ends of the ridge: back to the last step, and forward once this one is finished. */
+.mw-nav{position:absolute;left:18px;right:18px;top:46px;height:28px;z-index:6;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+.mw-pill{pointer-events:auto;width:48px;height:28px;border-radius:14px;border:1px solid var(--s-line);padding:0;cursor:pointer;display:grid;place-items:center;
+  background:color-mix(in srgb,var(--s-card) 82%,transparent);color:var(--s-fg);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  transition:opacity .25s,border-color .25s,color .25s,transform .15s;animation:mw-pill-in .3s ease-out}
+.mw-pill svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.mw-pill:active{transform:scale(.94)}
+.mw-pill:focus-visible{outline:2px solid var(--s-fg);outline-offset:2px}
+.mw-pill.fwd[aria-disabled="true"]{opacity:.42;cursor:default}
+.mw-pill.fwd.ready{border-color:var(--s-acc);color:var(--s-acc);animation:mw-pill-ready 1.4s ease-out 1}
+@keyframes mw-pill-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@keyframes mw-pill-ready{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--s-acc) 55%,transparent)}100%{box-shadow:0 0 0 10px transparent}}
+@media (prefers-reduced-motion:reduce){.mw-pill,.mw-pill.fwd.ready{animation:none}}
+.mw-tl-hit:hover,.mw-tl-hit:focus-visible{background:rgba(255,255,255,.14)!important;border-radius:6px!important;outline:none}
+.mw-tl-hit:focus-visible{box-shadow:0 0 0 2px var(--s-fg)}

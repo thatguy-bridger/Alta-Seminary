@@ -31,18 +31,20 @@ const soundOffYouTube = (p) => { try { return !!(p.isMuted && p.isMuted()) || (p
 export function useMediaPlayer({ url, type, durationHint = 0, resume }) {
   const resumeRef = React.useRef(resume);
   const [state, setState] = React.useState({ ready: false, playing: false, time: resume?.time || 0, duration: durationHint, error: '' });
-  const [played, setPlayed] = React.useState(0);
-  const [mutedPlayed, setMutedPlayed] = React.useState(0);   // how many of those seconds the player's sound was off
+  const tracker = React.useRef(null);
+  if (tracker.current === null) {          // put back before the first paint, so a lesson they return to never flashes as "nothing played"
+    tracker.current = createPlayedTracker();
+    if (resume) tracker.current.restore(resume);
+  }
+  const [played, setPlayed] = React.useState(() => tracker.current.count());
+  const [mutedPlayed, setMutedPlayed] = React.useState(() => tracker.current.mutedCount());   // how many of those seconds the player's sound was off
   const mediaRef = React.useRef(null);   // <audio>/<video>
   const hostRef = React.useRef(null);    // YouTube mounts here
   const ytRef = React.useRef(null);
-  const tracker = React.useRef(createPlayedTracker());
 
   React.useEffect(() => {
-    tracker.current.reset();
     const back = resumeRef.current; resumeRef.current = null;
-    if (back) tracker.current.restore(back);
-    setPlayed(tracker.current.count()); setMutedPlayed(tracker.current.mutedCount());
+    if (!back) { tracker.current.reset(); setPlayed(0); setMutedPlayed(0); }   // a different file in the same player starts from nothing
     const startAt = back && Number.isFinite(back.time) && back.time > 1 ? back.time : 0;   // wait where they stopped; never start by itself
     let timer = 0, cancelled = false;
     const push = (time, playing, duration, muted = false) => {

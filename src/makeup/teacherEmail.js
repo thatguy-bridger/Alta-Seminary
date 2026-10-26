@@ -1,4 +1,5 @@
 import { analyzeEffort, formatDuration } from './effort.js';
+import { playbackLines, timelineParts, COLORS } from './playback.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -18,6 +19,13 @@ export function composeTeacherEmail(sub) {
   // Questions that appeared while studying ("pause questions"), with the student's short answers.
   const where = (a) => (a.unit === 'paragraph' ? `after paragraph ${a.at}` : `at ${formatDuration(Number(a.at) || 0)}`);
   const pauses = Array.isArray(sub.pause_answers) ? sub.pause_answers.filter((a) => a && a.answer) : [];
+  // What they played of each recording or video, and exactly which parts they skipped.
+  const playback = playbackLines(sub.media_detail);
+  const AHEAD = '#d9d9de';    // email has no see-through colors
+  const bar = (m) => {
+    const cell = (kind, from, to) => `<td width="${(((to - from) / m.duration) * 100).toFixed(2)}%" bgcolor="${kind === 'ahead' ? AHEAD : COLORS[kind]}" style="background:${kind === 'ahead' ? AHEAD : COLORS[kind]};height:10px;line-height:10px;font-size:0">&nbsp;</td>`;
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 10px;table-layout:fixed"><tr>${timelineParts(m.seen, m.reached, m.duration).map((p) => cell(p.kind, p.from, p.to)).join('')}</tr></table>`;
+  };
   const subject = `Makeup work from ${sub.student_name} (${sub.class_name})`;
   const text = [
     `${sub.student_name} finished makeup work for ${sub.class_name}.`,
@@ -27,6 +35,7 @@ export function composeTeacherEmail(sub) {
     `A truth they found${sub.truth_ref ? ` (${sub.truth_ref})` : ''}:`,
     sub.truth,
     ...(pauses.length ? ['', 'Questions they answered while studying:', ...pauses.flatMap((a) => [`- ${a.question}${a.lesson ? ` (${a.lesson}, ${where(a)})` : ''}`, `  ${a.answer}`])] : []),
+    ...(playback.length ? ['', 'What they played:', ...playback.map((m) => `- ${m.title}${m.kind ? ` (${m.kind})` : ''}: ${m.summary}`)] : []),
     '',
     'How it could help someone their age:',
     sub.understanding,
@@ -47,6 +56,7 @@ export function composeTeacherEmail(sub) {
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">A truth they found${sub.truth_ref ? ` (${esc(sub.truth_ref)})` : ''}</h3>
 <p style="margin-top:0">${esc(sub.truth)}</p>
 ${pauses.length ? `<h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">Questions they answered while studying</h3>${pauses.map((a) => `<p style="margin:0 0 8px"><span style="color:#5d5e66;font-size:14px">${esc(a.question)}${a.lesson ? ` (${esc(a.lesson)}, ${esc(where(a))})` : ''}</span><br>${esc(a.answer)}</p>`).join('')}` : ''}
+${playback.length ? `<h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">What they played</h3>${playback.map((m) => `<p style="margin:0 0 4px"><strong>${esc(m.title)}</strong> <span style="color:#5d5e66;font-size:13px">${m.kind ? `(${esc(m.kind)}) ` : ''}${esc(m.summary)}</span></p>${bar(m)}`).join('')}<p style="margin:-4px 0 10px;font-size:12px;color:#5d5e66"><span style="color:${COLORS.played}">&#9632;</span> played &nbsp;<span style="color:${COLORS.skipped}">&#9632;</span> skipped &nbsp;<span style="color:${AHEAD}">&#9632;</span> not reached</p>` : ''}
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">How it could help someone their age</h3>
 <p style="white-space:pre-wrap;margin-top:0">${esc(sub.understanding)}</p>
 <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5d5e66;margin-bottom:4px">Why it matters to them</h3>
