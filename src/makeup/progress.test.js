@@ -74,6 +74,20 @@ describe('saving and reading a place', () => {
   });
 });
 
+describe('the Come, Follow Me week', () => {
+  it('is kept with the saved place', () => {
+    const back = read(memory(saved({ S: base({ cfmWeek: 's3' }) })));
+    expect(back.S.cfmWeek).toBe('s3');
+  });
+
+  it('goes back to this week if that lesson is gone, and is never trusted', () => {
+    expect(read(memory(saved({ S: base({ cfmWeek: 'removed' }) }))).S.cfmWeek).toBe('');
+    expect(read(memory(saved({ S: { ...base(), cfmWeek: { evil: 1 } } }))).S.cfmWeek).toBe('');
+    expect(read(memory(saved({ S: { ...base(), cfmWeek: 'x'.repeat(500) } }))).S.cfmWeek).toBe('');   // too long to be an id (and not a lesson either)
+    expect(read(memory(saved({ S: base() }))).S.cfmWeek).toBe('');
+  });
+});
+
 describe('fitting a saved place to what exists now', () => {
   it('sends the student to choose again if a lesson they picked is gone, and keeps the rest', () => {
     const back = read(memory(saved({ S: base({ step: 4, sourceIds: ['gone'], truth: 'My truth', learnIndex: 0 }), lessons: { [learnKey(0, 'gone')]: { played: 40, seen: [[0, 39]] } } })));

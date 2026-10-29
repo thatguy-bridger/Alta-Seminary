@@ -50,4 +50,4 @@ export function thumbnailFor(lesson) {
   return { src: painting.src, source: 'painting', painting };
 }
 
-export const THUMBNAIL_SOURCE_LABEL = { custom: 'Your picture', church: 'The Church\'s picture for this talk', youtube: 'YouTube picture (automatic)', painting: 'Painting' };
+export const THUMBNAIL_SOURCE_LABEL = { custom: 'Your picture', church: 'The Church\'s own picture', youtube: 'YouTube picture (automatic)', painting: 'Painting' };

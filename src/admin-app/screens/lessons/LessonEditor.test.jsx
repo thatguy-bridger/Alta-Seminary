@@ -338,6 +338,96 @@ describe('the experience', () => {
   });
 });
 
+describe('a Come, Follow Me lesson', () => {
+  const TEXT = '# Ideas for Learning\n\n@ Moses 1\n\n## A heading\n\nFirst paragraph here.\n\nSecond paragraph here.\n\n- a list item\n- another item';
+  const WEEKLY = { id: 'C1', kind: 'comefollowme', title: '“Week 1”', series: 'Come, Follow Me: Old Testament 2026', reference: 'Moses 1', body: TEXT, minutes: 6, active: true, sort_order: 70010, pauses: [], thumbnail_url: null, guide_line: null, min_seconds: null, one_time: false, week_start: '2026-01-05', week_end: '2026-01-11' };
+  const dates = () => [field('Week begins'), field('Week ends')].map((e) => e.value);
+
+  it('has the dates of its week, which other lessons do not', async () => {
+    await render([WEEKLY]);
+    expect(dates()).toEqual(['2026-01-05', '2026-01-11']);
+    expect(field('Week begins').type).toBe('date');
+    await mounted.unmount(); mounted = null; document.body.innerHTML = '';
+    await render([VERSE]);
+    expect(() => field('Week begins')).toThrow(/no field/);
+  });
+
+  it('shows the dates for a new lesson as soon as the type is chosen', async () => {
+    await render([], { id: null, initialKind: 'scripture' });
+    expect(() => field('Week begins')).toThrow(/no field/);
+    await setVal(field('Type'), 'comefollowme');
+    expect(dates()).toEqual(['', '']);
+  });
+
+  it('saves a changed week, and nothing else changes with it', async () => {
+    await render([WEEKLY]);
+    await setVal(field('Week begins'), '2026-01-12');
+    await setVal(field('Week ends'), '2026-01-18');
+    await act(() => btn('Save changes').click()); await act(() => tick(40));
+    expect(row('C1')).toMatchObject({ week_start: '2026-01-12', week_end: '2026-01-18', body: TEXT, kind: 'comefollowme', title: '“Week 1”' });
+  });
+
+  it('will not save a week that ends before it begins, and says so', async () => {
+    await render([WEEKLY]);
+    await setVal(field('Week begins'), '2026-02-01');
+    await act(() => btn('Save changes').click()); await act(() => tick(40));
+    expect(document.body.textContent).toContain('The week cannot end before it begins.');
+    expect(writes('update')).toHaveLength(0);
+  });
+
+  it('can be saved as a draft with no week, but is held back from students until it has one', async () => {
+    await render([{ ...WEEKLY, week_start: null, week_end: null, active: false }]);
+    expect(document.body.textContent).toContain('Cannot be shown to students yet: it needs the dates of its week.');
+    expect(document.querySelector('label[aria-label="Shown to students"] input').disabled).toBe(true);
+    await setVal(field('Title'), '“Week 1” (edited)');
+    await act(() => btn('Save changes').click()); await act(() => tick(40));
+    expect(row('C1')).toMatchObject({ title: '“Week 1” (edited)', week_start: null, week_end: null, active: false });
+  });
+
+  it('keeps the dates off a lesson whose type is changed away from Come, Follow Me', async () => {
+    await render([WEEKLY]);
+    await setVal(field('Type'), 'talk');
+    await act(() => btn('Save changes').click()); await act(() => tick(40));
+    expect(row('C1')).toMatchObject({ kind: 'talk', week_start: null, week_end: null });
+  });
+
+  it('explains how to write headings, lists and notes, for this type only', async () => {
+    await render([WEEKLY]);
+    const help = document.querySelector('details.ls-markup');
+    expect(help.textContent).toContain('# A section');
+    expect(help.textContent).toContain('@ Moses 1');
+    expect(help.textContent).toContain('- one item');
+    expect(help.textContent).toContain('after paragraph N');
+    await mounted.unmount(); mounted = null; document.body.innerHTML = '';
+    await render([VERSE]);
+    expect(document.querySelector('details.ls-markup')).toBeNull();
+  });
+
+  it('counts what is read, not the marks or the headings', async () => {
+    await render([WEEKLY]);
+    const stats = [...document.querySelectorAll('.ls-help')].find((e) => /words ·/.test(e.textContent)).textContent;
+    expect(stats).toMatch(/^18 words · 3 paragraphs/);                                          // two paragraphs and a list
+  });
+
+  it('offers the questions in the right places: after what is read', async () => {
+    await render([WEEKLY]);
+    await act(() => btn('Add a question').click());
+    const at = document.querySelector('.ls-pause select, .ls-pause input');
+    expect(at).not.toBeNull();
+    expect(document.body.textContent).toContain('First paragraph here.');
+    expect(document.body.textContent).not.toContain('Ideas for Learning \u2014');
+  });
+
+  it('asks for the full time to read it, by default (a chapter asks for less)', async () => {
+    await render([{ ...WEEKLY, body: `${TEXT}\n\n${'A sentence that adds some words. '.repeat(100)}` }]);
+    const label = [...document.querySelectorAll('option')].find((o) => o.textContent.startsWith('Automatic')).textContent;
+    expect(label).toMatch(/about 3:\d\d/);                                                     // about 620 words: just over three minutes at 200 a minute
+    await mounted.unmount(); mounted = null; document.body.innerHTML = '';
+    await render([{ ...VERSE, kind: 'scripture', body: `${TEXT}\n\n${'A sentence that adds some words. '.repeat(100)}` }]);
+    expect([...document.querySelectorAll('option')].find((o) => o.textContent.startsWith('Automatic')).textContent).toMatch(/about 1:\d\d/);
+  });
+});
+
 describe('copy, delete and preview', () => {
   it('makes a hidden copy and opens it', async () => {
     await render([VIDEO]);

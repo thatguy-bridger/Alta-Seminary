@@ -5,6 +5,7 @@ import { thumbnailFor, paintingFor, paintingCredit } from '../../../makeup/thumb
 import { kindInfo, needsAttention } from '../../../makeup/lessonsModel.js';
 import { formatTimestamp } from '../../../makeup/transcript.js';
 import { byline } from '../../../makeup/byline.js';
+import { isCurrentWeek, todayLocal } from '../../../makeup/weeks.js';
 
 // One lesson as a card: its picture, its type, what it is, and the few things worth knowing at a glance.
 export function LessonCard({ lesson: l, onEdit, onToggle }) {
@@ -15,6 +16,7 @@ export function LessonCard({ lesson: l, onEdit, onToggle }) {
   const pauses = Array.isArray(l.pauses) ? l.pauses.length : 0;
   const tags = [
     l.duration_seconds ? formatTimestamp(l.duration_seconds) : `${l.minutes} min`,
+    isCurrentWeek(l, todayLocal()) && 'This week',
     l.one_time && 'Once per student',
     pauses > 0 && `${pauses} question${pauses > 1 ? 's' : ''}`,
     l.show_images && 'Pictures on',

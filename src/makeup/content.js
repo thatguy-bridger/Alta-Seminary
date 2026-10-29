@@ -2,6 +2,8 @@
 export const GROUPS = {
   read: { label: 'Read', kinds: ['scripture', 'lesson'], desc: 'A scripture and a short thought.', icon: '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>',
     listen: ['Look for a word that repeats.', 'Notice what the person is willing to do.', 'Ask: what does this promise?'] },
+  cfm: { label: 'Come, Follow Me', kinds: ['comefollowme'], desc: 'This week\'s lesson, in depth.', icon: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+    listen: ['Look for the question the lesson keeps asking.', 'Notice which scripture comes up again and again.', 'Ask: what is one thing I could try this week?'] },
   watch: { label: 'Watch', kinds: ['video'], desc: 'A short video.', icon: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5l5 2.5-5 2.5z"/>',
     listen: ['Watch for the moment a choice is made.', 'Notice how the people feel.', 'Ask: when have I felt that?'] },
   listen: { label: 'Listen', kinds: ['audio', 'podcast'], desc: 'Audio to close your eyes for.', icon: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/>',

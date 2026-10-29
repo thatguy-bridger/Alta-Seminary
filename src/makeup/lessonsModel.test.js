@@ -4,6 +4,7 @@ import {
   blankLesson, draftFromRow, validateLesson, rowFromDraft, isDirty, parseLength, NO_COLLECTION,
 } from './lessonsModel.js';
 import { parseTranscript, segmentsToVtt } from './transcript.js';
+import { byline } from './byline.js';
 
 const L = (over = {}) => ({ id: over.id || Math.random().toString(36).slice(2), kind: 'scripture', title: 'A', series: 'Book of Mormon', active: true, sort_order: 0, body_words: 300, transcript_lines: 0, ...over });
 const LIB = [
@@ -21,7 +22,7 @@ describe('categories', () => {
     const tabs = typeTabs(LIB);
     expect(tabs.map((t) => t.label)).toEqual(['All', 'Scripture', 'Conference talk', 'Video', 'Proclamation']);
     expect(tabs.map((t) => t.count)).toEqual([10, 4, 3, 2, 1]);
-    expect(KINDS.map((k) => k.value)).toEqual(['scripture', 'talk', 'video', 'audio', 'proclamation', 'lesson', 'podcast']);
+    expect(KINDS.map((k) => k.value)).toEqual(['scripture', 'comefollowme', 'talk', 'video', 'audio', 'proclamation', 'lesson', 'podcast']);
     expect(kindInfo('nope').label).toBe('nope');
     expect(isTextKind('talk')).toBe(true);
     expect(isTextKind('video')).toBe(false);
@@ -174,5 +175,96 @@ describe('transcripts as text', () => {
     expect(back.errors).toEqual([]);
     expect(back.segments.map((s) => [s.start, s.end, s.text])).toEqual(segs.map((s) => [s.start, s.end, s.text]));
     expect(segmentsToVtt([])).toBe('WEBVTT\n\n\n');
+  });
+});
+
+describe('Come, Follow Me lessons', () => {
+  const week = (id, n, start, end, over = {}) => L({ id, kind: 'comefollowme', title: `“Week ${n}”`, reference: `Ref ${n}`, series: 'Come, Follow Me: Old Testament 2026', sort_order: 70000 + n * 10, week_start: start, week_end: end, ...over });
+  const WEEKS = [week('c3', 3, '2026-01-19', '2026-01-25'), week('c1', 1, '2026-01-05', '2026-01-11'), week('c2', 2, '2026-01-12', '2026-01-18')];
+  const draft = (over = {}) => ({ ...blankLesson('comefollowme'), title: 'Week 1', body: 'A paragraph.\n\nAnother paragraph.', week_start: '2026-01-05', week_end: '2026-01-11', ...over });
+
+  it('is a type of its own, read as text', () => {
+    expect(kindInfo('comefollowme')).toMatchObject({ label: 'Come, Follow Me', plural: 'Come, Follow Me' });
+    expect(isTextKind('comefollowme')).toBe(true);
+    expect(typeTabs([...LIB, ...WEEKS]).map((t) => t.label)).toEqual(['All', 'Scripture', 'Come, Follow Me', 'Conference talk', 'Video', 'Proclamation']);
+    expect(typeTabs(WEEKS).find((t) => t.value === 'comefollowme').count).toBe(3);
+  });
+
+  it('lists the weeks in order within their course', () => {
+    const [section] = sectionsFor(WEEKS);
+    expect(section).toMatchObject({ kind: 'comefollowme', name: 'Come, Follow Me: Old Testament 2026' });
+    expect(section.lessons.map((l) => l.id)).toEqual(['c1', 'c2', 'c3']);
+  });
+
+  it('puts the newest course first, like the conferences', () => {
+    const names = ['Come, Follow Me: Old Testament 2026', 'Come, Follow Me: New Testament 2027', 'Come, Follow Me: Book of Mormon 2028'];
+    expect([...names].sort(compareCollections)).toEqual(['Come, Follow Me: Book of Mormon 2028', 'Come, Follow Me: New Testament 2027', 'Come, Follow Me: Old Testament 2026']);
+    expect(['Come, Follow Me: Old Testament 2026', NO_COLLECTION].sort(compareCollections)).toEqual(['Come, Follow Me: Old Testament 2026', NO_COLLECTION]);
+    expect(['Old Testament', 'Come, Follow Me: Old Testament 2026'].sort(compareCollections)).toEqual(['Old Testament', 'Come, Follow Me: Old Testament 2026']);   // the standard works keep their place
+  });
+
+  it('is found by its week, as well as by its words', () => {
+    expect(filterLessons(WEEKS, { q: 'january 12' }).map((l) => l.id)).toEqual(['c2']);
+    expect(filterLessons(WEEKS, { q: 'JANUARY 5–11' }).map((l) => l.id)).toEqual(['c1']);
+    expect(filterLessons(WEEKS, { q: 'week 3' }).map((l) => l.id)).toEqual(['c3']);
+    expect(filterLessons(WEEKS, { q: 'come, follow me' })).toHaveLength(3);
+    expect(filterLessons([...WEEKS, L({ id: 'x' })], { q: 'january' })).toHaveLength(3);                // the week of a lesson that is not a week is not searched
+  });
+
+  it('needs its week to be shown', () => {
+    expect(needsAttention(week('a', 1, '2026-01-05', '2026-01-11'))).toEqual([]);
+    expect(needsAttention(week('a', 1, null, null))).toEqual(['Needs its week']);
+    expect(needsAttention(week('a', 1, '2026-01-11', '2026-01-05'))).toEqual(['Needs its week']);       // ends before it begins
+    expect(needsAttention(week('a', 1, '2026-01-05', '2026-01-11', { body_words: 0 }))).toEqual(['Needs text']);
+    expect(needsAttention(L({ kind: 'scripture', week_start: null, week_end: null }))).toEqual([]);     // other lessons are not weeks
+  });
+
+  it('says which week it is for under its title', () => {
+    expect(byline(WEEKS[1])).toBe('January 5–11 · Ref 1');
+    expect(byline({ ...WEEKS[1], reference: '' })).toBe('January 5–11');
+    expect(byline(L({ author: 'Elder Test', reference: 'Elder Test, April 2026' }))).toBe('Elder Test, April 2026');          // others unchanged
+  });
+
+  it('holds its dates in the editor and saves them back', () => {
+    const d = draftFromRow({ ...week('c1', 1, '2026-01-05', '2026-01-11'), body: 'x', pauses: [] });
+    expect(d).toMatchObject({ week_start: '2026-01-05', week_end: '2026-01-11' });
+    expect(rowFromDraft(d)).toMatchObject({ kind: 'comefollowme', week_start: '2026-01-05', week_end: '2026-01-11' });
+    expect(draftFromRow({ ...week('c1', 1, null, null), body: 'x', pauses: [] })).toMatchObject({ week_start: '', week_end: '' });
+    expect(blankLesson('comefollowme')).toMatchObject({ week_start: '', week_end: '' });
+  });
+
+  it('does not keep dates on a lesson that is not a week', () => {
+    const d = { ...draft(), kind: 'scripture' };
+    expect(rowFromDraft(d)).toMatchObject({ week_start: null, week_end: null });
+    expect(rowFromDraft({ ...draft(), week_start: '', week_end: '' })).toMatchObject({ week_start: null, week_end: null });
+  });
+
+  it('needs both dates, real dates, and an end that is not before the start', () => {
+    expect(validateLesson(draft()).ok).toBe(true);
+    expect(validateLesson(draft()).canShow).toBe(true);
+    const missing = validateLesson(draft({ week_start: '', week_end: '' }));
+    expect(missing.ok).toBe(true);                                                              // it can be saved as a draft...
+    expect(missing.canShow).toBe(false);                                                        // ...but not shown
+    expect(missing.showBlockers).toContain('it needs the dates of its week');
+    expect(validateLesson(draft({ week_end: '' })).errors.week).toMatch(/both dates/);
+    expect(validateLesson(draft({ week_start: '2026-02-30' })).errors.week).toMatch(/both dates/);
+    expect(validateLesson(draft({ week_start: '5 January' })).errors.week).toMatch(/both dates/);
+    expect(validateLesson(draft({ week_start: '2026-01-11', week_end: '2026-01-05' })).errors.week).toMatch(/cannot end before it begins/);
+    expect(validateLesson(draft({ week_start: '2026-01-05', week_end: '2026-01-05' })).ok).toBe(true);
+  });
+
+  it('is never asked for dates when it is not a Come, Follow Me lesson', () => {
+    const v = validateLesson({ ...blankLesson('scripture'), title: 'Alma 5', body: 'Words.', week_start: 'rubbish', week_end: '' });
+    expect(v.errors.week).toBeUndefined();
+    expect(v.canShow).toBe(true);
+  });
+
+  it('puts questions after what is read, not after a heading', () => {
+    const body = '# Section\n\n@ Moses 1\n\n## Heading\n\nFirst.\n\nSecond.\n\n- a\n- b';
+    const at = (n) => validateLesson(draft({ body, pauses: [{ at: String(n), question: 'Why?' }] })).errors.pauses;
+    expect(at(3)).toBeUndefined();                                                              // three things are read: two paragraphs and a list
+    expect(at(4)).toMatch(/paragraph that exists \(1 to 3\)/);
+    const plain = validateLesson({ ...draft({ body, pauses: [{ at: '4', question: 'Why?' }] }), kind: 'talk' });
+    expect(plain.errors.pauses).toBeUndefined();                                                // the same text as a talk is six plain paragraphs
   });
 });

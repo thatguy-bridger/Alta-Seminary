@@ -1,5 +1,6 @@
 import { wordCount } from './journey.js';
 import { AV_KINDS } from './content.js';
+import { isStructured, readableUnits } from './lessonBlocks.js';
 
 // Pause questions: a question that appears at a chosen moment of a lesson, and whose short answer goes to the teacher.
 // For video and audio the moment is a time in seconds; for text it is "after paragraph N" (counting from 1).
@@ -7,7 +8,9 @@ export const PAUSE_MIN_WORDS = 3;     // a short answer, not a single word
 export const PAUSE_MAX = 6;           // per lesson: a pause should be a pause, not a quiz
 
 // The paragraphs of a lesson's text. Talks have blank lines between paragraphs; a scripture block may only have line breaks.
-export function splitParagraphs(body) {
+// A structured lesson (Come, Follow Me) counts what is read, not its headings: see lessonBlocks.js.
+export function splitParagraphs(body, kind) {
+  if (isStructured(kind)) return readableUnits(body);
   const t = String(body || '').replace(/\r/g, '').trim();
   if (!t) return [];
   const blocks = t.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);

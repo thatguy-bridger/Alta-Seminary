@@ -21,6 +21,8 @@ import { VoiceAnswer } from './VoiceAnswer.jsx';
 import { splitParagraphs, cleanPauses, nextDuePause, allAnswered, pauseKey, pauseWhere, answersPayload, PAUSE_MIN_WORDS } from './pauses.js';
 import { thumbnailFor, paintingFor, paintingCredit } from './thumbnails.js';
 import { byline } from './byline.js';
+import { isStructured, parseBlocks, readableText } from './lessonBlocks.js';
+import { chooseWeeks, weekOptions, todayLocal } from './weeks.js';
 import { glideTo, stopGlide, prefersReducedMotion } from './glide.js';
 import { speechSupported } from './useSpeech.js';
 import { NotesButton, NotesPanel, takeNotesHint } from './Notes.jsx';
@@ -219,9 +221,11 @@ function PauseCard({ id, question, where, saved, draft = '', onDraft, onSave, fi
 /* ---------- learning: reading, and video/audio with a live transcript ---------- */
 function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, drafts = {}, onDraft = () => {}, startSeconds = 0, fieldProps }) {
   const text = src.body || '';
-  const paras = splitParagraphs(text);
+  const structured = isStructured(src.kind);
+  const paras = splitParagraphs(text, src.kind);
   const pauses = cleanPauses(src.pauses, { text: true, paragraphs: paras.length });
-  const auto = Math.max(20, Math.ceil((wordCount(text) / 200) * 60 * 0.6));
+  // How long to stay: a chapter asks for 60% of the time it takes to read; a Come, Follow Me lesson, which is read in depth and has questions to think through, asks for all of it.
+  const auto = Math.max(20, Math.ceil((wordCount(structured ? readableText(text) : text) / 200) * 60 * (structured ? 1 : 0.6)));
   const need = Number.isFinite(src.min_seconds) ? src.min_seconds : auto;   // an admin can set the time for a lesson
   const [t, setT] = React.useState(startSeconds);
   React.useEffect(() => { const id = setInterval(() => setT((x) => x + 1), 1000); return () => clearInterval(id); }, []);
@@ -229,6 +233,43 @@ function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, dra
   const answered = allAnswered(src.id, pauses, answers);
   const done = timed && answered;
   React.useEffect(() => { onSeconds(t); if (done) onDone(true); }, [t, done]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A structured lesson: its blocks in order, with each question right after the block it belongs to (headings go with what follows).
+  if (structured) {
+    const blocks = parseBlocks(text);
+    const groups = [];
+    let run = [];
+    for (const blk of blocks) {
+      run.push(blk);
+      if (blk.unit !== null && pauses.some((p) => p.at === blk.unit)) { groups.push({ blocks: run, after: blk.unit }); run = []; }
+    }
+    if (run.length) groups.push({ blocks: run, after: null });
+    const show = (blk, i) => {
+      if (blk.type === 'section') return <h3 key={i} className="mw-sec">{blk.text}</h3>;
+      if (blk.type === 'kicker') return <div key={i} className="ref">{blk.text}</div>;
+      if (blk.type === 'heading') return <h4 key={i} className="mw-subhead">{blk.text}</h4>;
+      if (blk.type === 'list') return <ul key={i} className="mw-list">{blk.items.map((it, k) => <li key={k}>{it}</li>)}</ul>;
+      if (blk.type === 'note') return <p key={i} className="mw-note">{blk.text}</p>;
+      return <p key={i}>{blk.text}</p>;
+    };
+    return (
+      <>
+        <div className="mw-readwrap">
+          {groups.length === 0 && <div className="mw-reader struct"><p>This lesson has no text yet.</p></div>}
+          {groups.map((g, gi) => (
+            <React.Fragment key={gi}>
+              <div className="mw-reader struct" onCopy={(e) => e.preventDefault()} onContextMenu={(e) => e.preventDefault()}>{g.blocks.map(show)}</div>
+              {g.after !== null && pauses.filter((p) => p.at === g.after).map((p) => {
+                const key = pauseKey(src.id, p);
+                return <PauseCard key={key} id={key} question={p.question} where={pauseWhere(true, p.at, formatTimestamp)} saved={answers[key]} draft={drafts[key]} onDraft={(txt) => onDraft(key, txt)} onSave={(txt) => { onAnswer(key, txt); onDraft(key, ''); }} fieldProps={fieldProps} actionLabel="Save my answer" />;
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+        <div className="mw-stay"><span>{done ? 'Thank you for staying with it' : timed && !answered ? 'Answer the question above to continue.' : 'Read slowly. We will wait with you.'}</span><div className="mw-meter"><b style={{ width: Math.min(100, (t / Math.max(need, 1)) * 100) + '%' }} /></div></div>
+      </>
+    );
+  }
 
   // The text in pieces, with each question right after the paragraph it belongs to.
   const sep = text.trim().split(/\n{2,}/).filter(Boolean).length > 1 ? '\n\n' : '\n';
@@ -395,8 +436,9 @@ function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipE
 }
 
 /* ---------- the journey ---------- */
-export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, phone = false, testMode = false, full = false, persist = false, startAtLesson = '' }) {
+export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, phone = false, testMode = false, full = false, persist = false, startAtLesson = '', today = '' }) {
   const stageRef = React.useRef(null);
+  const day = today || todayLocal();                                          // which Come, Follow Me week is "this week"
   // Only the student page keeps a student's place (on their own device); previews and tests always start clean.
   const store = React.useMemo(() => { if (!persist) return null; try { return window.localStorage; } catch { return null; } }, [persist]);
   const [restored] = React.useState(() => (store ? readProgress(store, { classes, sources }) : null));
@@ -519,7 +561,10 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   // choose a specific source for each pick, avoiding repeats within a journey when there is a choice
   const resolvePicks = (picks) => {
     const used = new Set();
+    const weeks = chooseWeeks(sources, picks.filter((g) => g === 'cfm').length, { day, weekId: S.cfmWeek });
+    let w = 0;
     return picks.map((g) => {
+      if (g === 'cfm') return weeks[w++];
       const pool = sources.filter((x) => groupOf(x.kind) === g);
       const fresh = pool.filter((x) => !used.has(x.id));
       const list = fresh.length ? fresh : pool;
@@ -597,8 +642,18 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   })();
 
   // Do these picks give the lessons they already have? Then going on keeps those lessons, and everything done in them.
-  const sameChoice = (picks) => picks.length > 0 && S.sourceIds.length === picks.length && S.sourceIds.every((id, i) => groupOf(sources.find((x) => x.id === id)?.kind) === picks[i]);
-  const confirmPicks = (picks) => advance(sameChoice(picks) ? {} : { sourceIds: resolvePicks(picks), learned: false, learnIndex: 0 });
+  const sameChoice = (picks) => {
+    if (!(picks.length > 0 && S.sourceIds.length === picks.length)) return false;
+    const weeks = chooseWeeks(sources, picks.filter((g) => g === 'cfm').length, { day, weekId: S.cfmWeek });   // a different week is a different choice
+    let w = 0;
+    return S.sourceIds.every((id, i) => (picks[i] === 'cfm' ? id === weeks[w++] : groupOf(sources.find((x) => x.id === id)?.kind) === picks[i]));
+  };
+  const confirmPicks = (picks) => {
+    if (sameChoice(picks)) { advance(); return; }
+    const ids = resolvePicks(picks);
+    const firstWeek = ids[picks.indexOf('cfm')];
+    advance({ sourceIds: ids, learned: false, learnIndex: 0, ...(firstWeek ? { cfmWeek: firstWeek } : {}) });   // remembers the week, so it does not shift if they come back tomorrow
+  };
   const picking = React.useRef(false);
   const pick = (g) => {
     sound.play('tick');
@@ -611,6 +666,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
     if (S.picks.length < n) setS((s) => (s.picks.length < n ? { ...s, picks: [...s.picks, g] } : s)); else setToast('All picked. Tap a number to take one off.');
   };
   const surprise = () => { sound.play('tick'); setS((s) => { const picks = [...s.picks]; while (picks.length < n) picks.push(available[Math.floor(Math.random() * available.length)]); return { ...s, picks }; }); };
+  const weekChoices = weekOptions(sources, day);
   const chooseScreen = (
     <>
       <p className="mw-eyebrow">Choose how to learn</p>
@@ -629,6 +685,14 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
             </div>
           );
         })}
+        {available.includes('cfm') && weekChoices.length > 0 && (
+          <label className="mw-week">
+            <span>Which week of Come, Follow Me?</span>
+            <select value={weekChoices.some((o) => o.id === S.cfmWeek) ? S.cfmWeek : weekChoices[0].id} onChange={(e) => upd({ cfmWeek: e.target.value })}>
+              {weekChoices.map((o) => <option key={o.id} value={o.id}>{o.label}{o.reference ? ` · ${o.reference}` : ''}</option>)}
+            </select>
+          </label>
+        )}
         {available.length > 1 && n > 1 && (
           <div className="mw-cardwrap"><button className="mw-opt" onClick={surprise}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /></svg><b>Surprise me</b><span>We fill the rest.</span></button></div>
         )}

@@ -26,7 +26,7 @@ export function initialState(over = {}) {
   return {
     step: 0, learnIndex: 0, name: '', cls: '', days: 0, sourceIds: [],
     mode: 'text', truth: '', where: '', whereSeconds: null, understanding: '', text: '', voiceSeconds: 0, inv: '', commit: '', bless: '',
-    settled: false, learned: false,
+    settled: false, learned: false, cfmWeek: '',
     stats: { pastes: 0, jumps: 0, activeMs: 0, typedChars: 0, leaves: 0, watchedSeconds: 0, sourceSeconds: 0 },
     ...over,
   };

@@ -9,6 +9,7 @@ import { withBase } from '../../../lib/url.js';
 import { GROUPS, groupOf } from '../../../makeup/content.js';
 import { mediaKind, mediaLabel } from '../../../makeup/media.js';
 import { splitParagraphs } from '../../../makeup/pauses.js';
+import { isStructured, readableText } from '../../../makeup/lessonBlocks.js';
 import { thumbnailFor, paintingFor } from '../../../makeup/thumbnails.js';
 import { byline } from '../../../makeup/byline.js';
 import { parseTranscript, formatTimestamp } from '../../../makeup/transcript.js';
@@ -58,11 +59,11 @@ export function LessonEditor({ id, initialKind = 'scripture', onClose, onOpen, o
   const dirty = isDirty(draft, orig);
   const set = (patch) => { setDraft((d) => ({ ...d, ...patch })); setJustSaved(false); };
   const err = (field) => (tried || dirty ? v.errors[field] : undefined);
-  const paragraphs = text ? splitParagraphs(draft.body) : [];
-  const words = text ? (draft.body.trim().match(/\S+/g) || []).length : 0;
+  const paragraphs = text ? splitParagraphs(draft.body, draft.kind) : [];
+  const words = text ? ((isStructured(draft.kind) ? readableText(draft.body) : draft.body).trim().match(/\S+/g) || []).length : 0;
   const lengthSeconds = text ? 0 : parseLength(draft.duration_text) || 0;
   const liveSegments = !text && draft.transcript_raw !== null ? parseTranscript(draft.transcript_raw).segments : segments;
-  const autoSeconds = text ? Math.max(20, Math.ceil((words / 200) * 60 * 0.6)) : Math.round(lengthSeconds * 0.75);
+  const autoSeconds = text ? Math.max(20, Math.ceil((words / 200) * 60 * (isStructured(draft.kind) ? 1 : 0.6))) : Math.round(lengthSeconds * 0.75);
   const genericLine = GROUPS[groupOf(draft.kind)]?.listen?.[0] || '';
   const t = thumbnailFor(draft);
 
@@ -138,6 +139,13 @@ export function LessonEditor({ id, initialKind = 'scripture', onClose, onOpen, o
           <Input label="Author or speaker" value={draft.author} onChange={(e) => set({ author: e.target.value })} />
           <Input label="Reference" value={draft.reference} onChange={(e) => set({ reference: e.target.value })} placeholder="1 Nephi 3:7" />
           <Input label="Minutes it takes" type="number" value={draft.minutes} onChange={(e) => set({ minutes: e.target.value })} error={err('minutes')} />
+          {draft.kind === 'comefollowme' && (
+            <>
+              <Input label="Week begins" type="date" value={draft.week_start} onChange={(e) => set({ week_start: e.target.value })} error={err('week')} />
+              <Input label="Week ends" type="date" value={draft.week_end} onChange={(e) => set({ week_end: e.target.value })} />
+              <p className="ls-help wide">The student page shows the week that today falls in, and lets a student choose an earlier week they missed. Weeks that have not begun are never offered.</p>
+            </>
+          )}
           <label className="ls-lbl wide">Short description
             <textarea className="input" rows={2} value={draft.description} onChange={(e) => set({ description: e.target.value })} placeholder="One or two sentences about this lesson." />
           </label>
@@ -166,9 +174,24 @@ export function LessonEditor({ id, initialKind = 'scripture', onClose, onOpen, o
         {text ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             <label className="ls-lbl">Text
-              <textarea className="input ls-body-text" rows={16} value={draft.body} onChange={(e) => set({ body: e.target.value })} placeholder="Paste or write the lesson text. Leave a blank line between paragraphs." />
+              <textarea className="input ls-body-text" rows={16} value={draft.body} onChange={(e) => set({ body: e.target.value })} placeholder={isStructured(draft.kind) ? 'The lesson text. See the box below for how to write headings, lists and notes.' : 'Paste or write the lesson text. Leave a blank line between paragraphs.'} />
             </label>
             <p className="ls-help">{words} words · {paragraphs.length} paragraph{paragraphs.length === 1 ? '' : 's'} · about {Math.max(1, Math.round(words / 200))} min to read. {draft.kind === 'scripture' && !draft.body.trim() ? 'With no text, students are told to open their scriptures to the reference.' : ''}</p>
+            {isStructured(draft.kind) && (
+              <details className="ls-help ls-markup">
+                <summary>How to write headings, lists and notes</summary>
+                <p>Leave a blank line between blocks. The first characters of a block say what it is:</p>
+                <ul>
+                  <li><code># A section</code> a big heading</li>
+                  <li><code>@ Moses 1</code> a small label above the heading that follows it</li>
+                  <li><code>## A heading</code> a heading</li>
+                  <li><code>- one item</code> a list: start every line of the block with a dash and a space</li>
+                  <li><code>&gt; See also …</code> a note, such as a "see also" or a video to find in the Gospel Library</li>
+                  <li>anything else is a paragraph</li>
+                </ul>
+                <p>A question that pauses the student goes "after paragraph N". Paragraphs, lists and notes are counted; headings and labels are not, because they belong to what follows them.</p>
+              </details>
+            )}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>

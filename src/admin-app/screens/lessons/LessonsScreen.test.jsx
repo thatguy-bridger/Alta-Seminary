@@ -210,3 +210,47 @@ describe('the lessons page', () => {
     expect(document.body.textContent).toContain('No lessons yet');
   });
 });
+
+describe('Come, Follow Me on the lessons page', () => {
+  const week = (id, n, start, end, over = {}) => ({ id, kind: 'comefollowme', title: `“Week ${n}”`, series: 'Come, Follow Me: Old Testament 2026', reference: `Ref ${n}`, body: 'Words to read here and now.', minutes: 6, active: true, sort_order: 70000 + n * 10, week_start: start, week_end: end, ...over });
+  const WEEKS = [week('c3', 3, '2026-01-19', '2026-01-25'), week('c1', 1, '2026-01-05', '2026-01-11'), week('c2', 2, '2026-01-12', '2026-01-18')];
+
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(2026, 0, 14, 12)); });           // inside week 2
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('has a tab of its own, with its weeks in order and the week of each under its title', async () => {
+    await render([...SOURCES, ...WEEKS]);
+    expect(tab('Come, Follow Me')).toBeTruthy();
+    expect(tab('Come, Follow Me').textContent).toBe('Come, Follow Me 3');
+    await act(() => tab('Come, Follow Me').click());
+    expect(titles()).toEqual(['“Week 1”', '“Week 2”', '“Week 3”']);
+    expect(card('“Week 2”').querySelector('.ls-meta').textContent).toBe('January 12–18 · Ref 2');
+    expect(card('“Week 1”').querySelector('.ls-badge.type').textContent).toBe('Come, Follow Me');
+  });
+
+  it('marks the lesson for this week, and only that one', async () => {
+    await render(WEEKS);
+    const tags = (title) => [...card(title).querySelectorAll('.ls-tag')].map((t) => t.textContent);
+    expect(tags('“Week 2”')).toContain('This week');
+    expect(tags('“Week 1”')).not.toContain('This week');
+    expect(tags('“Week 3”')).not.toContain('This week');
+  });
+
+  it('finds a week by its dates', async () => {
+    await render(WEEKS);
+    await setVal(field('Search'), 'January 19');
+    expect(titles()).toEqual(['“Week 3”']);
+  });
+
+  it('says a lesson with no week needs one, and cannot be shown yet', async () => {
+    await render([week('c9', 9, null, null, { active: false })]);
+    expect([...card('“Week 9”').querySelectorAll('.ls-tag.warn')].map((t) => t.textContent)).toEqual(['Needs its week']);
+    expect(card('“Week 9”').querySelector('input[type="checkbox"]').disabled).toBe(true);
+  });
+
+  it('holds all of a course in one section, named for the course', async () => {
+    await render(WEEKS);
+    expect([...document.querySelectorAll('.ls-sechead')].map((h) => h.textContent)).toHaveLength(1);
+    expect(document.querySelector('.ls-sechead').textContent).toContain('Come, Follow Me: Old Testament 2026');
+  });
+});

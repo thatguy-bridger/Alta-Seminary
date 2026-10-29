@@ -3,12 +3,15 @@ import { mediaKind } from './media.js';
 import { cleanPauses, splitParagraphs, PAUSE_MAX } from './pauses.js';
 import { isSafeImageUrl } from './thumbnails.js';
 import { parseTranscript, checkTranscript, parseTime, formatTimestamp } from './transcript.js';
+import { hasWeek, weekLabel, parseDay, dayNumber } from './weeks.js';
+import { readableText, isStructured } from './lessonBlocks.js';
 
 // How the admin Lessons page thinks about lessons: types and collections, what to show, what needs attention,
 // and what a lesson must have before students can see it. Pure functions, so they can be tested.
 
 export const KINDS = [
   { value: 'scripture', label: 'Scripture', plural: 'Scriptures', blurb: 'Chapters and passages, read in the app.' },
+  { value: 'comefollowme', label: 'Come, Follow Me', plural: 'Come, Follow Me', blurb: 'The Church\'s weekly lesson, in depth, by week.' },
   { value: 'talk', label: 'Conference talk', plural: 'Conference talks', blurb: 'The text of a talk, read in the app.' },
   { value: 'video', label: 'Video', plural: 'Videos', blurb: 'Watched, with a live transcript beside it.' },
   { value: 'audio', label: 'Audio', plural: 'Audio', blurb: 'Listened to, with a live transcript.' },
@@ -26,12 +29,15 @@ export const collectionOf = (l) => (l.series || '').trim() || NO_COLLECTION;
 const STANDARD_WORKS = ['Old Testament', 'New Testament', 'Book of Mormon', 'Doctrine and Covenants', 'Pearl of Great Price'];
 const MONTHS = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
 const conferenceRank = (name) => { const m = /^([A-Za-z]+)\s+(\d{4})/.exec(name); return m && MONTHS[m[1].toLowerCase()] ? Number(m[2]) * 12 + MONTHS[m[1].toLowerCase()] : -1; };
+// A Come, Follow Me course ("Come, Follow Me: Old Testament 2026") sorts by its year, newest first, like the conferences.
+const courseRank = (name) => { const m = /^Come, Follow Me\b.*?(\d{4})\s*$/.exec(name); return m ? Number(m[1]) * 12 + 12 : -1; };
+const rankOf = (name) => Math.max(conferenceRank(name), courseRank(name));
 
 // The standard works in their usual order, conferences newest first, then everything else alphabetically.
 export function compareCollections(a, b) {
   const ia = STANDARD_WORKS.indexOf(a), ib = STANDARD_WORKS.indexOf(b);
   if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-  const ra = conferenceRank(a), rb = conferenceRank(b);
+  const ra = rankOf(a), rb = rankOf(b);
   if (ra !== rb) return rb - ra;
   if (a === NO_COLLECTION) return 1;
   if (b === NO_COLLECTION) return -1;
@@ -47,6 +53,7 @@ export function needsAttention(l) {
     if (!l.transcript_lines) out.push('Needs a transcript');
     if (!l.duration_seconds) out.push('Needs a length');
   } else if (!l.body_words && !(l.kind === 'scripture' && (l.reference || '').trim())) out.push('Needs text');
+  if (l.kind === 'comefollowme' && !hasWeek(l)) out.push('Needs its week');
   return out;
 }
 
@@ -74,7 +81,7 @@ export function filterLessons(lessons, { kind = '', collection = '', status = ''
     if (status === 'shown' && !l.active) return false;
     if (status === 'hidden' && l.active) return false;
     if (status === 'attention' && !needsAttention(l).length) return false;
-    if (needle && ![l.title, l.reference, l.author, l.series, l.description, kindInfo(l.kind).label].some((f) => (f || '').toLowerCase().includes(needle))) return false;
+    if (needle && ![l.title, l.reference, l.author, l.series, l.description, kindInfo(l.kind).label, weekLabel(l)].some((f) => (f || '').toLowerCase().includes(needle))) return false;
     return true;
   });
 }
@@ -95,7 +102,7 @@ export function sectionsFor(lessons) {
 
 /* ---------- editing ---------- */
 export const blankLesson = (kind = 'scripture', over = {}) => ({
-  id: null, kind, title: '', description: '', reference: '', author: '', series: '', minutes: 6, one_time: false, active: false, show_images: false, sort_order: 0,
+  id: null, kind, title: '', description: '', reference: '', author: '', series: '', minutes: 6, one_time: false, active: false, show_images: false, sort_order: 0, week_start: '', week_end: '',
   body: '', embed_url: '', duration_text: '', thumbnail_url: '', guide_line: '', min_mode: 'auto', min_seconds: '', pauses: [], transcript_raw: null, transcript_lines: 0, origin_url: '', ...over,
 });
 
@@ -104,7 +111,7 @@ export function draftFromRow(row, existingLines = 0) {
   const text = isTextKind(row.kind);
   return {
     id: row.id, kind: row.kind, title: row.title || '', description: row.description || '', reference: row.reference || '', author: row.author || '', series: row.series || '',
-    minutes: row.minutes ?? 6, one_time: !!row.one_time, active: !!row.active, show_images: !!row.show_images, sort_order: row.sort_order ?? 0, body: row.body || '', embed_url: row.embed_url || '',
+    minutes: row.minutes ?? 6, one_time: !!row.one_time, active: !!row.active, show_images: !!row.show_images, sort_order: row.sort_order ?? 0, week_start: row.week_start || '', week_end: row.week_end || '', body: row.body || '', embed_url: row.embed_url || '',
     duration_text: row.duration_seconds ? formatTimestamp(row.duration_seconds) : '', thumbnail_url: row.thumbnail_url || '', guide_line: row.guide_line || '',
     min_mode: Number.isFinite(row.min_seconds) ? 'custom' : 'auto', min_seconds: Number.isFinite(row.min_seconds) ? String(row.min_seconds) : '',
     pauses: (Array.isArray(row.pauses) ? row.pauses : []).map((p) => ({ at: text ? String(p.at) : formatTimestamp(p.at), question: p.question || '' })),
@@ -142,8 +149,16 @@ export function validateLesson(d) {
     if (!length) showBlockers.push('it needs a length');
   } else if (!d.body.trim() && !(d.kind === 'scripture' && d.reference.trim())) showBlockers.push('it needs text');
 
+  // a Come, Follow Me lesson belongs to a week: both dates, and not ending before it begins
+  if (d.kind === 'comefollowme') {
+    const a = parseDay(d.week_start), b = parseDay(d.week_end);
+    if ((d.week_start || d.week_end) && !(a && b)) errors.week = 'Give both dates of the week, like 2026-01-05 and 2026-01-11.';
+    else if (a && b && dayNumber(d.week_end) < dayNumber(d.week_start)) errors.week = 'The week cannot end before it begins.';
+    if (!(a && b)) showBlockers.push('it needs the dates of its week');
+  }
+
   // pause questions
-  const paragraphs = text ? splitParagraphs(d.body).length : 0;
+  const paragraphs = text ? splitParagraphs(d.body, d.kind).length : 0;
   const rows = d.pauses.filter((p) => p.question.trim() || String(p.at).trim()).map((p) => ({ question: p.question.trim(), at: parseAt(p.at, text) }));
   let pauseProblem = '';
   if (rows.length > PAUSE_MAX) pauseProblem = `A lesson can have up to ${PAUSE_MAX} questions.`;
@@ -174,6 +189,7 @@ export function rowFromDraft(d, { transcript } = {}) {
     duration_seconds: length ? Math.round(length) : null, thumbnail_url: d.thumbnail_url.trim() || null, guide_line: d.guide_line.trim() || null,
     min_seconds: d.min_mode === 'custom' ? Math.round(Number(d.min_seconds)) : null, pauses: v.pauses, sort_order: d.sort_order ?? 0,
     origin_url: d.origin_url.trim() || null,
+    week_start: d.kind === 'comefollowme' ? d.week_start.trim() || null : null, week_end: d.kind === 'comefollowme' ? d.week_end.trim() || null : null,
   };
   if (transcript !== undefined) row.transcript = transcript;
   return row;

@@ -50,7 +50,7 @@ function cleanState(raw) {
     mode: r.mode === 'voice' ? 'voice' : 'text',
     truth: text(r.truth), where: text(r.where, 400), whereSeconds: Number.isFinite(r.whereSeconds) && r.whereSeconds >= 0 ? r.whereSeconds : null,
     understanding: text(r.understanding), text: text(r.text), inv: text(r.inv, 100), commit: text(r.commit), bless: text(r.bless),
-    settled: r.settled === true, learned: r.learned === true,
+    settled: r.settled === true, learned: r.learned === true, cfmWeek: text(r.cfmWeek, 80),
     sourceIds: strings(r.sourceIds, 8), picks: strings(r.picks, 8),
   };
 }
@@ -94,6 +94,7 @@ export function readProgress(storage, { now = Date.now(), classes = [], sources 
   if (S.cls && !classes.some((c) => c.id === S.cls)) S.cls = '';
   if (!S.cls && S.step > 0) S.step = 0;                                      // their class is gone: choose again
   const known = new Set(sources.map((x) => x.id));
+  if (S.cfmWeek && !known.has(S.cfmWeek)) S.cfmWeek = '';                      // that week is gone: back to this week
   const chooseAgain = () => { S.sourceIds = []; S.picks = []; S.learned = false; S.learnIndex = 0; if (S.step > STEPS.indexOf('choose')) S.step = STEPS.indexOf('choose'); };
   if (S.sourceIds.some((id) => !known.has(id))) chooseAgain();               // a lesson was removed: choose again, keep the rest
   else if (S.sourceIds.length && S.sourceIds.length !== sourcesNeeded(S.days)) chooseAgain();
