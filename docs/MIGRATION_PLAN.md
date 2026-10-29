@@ -16,7 +16,7 @@
 | 6 | Move the secrets and email | New person | 30 min |
 | 7 | Move the admin team | Both | 15 min |
 | 8 | Check everything works | Both | 30 min |
-| 9 | Replace the old Google site at altaseminary.com with the new site | New person, with whoever controls the domain | 1 hour, then wait up to a day |
+| 9 | Replace the old Google site at altaseminary.com with the new site | Domain owner (the DNS change) with the new person (Vercel) | 1 hour, then wait up to a day |
 | 10 | Hand over and clean up | Current owner | 30 min |
 
 Do steps 3, 4 and 5 on a quiet day (not a day students need Makeup Work). Do them in this order, and check the site after each one.
@@ -32,8 +32,8 @@ Do steps 3, 4 and 5 on a quiet day (not a day students need Makeup Work). Do the
 | **The data host** | Supabase project "Alta Seminary Web App" (a free account that also holds one unrelated project, "Portfolio Storage") | Holds all content, the admin logins (4), 3 file storage areas (about 115 MB), the scheduled jobs and the two small server functions. |
 | **Teacher email** | Not set up yet (Resend) | Emails a teacher when a student finishes Makeup Work. Optional: submissions are saved without it. |
 | **Analytics** | A Google Analytics ID in the site settings | Optional visit counts. |
-| **The public address** | `altaseminary.com` was set up through Google: a Google Sites page, on a domain registered through Google Domains (which Google sold to Squarespace in 2023, so it is probably at Squarespace Domains now). It still shows the **old** site. The new site's only address today is the Vercel one. | What people type and what students are sent. |
-| **The domain's records (DNS)** | At the domain's registrar | Say where the website goes, and where **email** goes if the domain has any. Changing the wrong record breaks email. |
+| **The public address** | `altaseminary.com` was set up through Google: a Google Sites page, on a domain registered through Google Domains (which Google sold to Squarespace in 2023, so it is probably at Squarespace Domains now). It still shows the **old** site. The new site's only address today is the Vercel one. The current owner has the Squarespace login and **keeps the registration** for now. | What people type and what students are sent. |
+| **The domain's records (DNS)** | At Squarespace Domains, under the current owner's login | Say where the website goes. Nobody uses email at this domain, so there are no email records to protect. |
 
 **Never hand over the whole Vercel or Supabase account.** Each also holds the current owner's other projects. Only move the Alta Seminary project.
 
@@ -91,7 +91,7 @@ The Church's text, talks and captions come from public Church addresses, and vid
 **New person.**
 
 - **Server function secrets** (Supabase, Edge Functions, Secrets). These moved with the project, but the new person should know them. `SITE_URL` (used by the admin invite emails) must be the site's public address. If it is wrong, invite links go to the wrong place.
-- **Teacher email (optional, recommended).** Create a free Resend account, verify the sending address, then add two secrets in Supabase: `RESEND_API_KEY` and `MAKEUP_FROM` (for example `Alta Seminary <makeup@yourdomain.org>`). Then in the admin, Makeup Work, press "Send me a test email". Until this is done, submissions are saved and marked "Not emailed", and nothing is lost.
+- **Teacher email (optional, recommended).** Create a free Resend account and verify the sending address. Sending from an address at `altaseminary.com` is the most reliable choice: Resend then shows a few records (for a "send" subdomain) that the domain's owner adds in Squarespace DNS. They are *added alongside* the website records and do not replace any; do them after step 9 so the two changes never get mixed up. Then add two secrets in Supabase: `RESEND_API_KEY` and `MAKEUP_FROM` (for example `Alta Seminary <makeup@yourdomain.org>`). Then in the admin, Makeup Work, press "Send me a test email". Until this is done, submissions are saved and marked "Not emailed", and nothing is lost.
 - **Admin login emails.** Supabase's built-in sender is limited to a few emails an hour. Pointing Supabase at the same Resend account (Authentication, Emails, SMTP Settings) removes the limit.
 - **Supabase sign-in settings** (Authentication): public sign-up must stay **off**, and the Site URL and redirect list must contain the site's address.
 - Send the current owner's list of secrets (step 1) to the new person through a password manager or other secure channel, never a plain email.
@@ -117,27 +117,28 @@ The Church's text, talks and captions come from public Church addresses, and vid
 - [ ] Invite yourself as a new admin. The email arrives and its link opens the right site.
 
 ## 9. Replace the old Google site at altaseminary.com with the new site
-**New person, together with whoever controls the domain.** Do this **last**, after step 8 passes, on a quiet day.
+**The domain's current owner makes the DNS change; the new person adds the domain in Vercel.** Do this **last**, after step 8 passes, on a quiet day, with both people on a call or in the same room.
 
-Until this step, altaseminary.com keeps showing the old Google site, so nothing the public sees changes until the new site has been proven. After it, `altaseminary.com` is the one permanent address (it never changes hands when Vercel or Supabase accounts do).
+Until this step, altaseminary.com keeps showing the old Google site, so nothing the public sees changes until the new site has been proven. After it, `altaseminary.com` is the one permanent address. It never changes hands when Vercel or Supabase accounts do.
 
-- **Find out who controls the domain, and have them present.** It was set up through Google (Google Sites, and most likely Google Domains). Google sold Google Domains to Squarespace in 2023, so the domain is now probably at **Squarespace Domains** (sign in with the same Google account). It could instead be inside a Google Workspace account. A lookup at `lookup.icann.org` names the current registrar. Whoever can sign in there controls the domain.
-- **Write down every DNS record first** (screenshot or export). **Never delete or change records for email** (`MX`) **or for sender checks and verification** (`TXT`: SPF, DKIM, DMARC, Google verification). If the domain has Gmail or Google Workspace email, only the *website* records change.
+Decided: the domain is registered at **Squarespace Domains** (the new home of Google Domains) and the current owner has the login. Nobody uses email at the domain. Every old page simply goes to the new home page. The domain stays registered to its current owner for now.
+
+- **Who does what.** The current owner signs in at Squarespace Domains (`domains.squarespace.com`, with the Google account it was set up under) and makes the DNS changes. The new person adds the domain in Vercel and sends over the exact records Vercel asks for. The new person does not need the registrar login at all.
+- **Write down every DNS record first** (screenshot or export). Only the *website* records change. Leave every other record as it is, even ones you do not recognize (Squarespace and Google may have added some on their own). There is no email to protect here, but there is also nothing to gain by removing records.
 - **A day ahead, lower the time-to-live (TTL)** of the website records to about 5 minutes. The switch, and the way back, then take minutes instead of hours.
-- **Add the domain in Vercel** (the project, Settings, Domains): both `altaseminary.com` and `www.altaseminary.com`. Pick one as the main address and let the other redirect to it. Vercel shows exactly which records to add.
-- **Switch the website records** at the registrar's DNS page. For a Google Site the `www` record is typically a CNAME to Google's `ghs.googlehosted.com`, and the bare `altaseminary.com` is usually forwarded or pointed at Google. Replace those with the values Vercel shows. Wait for Vercel to say "Valid"; the padlock (HTTPS) is added automatically. This can take from minutes up to a day.
+- **The new person adds the domain in Vercel** (the project, Settings, Domains): both `altaseminary.com` and `www.altaseminary.com`. Pick one as the main address and let the other redirect to it. Vercel shows exactly which records to add.
+- **The owner switches the website records** in Squarespace (the domain, DNS Settings). For a Google Site the `www` record is typically a CNAME to Google's `ghs.googlehosted.com`, and the bare `altaseminary.com` is usually forwarded or pointed at Google. Replace those with the values Vercel shows. Wait for Vercel to say "Valid"; the padlock (HTTPS) is added automatically. This can take from minutes up to a day.
 - **Then let go of Google's side.** In the old Google Site (Settings, Custom domains), remove the domain mapping so Google stops claiming it. **Do not delete the old Google Site for 30 days.** It keeps working at its own `sites.google.com` address, as an emergency fallback and as a source for old content.
-- **Keep old links working.** Teachers and students have old addresses saved (the old site has pages such as `/make-up`). List the old pages that matter and the new page each should go to, and add them as redirects (in the repository's `vercel.json`, which is quick to change). Anything not listed goes to the new home page.
+- **Old pages need nothing built.** The new site already sends any address it does not have to the nearest real page, and to the home page when nothing is close. This was checked on the live site: `/make-up` and `/some/old/google/page` both land on the home page, and `/makeup-work/nonsense` lands on `/makeup-work`. So every old Google Site page arrives at the new home page, as decided.
 - **Update every place that names the address:** (1) Vercel `PUBLIC_SITE_URL`, then redeploy; (2) Supabase, Authentication, URL Configuration: Site URL and redirect list; (3) the Supabase server function secret `SITE_URL`; (4) `public/.well-known/security.txt` (two lines); (5) the fallback address in `astro.config.mjs`.
 - **Keep the old Vercel address working as a redirect** to altaseminary.com, and **tell the teachers the new Makeup Work link** (`altaseminary.com/makeup-work/start`).
 - **Check, on a phone and a computer:**
   - [ ] `altaseminary.com` and `www.altaseminary.com` both open the new site, with a padlock.
-  - [ ] An old page address (for example `/make-up`) lands on the right new page.
+  - [ ] An old page address (for example `/make-up`) lands on the new home page.
   - [ ] Makeup Work works from the new address, start to finish.
   - [ ] An admin invite email links to `altaseminary.com`, not the old address.
-  - [ ] If the domain has email: send a message to an address at the domain and from it. Both arrive.
-- **The way back:** if anything is wrong, put the website records back to the values written down at the start. With the short TTL the old site returns within minutes.
-- **Who owns the domain, and renewals.** Decide who holds the registration long-term. Moving it to the new person is a separate task (unlock the domain, get a transfer code or use the registrar's account-to-account transfer; registrars often block transfers for about 60 days after the owner's details change). Whoever owns it: turn on auto-renew with a card that works, and put the expiry date in two calendars. **An expired domain takes the website and any email down at once.**
+- **The way back:** if anything is wrong, the owner puts the website records back to the values written down at the start. With the short TTL the old site returns within minutes.
+- **The domain stays with its current owner for now.** That person keeps auto-renew on with a card that works, and writes the expiry date and who pays into the handover note. **The new site depends on this: an expired domain takes the website down at once.** Put the expiry date in two calendars. If the domain should move to the new person later, that is a separate task (unlock the domain, get a transfer code or use Squarespace's account-to-account transfer); registrars often block transfers for about 60 days after the owner's details change.
 
 ## 10. Hand over and clean up
 **Current owner.**
@@ -175,7 +176,7 @@ These were found by checking the live project. They are not needed by the websit
 | Vercel, Environment Variables | `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` | The data host's address and its public key (safe to be public). Required. |
 | Vercel | `PUBLIC_GA_MEASUREMENT_ID` | Google Analytics. Optional. |
 | Vercel | `PUBLIC_SITE_URL` | The public address (`https://altaseminary.com`) once step 9 is done. |
-| The domain's registrar and DNS | `altaseminary.com` records (website, and `MX`/`TXT` for email) and the auto-renew card | Where the address points. Email records must be left alone. |
+| Squarespace Domains (the domain's registrar and DNS) | The `altaseminary.com` website records, and the auto-renew card | Where the address points. Stays under the current owner's login for now. No email uses this domain. |
 | Google Sites | The custom-domain mapping on the old site | Removed in step 9, after the new site is live. |
 | Supabase, Edge Function secrets | `SITE_URL` | Used by the admin invite function for links in emails. |
 | Supabase, Edge Function secrets | `RESEND_API_KEY`, `MAKEUP_FROM` | Teacher email. Not set yet. |
