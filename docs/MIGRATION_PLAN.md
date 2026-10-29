@@ -16,7 +16,7 @@
 | 6 | Move the secrets and email | New person | 30 min |
 | 7 | Move the admin team | Both | 15 min |
 | 8 | Check everything works | Both | 30 min |
-| 9 | Give the site a permanent address | New person | 1 hour (optional, best done first) |
+| 9 | Replace the old Google site at altaseminary.com with the new site | New person, with whoever controls the domain | 1 hour, then wait up to a day |
 | 10 | Hand over and clean up | Current owner | 30 min |
 
 Do steps 3, 4 and 5 on a quiet day (not a day students need Makeup Work). Do them in this order, and check the site after each one.
@@ -32,7 +32,8 @@ Do steps 3, 4 and 5 on a quiet day (not a day students need Makeup Work). Do the
 | **The data host** | Supabase project "Alta Seminary Web App" (a free account that also holds one unrelated project, "Portfolio Storage") | Holds all content, the admin logins (4), 3 file storage areas (about 115 MB), the scheduled jobs and the two small server functions. |
 | **Teacher email** | Not set up yet (Resend) | Emails a teacher when a student finishes Makeup Work. Optional: submissions are saved without it. |
 | **Analytics** | A Google Analytics ID in the site settings | Optional visit counts. |
-| **The public address** | Only the Vercel one. There is no custom domain yet. | What people type and what students are sent. |
+| **The public address** | `altaseminary.com` was set up through Google: a Google Sites page, on a domain registered through Google Domains (which Google sold to Squarespace in 2023, so it is probably at Squarespace Domains now). It still shows the **old** site. The new site's only address today is the Vercel one. | What people type and what students are sent. |
+| **The domain's records (DNS)** | At the domain's registrar | Say where the website goes, and where **email** goes if the domain has any. Changing the wrong record breaks email. |
 
 **Never hand over the whole Vercel or Supabase account.** Each also holds the current owner's other projects. Only move the Alta Seminary project.
 
@@ -73,7 +74,7 @@ The Church's text, talks and captions come from public Church addresses, and vid
 - In Vercel: the `alta-seminary` project, Settings, General, **Transfer Project** (Vercel can also send a transfer link). Choose the new person's account. Move only this project.
 - The project's settings and environment values move with it. Afterwards the new person checks Settings, Environment Variables: `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` must be there (the site shows no content without them); `PUBLIC_GA_MEASUREMENT_ID` is optional.
 - Settings, Git: connect the project to the transferred GitHub repository (install Vercel's GitHub app on the new GitHub account if asked). Pushing a change should now deploy automatically.
-- **Check the address.** Open `https://alta-seminary-omega.vercel.app`. The default `*.vercel.app` addresses can change when a project changes owner. If it still opens, nothing more is needed here. If it does not, do step 9 right now (a permanent address on a domain the school controls fixes this for good) and tell the teachers the new Makeup Work link.
+- **Check the address.** Open `https://alta-seminary-omega.vercel.app`. The default `*.vercel.app` addresses can change when a project changes owner. If it still opens, nothing more is needed here. If it does not, use whatever new Vercel address the project now has to test with, and do not give that address to teachers or students: step 9 puts the site on altaseminary.com, which never changes.
 - **Check:** a small change pushed to GitHub appears on the live site after a minute.
 
 ## 5. Move the data host
@@ -115,24 +116,33 @@ The Church's text, talks and captions come from public Church addresses, and vid
 - [ ] Teacher email: the admin's "Send me a test email" arrives.
 - [ ] Invite yourself as a new admin. The email arrives and its link opens the right site.
 
-## 9. Give the site a permanent address
-**New person. Optional, but best done before step 4.**
+## 9. Replace the old Google site at altaseminary.com with the new site
+**New person, together with whoever controls the domain.** Do this **last**, after step 8 passes, on a quiet day.
 
-Right now the only address is a Vercel one (`alta-seminary-omega.vercel.app`), which belongs to the current Vercel account and is not guaranteed to survive a handover. A domain the school controls (for example `altaseminary.com`) never changes hands.
+Until this step, altaseminary.com keeps showing the old Google site, so nothing the public sees changes until the new site has been proven. After it, `altaseminary.com` is the one permanent address (it never changes hands when Vercel or Supabase accounts do).
 
-- Buy or use a domain, and add it in Vercel (Project, Settings, Domains). Vercel shows the exact records to add at the domain's registrar. Wait until it says "Valid".
-- Then update the places that name the address. There are only these:
-  1. Vercel environment value `PUBLIC_SITE_URL` (the site's own links, sitemap and feed). Redeploy after.
-  2. Supabase Authentication, URL Configuration: Site URL and the redirect list.
-  3. The Supabase server function secret `SITE_URL`.
-  4. `public/.well-known/security.txt` (two lines).
-- Keep the old `*.vercel.app` address working as a redirect to the new one for as long as it can be kept, so links teachers and students already hold still arrive.
-- Tell the teachers the new Makeup Work link (the address followed by `/makeup-work/start`).
+- **Find out who controls the domain, and have them present.** It was set up through Google (Google Sites, and most likely Google Domains). Google sold Google Domains to Squarespace in 2023, so the domain is now probably at **Squarespace Domains** (sign in with the same Google account). It could instead be inside a Google Workspace account. A lookup at `lookup.icann.org` names the current registrar. Whoever can sign in there controls the domain.
+- **Write down every DNS record first** (screenshot or export). **Never delete or change records for email** (`MX`) **or for sender checks and verification** (`TXT`: SPF, DKIM, DMARC, Google verification). If the domain has Gmail or Google Workspace email, only the *website* records change.
+- **A day ahead, lower the time-to-live (TTL)** of the website records to about 5 minutes. The switch, and the way back, then take minutes instead of hours.
+- **Add the domain in Vercel** (the project, Settings, Domains): both `altaseminary.com` and `www.altaseminary.com`. Pick one as the main address and let the other redirect to it. Vercel shows exactly which records to add.
+- **Switch the website records** at the registrar's DNS page. For a Google Site the `www` record is typically a CNAME to Google's `ghs.googlehosted.com`, and the bare `altaseminary.com` is usually forwarded or pointed at Google. Replace those with the values Vercel shows. Wait for Vercel to say "Valid"; the padlock (HTTPS) is added automatically. This can take from minutes up to a day.
+- **Then let go of Google's side.** In the old Google Site (Settings, Custom domains), remove the domain mapping so Google stops claiming it. **Do not delete the old Google Site for 30 days.** It keeps working at its own `sites.google.com` address, as an emergency fallback and as a source for old content.
+- **Keep old links working.** Teachers and students have old addresses saved (the old site has pages such as `/make-up`). List the old pages that matter and the new page each should go to, and add them as redirects (in the repository's `vercel.json`, which is quick to change). Anything not listed goes to the new home page.
+- **Update every place that names the address:** (1) Vercel `PUBLIC_SITE_URL`, then redeploy; (2) Supabase, Authentication, URL Configuration: Site URL and redirect list; (3) the Supabase server function secret `SITE_URL`; (4) `public/.well-known/security.txt` (two lines); (5) the fallback address in `astro.config.mjs`.
+- **Keep the old Vercel address working as a redirect** to altaseminary.com, and **tell the teachers the new Makeup Work link** (`altaseminary.com/makeup-work/start`).
+- **Check, on a phone and a computer:**
+  - [ ] `altaseminary.com` and `www.altaseminary.com` both open the new site, with a padlock.
+  - [ ] An old page address (for example `/make-up`) lands on the right new page.
+  - [ ] Makeup Work works from the new address, start to finish.
+  - [ ] An admin invite email links to `altaseminary.com`, not the old address.
+  - [ ] If the domain has email: send a message to an address at the domain and from it. Both arrive.
+- **The way back:** if anything is wrong, put the website records back to the values written down at the start. With the short TTL the old site returns within minutes.
+- **Who owns the domain, and renewals.** Decide who holds the registration long-term. Moving it to the new person is a separate task (unlock the domain, get a transfer code or use the registrar's account-to-account transfer; registrars often block transfers for about 60 days after the owner's details change). Whoever owns it: turn on auto-renew with a card that works, and put the expiry date in two calendars. **An expired domain takes the website and any email down at once.**
 
 ## 10. Hand over and clean up
 **Current owner.**
 
-- Remove yourself from the new Supabase organization, from the Vercel project and from the GitHub repository, once the new person has confirmed step 8.
+- Remove yourself from the new Supabase organization, from the Vercel project and from the GitHub repository, once the new person has confirmed step 8 and step 9.
 - **Revoke every access you gave to tools and helpers** (personal access tokens, API tokens, and any assistant or automation connected to your accounts), then change your own passwords.
 - **Optionally rotate the keys** (Supabase, Project Settings, API). Rotating means updating the two Vercel values straight afterwards, or the site shows no content. Only do this at a quiet time.
 - Delete what is dead (see "Already tidied").
@@ -164,7 +174,9 @@ These were found by checking the live project. They are not needed by the websit
 |---|---|---|
 | Vercel, Environment Variables | `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` | The data host's address and its public key (safe to be public). Required. |
 | Vercel | `PUBLIC_GA_MEASUREMENT_ID` | Google Analytics. Optional. |
-| Vercel | `PUBLIC_SITE_URL` | The public address. Optional until there is a custom domain. |
+| Vercel | `PUBLIC_SITE_URL` | The public address (`https://altaseminary.com`) once step 9 is done. |
+| The domain's registrar and DNS | `altaseminary.com` records (website, and `MX`/`TXT` for email) and the auto-renew card | Where the address points. Email records must be left alone. |
+| Google Sites | The custom-domain mapping on the old site | Removed in step 9, after the new site is live. |
 | Supabase, Edge Function secrets | `SITE_URL` | Used by the admin invite function for links in emails. |
 | Supabase, Edge Function secrets | `RESEND_API_KEY`, `MAKEUP_FROM` | Teacher email. Not set yet. |
 | Supabase, Edge Function secrets | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Provided by Supabase automatically. The service key must never leave Supabase. |
@@ -201,4 +213,4 @@ Use this only if Vercel or Supabase will not allow a transfer. It is the risky p
 7. **Sign-in settings:** sign-ups off, Site URL, redirect list. Passwords cannot be carried across easily, so invite the admins again.
 8. **New Vercel project:** import the GitHub repository, add the three environment values (pointing at the **new** Supabase project), and deploy.
 9. **Test everything** with the checklist in step 8, on the new Vercel address, while the old site still serves the public.
-10. **Switch:** move the custom domain (step 9) to the new Vercel project. Keep the old projects for two weeks as the way back, then delete them.
+10. **Switch:** point altaseminary.com at the new Vercel project (step 9). Keep the old projects for two weeks as the way back, then delete them.
