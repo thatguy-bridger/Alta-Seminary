@@ -12,7 +12,8 @@ Creating the actual Supabase account/project has to happen on your end — here'
 
 5. **Set `site_settings.contact_notify_email`** to a real email address once you know it (defaults to a placeholder) — either via the Table Editor now, or later from the admin UI once that's built.
 
-6. **Note your project's API keys are needed as GitHub Actions secrets later** (Phase 5) — `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` get added as repository secrets so the build step can fetch published content. Never use the `service_role` key anywhere except inside Edge Function secrets (Phase 3/5/9) — it must never reach client code or the Astro build.
+6. **Put the project's two public values into Vercel** (Project → Settings → Environment Variables): `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` (see `.env.example`). Nothing needs GitHub secrets any more: scheduled publishing runs inside the database itself. Never use the `service_role` key anywhere except inside Edge Function secrets — it must never reach client code or the site build.
+7. **Moving the project to a new owner?** Follow `docs/MIGRATION_PLAN.md`, which covers every account, setting and secret.
 
 ## Known limitation: email rate limit (revisit in Phase 9)
 

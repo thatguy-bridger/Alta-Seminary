@@ -3,6 +3,12 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
 import vercel from '@astrojs/vercel';
+import { loadEnv } from 'vite';
+
+// The site's public address (used for canonical links, the sitemap and the feed) is one setting, PUBLIC_SITE_URL, so moving to a
+// new address is a settings change and not a code change. It falls back to the current address if the setting is not there.
+const env = loadEnv(process.env.NODE_ENV || 'production', process.cwd(), '');
+const SITE = (process.env.PUBLIC_SITE_URL || env.PUBLIC_SITE_URL || 'https://alta-seminary-omega.vercel.app').replace(/\/+$/, '');
 
 // Moved off GitHub Pages (static-only) to Vercel specifically so content
 // edits show up on the next page load instead of waiting on a GitHub
@@ -11,8 +17,7 @@ import vercel from '@astrojs/vercel';
 // per-request by default; `site`/`base` no longer need the GitHub Pages
 // repo-subpath dance since Vercel serves from the deployment's own root.
 export default defineConfig({
-  // Swap to the real altaseminary.com once the custom domain is pointed.
-  site: 'https://alta-seminary-omega.vercel.app',
+  site: SITE,
   output: 'server',
   adapter: vercel(),
   integrations: [

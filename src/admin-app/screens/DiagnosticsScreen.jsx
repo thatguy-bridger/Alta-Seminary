@@ -8,14 +8,11 @@ import { Toast } from '../../design-system/components/core/Toast.jsx';
 import { Switch } from '../../design-system/components/forms/Switch.jsx';
 import { withBase } from '../../lib/url.js';
 
-const GITHUB_OWNER = 'thatguy-bridger';
-const GITHUB_REPO = 'Alta-Seminary';
-
 const STATUS_TONE = { ok: 'success', warn: 'warning', error: 'error', info: 'info', checking: 'neutral' };
 const STATUS_LABEL = { ok: 'Healthy', warn: 'Needs attention', error: 'Broken', info: 'Info', checking: 'Checking…' };
 
-// This is a developer-facing panel (checks reach into GitHub's API and raw
-// Supabase tables that don't matter for day-to-day publishing), but any
+// This is a developer-facing panel (checks look at the database's own
+// scheduler and raw tables that don't matter for day-to-day publishing), but any
 // admin can end up here -- every DiagnosticItem below explains itself in
 // plain language via its own "What is this?" toggle.
 //
@@ -24,6 +21,31 @@ const STATUS_LABEL = { ok: 'Healthy', warn: 'Needs attention', error: 'Broken', 
 // publish) to Vercel server rendering (reads straight from the database on
 // each request, so there's nothing to trigger or wait on). Vercel itself
 // auto-deploys on every git push; check its own dashboard for that history.
+const ago = (ms) => {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 90) return `${s} second${s === 1 ? '' : 's'} ago`;
+  const m = Math.round(s / 60);
+  if (m < 90) return `${m} minute${m === 1 ? '' : 's'} ago`;
+  const h = Math.round(m / 60);
+  return h < 48 ? `${h} hour${h === 1 ? '' : 's'} ago` : `${Math.round(h / 24)} days ago`;
+};
+
+// What the database's own scheduler says about the publish sweep (the admin_sweep_status() row): is it there, switched on, running
+// every minute or so, and not failing.
+export const SWEEP_STALE_MS = 10 * 60 * 1000;
+export function sweepCheck(row, now = Date.now()) {
+  if (!row) return { status: 'error', detail: 'The scheduled-publish job is not set up in the database.' };
+  if (!row.job_active) return { status: 'error', detail: 'The scheduled-publish job exists but is switched off.' };
+  const last = row.last_run_at ? new Date(row.last_run_at).getTime() : null;
+  if (last === null) return { status: 'warn', detail: 'The job is set up but has not run yet.' };
+  const when = `Last ran ${ago(now - last)}.`;
+  if (row.last_status === 'failed') return { status: 'error', detail: `${when} That run failed.` };
+  if (now - last > SWEEP_STALE_MS) return { status: 'warn', detail: `${when} It should run every minute.` };
+  const runs = Number(row.runs_last_day) || 0, failed = Number(row.failed_last_day) || 0;
+  if (failed > 0) return { status: 'warn', detail: `${when} ${failed} of ${runs} runs in the last day failed.` };
+  return { status: 'ok', detail: `${when} ${runs} runs in the last day, none failed.` };
+}
+
 export function DiagnosticsScreen() {
   const [checks, setChecks] = React.useState({});
   const [toast, setToast] = React.useState(null);
@@ -51,13 +73,6 @@ export function DiagnosticsScreen() {
     runAllChecks();
   }, []);
 
-  async function ghRuns(workflow) {
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${workflow}/runs?per_page=5`);
-    if (!res.ok) throw new Error(`GitHub API returned ${res.status}`);
-    const data = await res.json();
-    return data.workflow_runs || [];
-  }
-
   async function runAllChecks() {
     setCheck('sweep', { status: 'checking' });
     setCheck('env', { status: 'checking' });
@@ -67,16 +82,11 @@ export function DiagnosticsScreen() {
     setCheck('media', { status: 'checking' });
     setCheck('site', { status: 'checking' });
 
-    // Scheduled-content sweep cron
-    ghRuns('sweep-scheduled.yml').then((runs) => {
-      const latest = runs[0];
-      if (!latest) return setCheck('sweep', { status: 'warn', detail: 'No sweep runs found yet -- has the workflow file been pushed?', runs: [] });
-      const status = latest.conclusion === 'success' ? 'ok' : latest.status !== 'completed' ? 'warn' : 'error';
-      setCheck('sweep', {
-        status, runs,
-        detail: `Latest: ${latest.conclusion || latest.status} · ${new Date(latest.created_at).toLocaleString()}`,
-      });
-    }).catch((err) => setCheck('sweep', { status: 'error', detail: `Couldn't reach GitHub: ${err.message}` }));
+    // Scheduled-content sweep (runs inside the database)
+    supabaseBrowser.rpc('admin_sweep_status').then(({ data, error }) => {
+      if (error) return setCheck('sweep', { status: 'error', detail: `Couldn't read the scheduler: ${error.message}` });
+      setCheck('sweep', sweepCheck(Array.isArray(data) ? data[0] : data));
+    });
 
     // Build-time env vars (client-visible values only -- both are meant to be public, see .env.example)
     const url = import.meta.env.PUBLIC_SUPABASE_URL;
@@ -240,10 +250,8 @@ export function DiagnosticsScreen() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <DiagnosticItem
           id="sweep" check={checks.sweep} title="Scheduled-publish sweep"
-          explanation="A separate automatic job that runs every 15 minutes, checking for anything scheduled to publish or unpublish and doing it. If this is broken, scheduled publishing silently won't happen -- content will just stay in draft past its scheduled time. This requires a one-time setup (a database migration and an Edge Function) that's easy to miss."
-        >
-          {checks.sweep?.runs?.length > 0 && <RunList runs={checks.sweep.runs} />}
-        </DiagnosticItem>
+          explanation="An automatic job inside the database, running every minute, that looks for anything scheduled to publish or unpublish and does it. If this is broken, scheduled publishing silently won't happen -- content will just stay in draft past its scheduled time. It lives in the database itself (nothing outside it needs to be running), so a healthy database connection below usually means this is healthy too."
+        />
 
         <DiagnosticItem
           id="env" check={checks.env} title="Site configuration"
@@ -370,25 +378,6 @@ function DiagnosticItem({ check, title, explanation, children }) {
         </div>
       </div>
     </Card>
-  );
-}
-
-function RunList({ runs }) {
-  return (
-    <div style={{ marginTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {runs.slice(0, 5).map((run) => (
-        <a
-          key={run.id}
-          href={run.html_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono, monospace)', fontSize: 'var(--fs-caption)', color: 'var(--text-link)', textDecoration: 'none' }}
-        >
-          <span>{run.conclusion || run.status}</span>
-          <span>{new Date(run.created_at).toLocaleString()}</span>
-        </a>
-      ))}
-    </div>
   );
 }
 
