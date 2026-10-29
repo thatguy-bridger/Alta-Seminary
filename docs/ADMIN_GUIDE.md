@@ -81,6 +81,11 @@ Content is for things that change often.
 - Events are pages of their own. Switch on "Show in announcements" to list one there until it ends, after which it moves to the Events archive on its own.
 - Photo albums hold galleries. Link an album to an event, and its photos appear on the event page.
 - Use "Related" on any item to connect events, announcements and albums.
+- The Gallery page opens on the Image library: every picture used anywhere on the site, found in one place. Anything uploaded anywhere is added to it automatically, and so are the pictures that come with the site (the paintings, the logo) and the ones only linked from other websites (the Church's picture for a talk, YouTube's picture for a video).
+- Type in the search box to find a picture. The start of a word is enough, and it looks in the title, tags, description, alt text and credit. You can also narrow by tag, by where it came from, or by where it is used (including "Not used anywhere", to find leftovers).
+- Open a picture to describe it: a title, alt text, a description, tags, a credit and a permission note. The more you write, the easier it is to find later. The same page shows every place that uses it, with a link to each.
+- A picture that something uses cannot be deleted, so nothing on the site can lose its image by accident. "Replace the picture" puts a new picture at the same address, so it changes everywhere it is used, and it asks first when it is used. A picture that only lives on another website can be removed from the library but never changed.
+- Anywhere you choose "an existing image" (a page, an announcement, a directory photo, a lesson picture) you get the same library, with the same search.
 
 ## 10. Directories
 

@@ -11,6 +11,7 @@ import { Dialog } from '../../design-system/components/core/Dialog.jsx';
 import { EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx';
 import { useConfirm, useAlert } from '../ConfirmProvider.jsx';
 import { AllSiteImagesPanel } from './AllSiteImagesPanel.jsx';
+import { ImageLibrary } from '../gallery/ImageLibrary.jsx';
 import { UsedOnLine } from '../UsedOnLine.jsx';
 import { RelatedContentButton } from '../RelatedContentDialog.jsx';
 
@@ -32,7 +33,7 @@ export function GalleryScreen() {
   const [pendingFiles, setPendingFiles] = React.useState(null); // File[] awaiting crop, one dialog at a time
   const [pendingIndex, setPendingIndex] = React.useState(0);
   const [cropSrc, setCropSrc] = React.useState(null);
-  const [view, setView] = React.useState('albums'); // 'albums' | 'all-images'
+  const [view, setView] = React.useState('library'); // 'library' | 'albums' | 'all-images'
   const fileInputRef = React.useRef(null);
   const nextSortRef = React.useRef(0);
 
@@ -167,17 +168,16 @@ export function GalleryScreen() {
   }
 
   return (
-    <Card title="Photo Gallery">
-      <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
-        Organize photos into albums, then add a "Photo Gallery" block to any page to display one publicly.
-      </p>
-
-      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
-        <button className={'tab' + (view === 'albums' ? ' active' : '')} onClick={() => setView('albums')}>Albums</button>
-        <button className={'tab' + (view === 'all-images' ? ' active' : '')} onClick={() => setView('all-images')}>All site images</button>
+    <Card title="Gallery">
+      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)', flexWrap: 'wrap' }}>
+        <button className={'tab' + (view === 'library' ? ' active' : '')} onClick={() => setView('library')}>Image library</button>
+        <button className={'tab' + (view === 'albums' ? ' active' : '')} onClick={() => setView('albums')}>Photo albums</button>
+        <button className={'tab' + (view === 'all-images' ? ' active' : '')} onClick={() => setView('all-images')}>Where images are used</button>
       </div>
 
-      {view === 'all-images' ? (
+      {view === 'library' ? (
+        <ImageLibrary />
+      ) : view === 'all-images' ? (
         <>
           <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>
             Every image currently in use anywhere on the site, grouped by where it's used -- no album to maintain. Replace one directly here (e.g. an outdated staff photo) without opening its directory/page/post.
@@ -186,6 +186,9 @@ export function GalleryScreen() {
         </>
       ) : (
         <>
+          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)', marginTop: 0 }}>
+            Organize photos into albums, then add a "Photo Gallery" block to any page to display one publicly.
+          </p>
           {albums === null ? (
             <p style={{ color: 'var(--text-secondary)' }}>Loading…</p>
           ) : (

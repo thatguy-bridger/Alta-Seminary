@@ -51,7 +51,7 @@ export function EditableImage({
       const urls = [];
       for (let i = 0; i < files.length; i++) {
         setUploadStatus(`Uploading ${i + 1} of ${files.length}…`);
-        urls.push(await uploadImageFile(files[i], pathPrefix));
+        urls.push(await uploadImageFile(files[i], pathPrefix, alt ? { alt_text: alt } : {}));
       }
       onChange(urls[0]);
       if (urls.length > 1) onExtraImages?.(urls.slice(1));
@@ -80,7 +80,7 @@ export function EditableImage({
   async function handleCropConfirm(blob) {
     setUploading(true);
     try {
-      const url = await uploadImageBlob(blob, pathPrefix);
+      const url = await uploadImageBlob(blob, pathPrefix, alt ? { alt_text: alt } : {});
       onChange(url);
     } catch (err) {
       await alertUser(err.message || 'Upload failed.', { title: 'Upload failed' });

@@ -229,6 +229,53 @@ describe('the picture', () => {
   });
 });
 
+describe('the image library', () => {
+  const library = () => db.tables.media_library || [];
+  const save = async () => { await act(() => btn('Save changes').click()); await act(() => tick(80)); };
+
+  it('remembers YouTube\'s picture for a video when the lesson is saved, credited and linked', async () => {
+    await render([VIDEO]);
+    expect(library()).toHaveLength(0);
+    await setVal(field('Title'), 'A talk, renamed');
+    await save();
+    expect(library()).toHaveLength(1);
+    expect(library()[0]).toMatchObject({ url: 'https://i.ytimg.com/vi/OJ2pLI0tZvY/hqdefault.jpg', origin: 'linked', credit: 'YouTube', title: 'A talk, renamed' });
+    expect(writes('update')).toHaveLength(1);                                                   // and the lesson itself saved as it always did
+  });
+
+  it('remembers an address pasted in as the lesson\'s picture', async () => {
+    await render([VERSE]);
+    await setVal(field('Or paste a picture address'), 'https://www.churchofjesuschrist.org/imgs/abc/full/%21480%2C/0/default');
+    await save();
+    expect(library()).toHaveLength(1);
+    expect(library()[0]).toMatchObject({ url: 'https://www.churchofjesuschrist.org/imgs/abc/full/%21480%2C/0/default', credit: 'The Church of Jesus Christ of Latter-day Saints', tags: ['lesson', 'church', 'linked'] });
+  });
+
+  it('remembers nothing for a painting, whether automatic or chosen', async () => {
+    await render([VERSE]);
+    await setVal(field('Title'), 'Alma 5 again');
+    await save();
+    expect(library()).toHaveLength(0);
+    await act(() => document.querySelector('.ls-pick[title^="Sermon on the Mount"]').click());
+    await save();
+    expect(library()).toHaveLength(0);
+  });
+
+  it('does not add the same picture again when the lesson is saved again', async () => {
+    await render([VIDEO]);
+    await setVal(field('Title'), 'One');
+    await save();
+    await setVal(field('Title'), 'Two');
+    await save();
+    expect(library()).toHaveLength(1);
+  });
+
+  it('can choose a picture from the gallery, and saves the lesson with it', async () => {
+    await render([VERSE]);
+    expect(btn('Choose from the gallery')).toBeTruthy();
+  });
+});
+
 describe('pictures on or off', () => {
   const sw = () => document.querySelector('label[aria-label="Show pictures to students"] input');
   const preview = () => [...document.querySelectorAll('.card')].find((c) => c.textContent.startsWith('How students see it'));

@@ -17,6 +17,7 @@ import { KINDS, kindInfo, isTextKind, blankLesson, draftFromRow, validateLesson,
 import { PauseEditor } from './PauseEditor.jsx';
 import { TranscriptBox } from './TranscriptBox.jsx';
 import { PicturePicker } from './PicturePicker.jsx';
+import { registerLessonPicture } from '../../gallery/lessonPicture.js';
 
 const NEW_LESSON_ORDER = 9000;       // new lessons go to the end of their collection
 
@@ -81,6 +82,7 @@ export function LessonEditor({ id, initialKind = 'scripture', onClose, onOpen, o
     setDraft(d); setOrig(d); setSegments(Array.isArray(data.transcript) ? data.transcript : []);
     setJustSaved(true); setTried(false);
     if (draft.active && !row.active) flash('Saved, but hidden from students until it is complete.');
+    registerLessonPicture(supabaseBrowser, data);       // a picture that lives on another website is remembered in the image library (not waited for)
     onSaved && onSaved();
     if (!id) onOpen(data.id);
     return data.id;
