@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import './journey.css';
 import logo from '../assets/alta-seminary-logo.png';
 import { withBase } from '../lib/url.js';
@@ -27,6 +28,8 @@ import { glideTo, stopGlide, prefersReducedMotion } from './glide.js';
 import { speechSupported } from './useSpeech.js';
 import { NotesButton, NotesPanel, takeNotesHint } from './Notes.jsx';
 import { Timeline, TimelineKey } from './Timeline.jsx';
+import { ScriptureContext, ScriptureModal, Linked } from './ScriptureLinks.jsx';
+import { fetchChapter } from './scriptureLoader.js';
 import { skippedRanges, skippedTotal, mediaDetail, skipStart } from './playback.js';
 import { readProgress, writeProgress, clearProgress, hasProgress, emptyTotals, totalsFrom, learnKey } from './progress.js';
 
@@ -199,7 +202,7 @@ function PauseCard({ id, question, where, saved, draft = '', onDraft, onSave, fi
   if (!editing && saved) {
     return (
       <div className="mw-pause saved">
-        <div className="mw-pause-q">{question}</div>
+        <div className="mw-pause-q"><Linked text={question} /></div>
         <p className="mw-pause-a">{saved}</p>
         <div><button type="button" className="mw-ghost" onClick={() => setEditing(true)}>Change my answer</button></div>
       </div>
@@ -208,7 +211,7 @@ function PauseCard({ id, question, where, saved, draft = '', onDraft, onSave, fi
   return (
     <div className="mw-pause" role="group" aria-label="A question to think about">
       <div className="mw-eyebrow">Pause and think{where ? ` · ${where}` : ''}</div>
-      <label className="mw-pause-q" htmlFor={`mw-p-${id}`}>{question}</label>
+      <label className="mw-pause-q" htmlFor={`mw-p-${id}`}><Linked text={question} /></label>
       <textarea id={`mw-p-${id}`} placeholder="In your own words…" value={text} {...props} onChange={(e) => { if (props.onChange) props.onChange(e); setText(e.target.value); if (onDraft) onDraft(e.target.value); }} />
       <div className="mw-row" style={{ alignItems: 'center' }}>
         <button type="button" className="mw-cta" disabled={!ok} onClick={() => { onSave(text.trim()); setEditing(false); }}>{actionLabel}</button>
@@ -219,7 +222,7 @@ function PauseCard({ id, question, where, saved, draft = '', onDraft, onSave, fi
 }
 
 /* ---------- learning: reading, and video/audio with a live transcript ---------- */
-function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, drafts = {}, onDraft = () => {}, startSeconds = 0, fieldProps }) {
+function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, drafts = {}, onDraft = () => {}, startSeconds = 0, foot, fieldProps }) {
   const text = src.body || '';
   const structured = isStructured(src.kind);
   const paras = splitParagraphs(text, src.kind);
@@ -232,6 +235,7 @@ function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, dra
   const timed = t >= need;
   const answered = allAnswered(src.id, pauses, answers);
   const done = timed && answered;
+  const STAY = <div className="mw-stay"><span>{done ? 'Thank you for staying with it' : timed && !answered ? 'Answer the question above to continue.' : 'Read slowly. We will wait with you.'}</span><div className="mw-meter"><b style={{ width: Math.min(100, (t / Math.max(need, 1)) * 100) + '%' }} /></div></div>;   // the time bar: it lives in the footer, which is always in view
   React.useEffect(() => { onSeconds(t); if (done) onDone(true); }, [t, done]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A structured lesson: its blocks in order, with each question right after the block it belongs to (headings go with what follows).
@@ -248,9 +252,9 @@ function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, dra
       if (blk.type === 'section') return <h3 key={i} className="mw-sec">{blk.text}</h3>;
       if (blk.type === 'kicker') return <div key={i} className="ref">{blk.text}</div>;
       if (blk.type === 'heading') return <h4 key={i} className="mw-subhead">{blk.text}</h4>;
-      if (blk.type === 'list') return <ul key={i} className="mw-list">{blk.items.map((it, k) => <li key={k}>{it}</li>)}</ul>;
-      if (blk.type === 'note') return <p key={i} className="mw-note">{blk.text}</p>;
-      return <p key={i}>{blk.text}</p>;
+      if (blk.type === 'list') return <ul key={i} className="mw-list">{blk.items.map((it, k) => <li key={k}><Linked text={it} /></li>)}</ul>;
+      if (blk.type === 'note') return <p key={i} className="mw-note"><Linked text={blk.text} /></p>;
+      return <p key={i}><Linked text={blk.text} /></p>;
     };
     return (
       <>
@@ -266,7 +270,7 @@ function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, dra
             </React.Fragment>
           ))}
         </div>
-        <div className="mw-stay"><span>{done ? 'Thank you for staying with it' : timed && !answered ? 'Answer the question above to continue.' : 'Read slowly. We will wait with you.'}</span><div className="mw-meter"><b style={{ width: Math.min(100, (t / Math.max(need, 1)) * 100) + '%' }} /></div></div>
+        {foot === undefined ? STAY : foot && createPortal(STAY, foot)}
       </>
     );
   }
@@ -284,7 +288,7 @@ function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, dra
           <React.Fragment key={piece.after}>
             <div className="mw-reader" onCopy={(e) => e.preventDefault()} onContextMenu={(e) => e.preventDefault()}>
               {i === 0 && src.reference && <div className="ref">{src.reference}</div>}
-              <p>{piece.text}</p>
+              <p><Linked text={piece.text} /></p>
             </div>
             {pauses.filter((p) => p.at === piece.after).map((p) => {
               const key = pauseKey(src.id, p);
@@ -293,12 +297,12 @@ function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, dra
           </React.Fragment>
         ))}
       </div>
-      <div className="mw-stay"><span>{done ? 'Thank you for staying with it' : timed && !answered ? 'Answer the question above to continue.' : 'Read slowly. We will wait with you.'}</span><div className="mw-meter"><b style={{ width: Math.min(100, (t / Math.max(need, 1)) * 100) + '%' }} /></div></div>
+      {foot === undefined ? STAY : foot && createPortal(STAY, foot)}
     </>
   );
 }
 
-function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipEnabled, answers = {}, onAnswer = () => {}, drafts = {}, onDraft = () => {}, resume, registerMedia, onLeave, fieldProps }) {
+function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipEnabled, answers = {}, onAnswer = () => {}, drafts = {}, onDraft = () => {}, resume, registerMedia, onLeave, foot, fieldProps }) {
   const duration = src.duration_seconds || 0;
   const p = useMediaPlayer({ url: mediaUrl, type: mediaType, durationHint: duration, resume });
   // Lets the page ask where the player is, and which seconds were played, whenever it saves the student's place.
@@ -373,6 +377,25 @@ function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipE
   const seekTo = (t) => { setFollowing(true); p.seek(t); p.play(); };
 
   const citedAt = new Set(cites.filter((c) => c.sourceId === src.id).map((c) => Math.round(c.seconds)));
+  const FOOT = (   // the timeline and the time bar: in the footer, which is always in view
+    <>
+        {total > 0 && (() => {
+          const place = p.exportPlayed();
+          const lost = skippedTotal(skippedRanges(place.seen, place.reached, total));
+          return (
+            <div className="mw-tl-wrap">
+              <Timeline duration={total} seen={place.seen} reached={place.reached} played={p.played} time={p.time}
+                onJump={(part) => seekTo(skipStart(segs, part.from, part.to))} jumpLabel={(part) => `Play the skipped part from ${formatTimestamp(skipStart(segs, part.from, part.to))}`} />
+              <p className="mw-fine mw-tl-note"><TimelineKey />{lost > 0 && <span className="mw-tl-lost"> · {formatTimestamp(lost)} skipped. Tap the red to play it and count it.</span>}</p>
+            </div>
+          );
+        })()}
+      <div className="mw-stay">
+        <span>{done ? 'Thank you for staying with it' : enough && !answered ? 'There is still a question ahead. Keep watching.' : `Played ${formatDuration(p.played)} of ${formatDuration(total)}. Skipping ahead does not count.`}</span>
+        <div className="mw-meter"><b style={{ width: Math.min(100, (need !== null ? p.played / Math.max(need, 1) : playedFraction(p.played, total) / WATCHED_ENOUGH) * 100) + '%' }} /></div>
+      </div>
+    </>
+  );
   return (
     <>
       {due && (() => {
@@ -392,17 +415,6 @@ function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipE
             <div className="frame"><div ref={p.hostRef} /></div>
           )}
         </div>
-        {total > 0 && (() => {
-          const place = p.exportPlayed();
-          const lost = skippedTotal(skippedRanges(place.seen, place.reached, total));
-          return (
-            <div className="mw-tl-wrap">
-              <Timeline duration={total} seen={place.seen} reached={place.reached} played={p.played} time={p.time}
-                onJump={(part) => seekTo(skipStart(segs, part.from, part.to))} jumpLabel={(part) => `Play the skipped part from ${formatTimestamp(skipStart(segs, part.from, part.to))}`} />
-              <p className="mw-fine mw-tl-note"><TimelineKey />{lost > 0 && <span className="mw-tl-lost"> · {formatTimestamp(lost)} skipped. Tap the red to play it and count it.</span>}</p>
-            </div>
-          );
-        })()}
         <div className="mw-txwrap">
         <div className="mw-tx" ref={listRef} role="region" aria-label="Transcript" onWheel={leaveSync} onTouchMove={leaveSync} onScroll={checkCentered}
           onKeyDown={(e) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) leaveSync(e); }}>
@@ -415,7 +427,7 @@ function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipE
               onClick={() => seekTo(s.start)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); seekTo(s.start); } }}>
               <span className="t">{formatTimestamp(s.start)}</span>
-              <span className="x">{s.text}</span>
+              <span className="x"><Linked text={s.text} /></span>
               <button type="button" className="mw-cite" onClick={(e) => { e.stopPropagation(); onCite({ sourceId: src.id, title: src.title, seconds: s.start }); }} aria-label={`Cite ${formatTimestamp(s.start)}`}>
                 {citedAt.has(Math.round(s.start)) ? 'Cited' : 'Cite'}
               </button>
@@ -427,16 +439,13 @@ function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipE
         </div>
       </div>
       {p.error && <p className="mw-err" role="alert">{p.error}</p>}
-      <div className="mw-stay">
-        <span>{done ? 'Thank you for staying with it' : enough && !answered ? 'There is still a question ahead. Keep watching.' : `Played ${formatDuration(p.played)} of ${formatDuration(total)}. Skipping ahead does not count.`}</span>
-        <div className="mw-meter"><b style={{ width: Math.min(100, (need !== null ? p.played / Math.max(need, 1) : playedFraction(p.played, total) / WATCHED_ENOUGH) * 100) + '%' }} /></div>
-      </div>
+      {foot === undefined ? FOOT : foot && createPortal(FOOT, foot)}
     </>
   );
 }
 
 /* ---------- the journey ---------- */
-export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, phone = false, testMode = false, full = false, persist = false, startAtLesson = '', today = '' }) {
+export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, phone = false, testMode = false, full = false, persist = false, startAtLesson = '', today = '', loadScripture }) {
   const stageRef = React.useRef(null);
   const day = today || todayLocal();                                          // which Come, Follow Me week is "this week"
   // Only the student page keeps a student's place (on their own device); previews and tests always start clean.
@@ -456,6 +465,10 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const draftPause = (key, text) => setPauseDrafts((d) => ({ ...d, [key]: text }));
   const [notes, setNotes] = React.useState(restored ? restored.notes : '');
   const [notesOpen, setNotesOpen] = React.useState(false);
+  const [footSlot, setFootSlot] = React.useState(null);              // where the lesson's time bars go: a footer that is always there
+  const [scripture, setScripture] = React.useState(null);            // the reference open in the pop-up, and the link that opened it
+  const openRef = React.useCallback((ref, el) => setScripture({ ref, el }), []);
+  const closeRef = React.useCallback(() => setScripture((cur) => { if (cur?.el?.focus) cur.el.focus({ preventScroll: true }); return null; }), []);
   const [notesHint, setNotesHint] = React.useState(false);       // pointing out the notes button, the first time only
   React.useEffect(() => { if (!notesHint) return undefined; const id = setTimeout(() => setNotesHint(false), 9000); return () => clearTimeout(id); }, [notesHint]);
   const [toast, setToast] = React.useState('');
@@ -722,11 +735,11 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
         </div>
         <p className="mw-quote">{hint}</p>
         {isAV ? (media ? (
-          <MediaStage key={cur.id + S.learnIndex} src={cur} mediaUrl={media.url} mediaType={media.type} cites={cites} answers={pauseAnswers} onAnswer={answerPause} drafts={pauseDrafts} onDraft={draftPause} resume={resumeFor(cur, S.learnIndex)} registerMedia={(fn) => { mediaCollect.current = fn; }} onLeave={(place) => record(lessonKey, place)} fieldProps={tracker.fieldProps}
+          <MediaStage key={cur.id + S.learnIndex} src={cur} mediaUrl={media.url} mediaType={media.type} cites={cites} answers={pauseAnswers} onAnswer={answerPause} drafts={pauseDrafts} onDraft={draftPause} resume={resumeFor(cur, S.learnIndex)} registerMedia={(fn) => { mediaCollect.current = fn; }} onLeave={(place) => record(lessonKey, place)} foot={footSlot} fieldProps={tracker.fieldProps}
             onCite={(c) => { sound.play('cite'); setCites((x) => (x.some((y) => y.sourceId === c.sourceId && Math.round(y.seconds) === Math.round(c.seconds)) ? x.filter((y) => !(y.sourceId === c.sourceId && Math.round(y.seconds) === Math.round(c.seconds))) : [...x, c])); }}
             onProgress={({ played, duration, done, playing, mutedPlayed }) => { sound.duck(!!playing); record(lessonKey, { played, duration, mutedPlayed: mutedPlayed || 0, done }); setLearnDone(done); }} />
         ) : <p className="mw-err">This video or audio address is not one we can play. An admin can fix it.</p>) : (
-          <Reader key={cur.id + S.learnIndex} src={cur} answers={pauseAnswers} onAnswer={answerPause} drafts={pauseDrafts} onDraft={draftPause} startSeconds={resumeFor(cur, S.learnIndex)?.readSeconds || 0} fieldProps={tracker.fieldProps} onSeconds={(t) => record(lessonKey, { readSeconds: t })} onDone={(d) => { record(lessonKey, { done: d }); setLearnDone(d); }} />
+          <Reader key={cur.id + S.learnIndex} src={cur} answers={pauseAnswers} onAnswer={answerPause} drafts={pauseDrafts} onDraft={draftPause} startSeconds={resumeFor(cur, S.learnIndex)?.readSeconds || 0} foot={footSlot} fieldProps={tracker.fieldProps} onSeconds={(t) => record(lessonKey, { readSeconds: t })} onDone={(d) => { record(lessonKey, { done: d }); setLearnDone(d); }} />
         )}
         {isAV && <p className="mw-fine">Tap “Cite” on a line of the transcript when something stands out. You can use it in a moment.</p>}
         {learnDone && <button className="mw-cta" onClick={finishLearnItem}>{S.learnIndex < learnSources.length - 1 ? `Next: ${GROUPS[groupOf(learnSources[S.learnIndex + 1].kind)].label}` : 'Continue'}</button>}
@@ -898,9 +911,10 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const showArt = step === 'learn' ? !!cur?.show_images : ['truth', 'understand', 'commit', 'done'].includes(step) && learnSources.some((x) => x.show_images);
 
   return (
+    <ScriptureContext.Provider value={openRef}>
     <div ref={stageRef} className={`mw-stage${phone ? ' phone' : ''}${full ? ' full' : ''}`} onPointerDown={sound.wake}>
       <Scene stage={stageRef} stepRaw={stepRaw} page={full} />
-      <div className="mw-tbar"><img src={logo.src} alt="Alta Seminary" /><div className="mw-tools"><NotesButton open={notesOpen} hasNotes={!!notes.trim()} hint={notesHint} onToggle={() => { setNotesHint(false); setNotesOpen((o) => !o); }} /><SoundControl sound={sound} /></div></div>
+      <div className="mw-tbar"><img src={logo.src} alt="Alta Seminary" /><div className="mw-tools"><SoundControl sound={sound} /></div></div>
       <RidgeProgress stepRaw={stepRaw} />
       {step !== 'done' && <StepNav canBack={canBack} backLabel={backLabel} showForward={step !== 'commit'} ready={forwardReady} hint={forwardHint} onBack={stepBack} onForward={stepForward} />}
       <div className="mw-body"><section className={`mw-card${wide ? ' wide' : ''}`} key={`${S.step}-${S.learnIndex}`}>{showArt && <StepArt step={step} short={wide} />}{screens[step]}
@@ -909,6 +923,11 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
         )}
       </section></div>
       <div className="mw-headfade" aria-hidden="true" />
+      <div className="mw-foot">
+        <NotesButton open={notesOpen} hasNotes={!!notes.trim()} hint={notesHint} onToggle={() => { setNotesHint(false); setNotesOpen((o) => !o); }} />
+        <div className="mw-foot-slot" ref={setFootSlot} />
+      </div>
+      <ScriptureModal refObj={scripture?.ref || null} load={(b, c) => (loadScripture || ((bk, ch) => fetchChapter(bk, ch, { sources })))(b, c)} onClose={closeRef} />
       <NotesPanel open={notesOpen} value={notes} onChange={setNotes} onClose={() => setNotesOpen(false)} onCopied={setToast} saved={!!store} />
       <div className={`mw-toast${toast ? ' show' : ''}`} role="status">{toast}</div>
       {skipTools && (
@@ -920,5 +939,6 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
         </div>
       )}
     </div>
+    </ScriptureContext.Provider>
   );
 }

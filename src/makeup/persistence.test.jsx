@@ -308,11 +308,11 @@ describe('notes', () => {
   const notesBtn = () => document.querySelector('.mw-notesbtn');
   const box = () => document.querySelector('.mw-notes-box');
 
-  it('has a button in the header on every step, and a panel that opens and closes', async () => {
+  it('has a button in the footer on every step, and a panel that opens and closes', async () => {
     await open({ persist: false });
     for (const step of ['begin', 'choose', 'learn', 'truth', 'understand', 'commit']) {
       expect(notesBtn(), step).not.toBeNull();
-      expect(document.querySelector('.mw-tbar').contains(notesBtn())).toBe(true);
+      expect(document.querySelector('.mw-foot').contains(notesBtn())).toBe(true);   // the footer is always there
       await act(() => notesBtn().click());
       expect(document.querySelector('#mw-notes[role="dialog"]'), step).not.toBeNull();
       expect(notesBtn().getAttribute('aria-expanded')).toBe('true');

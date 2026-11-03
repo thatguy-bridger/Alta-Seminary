@@ -33,7 +33,11 @@ const currentPath = Astro.url.pathname;
       <li class="site-nav__item">
         {link.children.length > 0 ? (
           <details class="site-nav__dropdown">
-            <summary>{link.label}</summary>
+            <summary>
+              <span class="site-nav__label">{link.label}</span>
+              <span class="site-nav__count" aria-hidden="true">{link.children.length}</span>
+              <svg class="site-nav__chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </summary>
             <ul>
               {link.children.map((child) => (
                 <li>
@@ -91,6 +95,9 @@ const currentPath = Astro.url.pathname;
     font-family: var(--font-sans);
   }
   .site-nav__dropdown summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: var(--fs-small);
     font-weight: var(--fw-bold);
     color: var(--text-secondary);
@@ -100,6 +107,10 @@ const currentPath = Astro.url.pathname;
   .site-nav__dropdown summary::-webkit-details-marker {
     display: none;
   }
+  /* A small arrow on everything that has pages under it, turning over when it is open. */
+  .site-nav__chev { transition: transform var(--duration-fast); flex-shrink: 0; }
+  .site-nav__dropdown[open] > summary .site-nav__chev { transform: rotate(180deg); }
+  .site-nav__count { display: none; }
   .site-nav__dropdown summary:hover {
     color: var(--text-primary);
   }
@@ -190,8 +201,43 @@ const currentPath = Astro.url.pathname;
     position: static;
     box-shadow: none;
     border: none;
-    margin-top: 0;
-    padding-left: var(--space-3);
+    border-left: 2px solid var(--border-default);   /* a guide line down the pages that belong to the heading above */
+    border-radius: 0;
+    background: transparent;
+    margin: 2px 0 var(--space-2) var(--space-4);
+    padding: 0 0 0 var(--space-2);
+    animation: none;
+  }
+  .site-nav.is-collapsed.is-open .site-nav__dropdown ul a {
+    padding: var(--space-2) var(--space-3);
+  }
+  /* The menu itself: a roomier, rounder panel. A heading with pages under it reads as a heading (bold, a count, an arrow at the
+     far end); a plain page is just a row. */
+  .site-nav.is-collapsed.is-open .site-nav__list {
+    min-width: 260px;
+    padding: var(--space-2);
+    gap: 2px;
+    border-radius: var(--radius-lg, 14px);
+  }
+  .site-nav.is-collapsed.is-open .site-nav__dropdown summary {
+    display: flex;
+    justify-content: space-between;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    background: var(--surface-sunken);
+  }
+  .site-nav.is-collapsed.is-open .site-nav__dropdown summary .site-nav__label { margin-right: auto; }
+  .site-nav.is-collapsed.is-open .site-nav__count {
+    display: inline-block;
+    min-width: 20px;
+    padding: 0 6px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    font-size: var(--fs-caption);
+    line-height: 18px;
+    text-align: center;
   }
   /* The default underline (border-bottom on the anchor, sized to hug just
      its own text) looks fine inline in the desktop bar, where every link
@@ -240,6 +286,8 @@ const currentPath = Astro.url.pathname;
     if (!nav || !toggle) return;
     const open = nav.classList.toggle('is-open');
     toggle.setAttribute('aria-expanded', String(open));
+    // Open with the pages under every heading showing, so it is clear there are pages there to choose from.
+    if (open) nav.querySelectorAll('details.site-nav__dropdown').forEach((d) => { (d as HTMLDetailsElement).open = true; });
   }
 
   function closeOnOutsideClick(e: MouseEvent) {
