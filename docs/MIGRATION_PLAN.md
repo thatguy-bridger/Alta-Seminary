@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 1 | Get ready and make a safety copy | Current owner | 1 hour |
 | 2 | The new person creates their accounts | New person | 20 min |
-| 3 | Move the code (GitHub) | Both | 10 min |
+| 3 | Share the code (GitHub): stays with the current owner | Current owner | 10 min |
 | 4 | Move the website host (Vercel) | Both | 20 min |
 | 5 | Move the data host (Supabase) | Both | 30 min |
 | 6 | Move the secrets and email | New person | 30 min |
@@ -27,7 +27,7 @@ Do steps 3, 4 and 5 on a quiet day (not a day students need Makeup Work). Do the
 
 | Piece | Where it lives now | What it does |
 |---|---|---|
-| **The code** | GitHub: `thatguy-bridger/Alta-Seminary` (a personal account) | The website's source. Vercel rebuilds the site from it whenever it changes. |
+| **The code** | GitHub: `thatguy-bridger/Alta-Seminary` (a personal account). **Decided: it stays there, owned by the current owner, who keeps the right to reuse it. The new person is added as a collaborator.** The repository is public. | The website's source. Vercel rebuilds the site from it whenever it changes. |
 | **The website host** | Vercel project `alta-seminary` (a personal team that also holds 5 unrelated projects). Address: `alta-seminary-omega.vercel.app`. | Serves the public site, the admin and the student Makeup Work page. |
 | **The data host** | Supabase project "Alta Seminary Web App" (a free account that also holds one unrelated project, "Portfolio Storage") | Holds all content, the admin logins (4), 3 file storage areas (about 115 MB), the scheduled jobs and the two small server functions. |
 | **Teacher email** | Not set up yet (Resend) | Emails a teacher when a student finishes Makeup Work. Optional: submissions are saved without it. |
@@ -53,28 +53,31 @@ The Church's text, talks and captions come from public Church addresses, and vid
 ## 2. The new person creates their accounts
 **New person.**
 
-- **GitHub** (free): one account. Turn on two-step sign-in.
+- **GitHub** (free): one account, so they can be added to the repository as a collaborator (step 3) and sign in to Vercel with it. Turn on two-step sign-in.
 - **Squarespace Domains** (where `altaseminary.com` lives): they own the domain already, so they only need to confirm they can sign in. Do this now, not on the day of step 9.
 - **Vercel** (the free "Hobby" plan is enough to start; it is meant for non-commercial use, which a school site normally is): sign up using the GitHub account, so the two are already connected.
 - **Supabase** (free): sign up, then create a **new organization** (for example "Alta Seminary"). Leave it empty.
 - **Use a long-lived email address** (not a personal one that might change). Every service sends its important notices there.
 - Both people should turn on two-step sign-in everywhere. Losing access to an owner account is the most common way a handover goes wrong.
 
-## 3. Move the code
-**Current owner starts it, new person accepts.**
+## 3. Share the code (it does not move)
+**Current owner.**
 
-- On GitHub: the repository, Settings, General, scroll to "Danger Zone", **Transfer ownership**, type the new person's GitHub name.
-- The new person accepts from the email GitHub sends (within a day).
-- GitHub keeps the old link working by redirecting it, so nothing breaks for anyone with the old address.
-- **Check:** the new person can see the repository and its history.
-- The repository no longer needs any secrets set on it. (The old scheduled-publish timer that used them is gone.)
+**Decided:** the repository stays under the current owner's GitHub account. Ownership is not transferred. The new person gets shared access instead.
+
+- On GitHub: the repository, Settings, Collaborators, **Add people**, type the new person's GitHub name, and give them **Write** access (enough to change the site; it cannot delete or rename the repository). They accept from the email GitHub sends.
+- The new person can then see the whole history, edit files and push changes. Every push still rebuilds the live site.
+- **What this means in practice:** the current owner keeps full control of the code and can reuse it for other projects. The site's running copy (Vercel and Supabase) still belongs to the new person. If the current owner ever removes the new person's access, the site keeps running as it is, but it can no longer be updated from that repository until the new person has a copy of the code (see "If the code stops being shared" at the end).
+- **Safety net, do it now:** ask the new person to **fork** the repository to their own GitHub account (the Fork button). A fork is a free, always-current-on-demand copy that they own. It costs nothing, and it means the site can always be rebuilt and kept alive even if the sharing ever ends.
+- The repository needs no secrets set on it. (The old scheduled-publish timer that used them is gone.)
 
 ## 4. Move the website host
 **Current owner starts it, new person accepts.**
 
 - In Vercel: the `alta-seminary` project, Settings, General, **Transfer Project** (Vercel can also send a transfer link). Choose the new person's account. Move only this project.
 - The project's settings and environment values move with it. Afterwards the new person checks Settings, Environment Variables: `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` must be there (the site shows no content without them); `PUBLIC_GA_MEASUREMENT_ID` is optional.
-- Settings, Git: connect the project to the transferred GitHub repository (install Vercel's GitHub app on the new GitHub account if asked). Pushing a change should now deploy automatically.
+- Settings, Git: connect the project to the repository (`thatguy-bridger/Alta-Seminary`) using the new person's GitHub login, which can see it as a collaborator. Install Vercel's GitHub app and allow it to see this one repository if asked. Pushing a change should now deploy automatically.
+- **Check who is allowed to trigger a deploy.** The free Vercel plan only deploys changes made by the project owner's own GitHub account; a push from the current owner's different account can be blocked with "commit author does not have contributing access". If that happens, the options are: (a) the new person makes the changes (or merges pull requests that the current owner opens, since merging makes the new person the author on the main branch); (b) upgrade the Vercel team to a paid plan, which lets several people deploy; or (c) the new person's fork (step 3) becomes the repository Vercel watches. **Test this in step 4 with a tiny change from each person before relying on it.**
 - **Check the address.** Open `https://alta-seminary-omega.vercel.app`. The default `*.vercel.app` addresses can change when a project changes owner. If it still opens, nothing more is needed here. If it does not, use whatever new Vercel address the project now has to test with, and do not give that address to teachers or students: step 9 puts the site on altaseminary.com, which never changes.
 - **Check:** a small change pushed to GitHub appears on the live site after a minute.
 
@@ -144,11 +147,22 @@ Decided: the domain is owned by the **new person**, the same owner as the old si
 ## 10. Hand over and clean up
 **Current owner.**
 
-- Remove yourself from the new Supabase organization, from the Vercel project and from the GitHub repository, once the new person has confirmed step 8 and step 9.
+- Remove yourself from the new Supabase organization and from the Vercel project once the new person has confirmed step 8 and step 9. **Do not leave the GitHub repository: it stays yours.** Check that the new person is still a collaborator on it.
 - **Revoke every access you gave to tools and helpers** (personal access tokens, API tokens, and any assistant or automation connected to your accounts), then change your own passwords.
 - **Optionally rotate the keys** (Supabase, Project Settings, API). Rotating means updating the two Vercel values straight afterwards, or the site shows no content. Only do this at a quiet time.
 - Delete what is dead (see "Already tidied").
 - Keep the safety copy from step 1 for 30 days, then delete it.
+
+---
+
+## If the code stops being shared
+
+Because the repository is not transferred, the site depends on the new person being able to read it only when something needs changing. Nothing stops running if sharing ends. To keep the ability to change the site:
+
+1. The new person's fork (step 3) is their own copy. They can connect Vercel to it (Vercel, Settings, Git) and carry on from there.
+2. Or the current owner adds them as a collaborator again.
+
+Either way, the fork should be refreshed from time to time while sharing lasts (on GitHub, the fork's "Sync fork" button).
 
 ---
 
