@@ -1,3 +1,4 @@
+import { usageFor } from '../lib/usage.js';
 import React from 'react';
 import './journey.css';
 import logo from '../assets/alta-seminary-logo.png';
@@ -55,10 +56,13 @@ function Quiet({ state }) {
   );
 }
 
+const makeupUsage = () => { const u = usageFor('makeup'); return (kind, name) => u[kind] && u[kind](name); };
+
 export function StudentPage() {
+  const track = React.useMemo(makeupUsage, []);
   const [data, setData] = React.useState({ state: 'loading' });
   React.useEffect(() => { let live = true; loadStudentData(supabaseBrowser).then((d) => { if (live) setData(d); }); return () => { live = false; }; }, []);
   if (data.state === 'loading') return <div className="mw-stage full" aria-busy="true" />;
   if (data.state !== 'ready') return <Quiet state={data.state} />;
-  return <MakeupJourney full persist classes={data.classes} sources={data.sources} onSubmit={({ rpc }) => submitMakeup(supabaseBrowser, rpc)} />;
+  return <MakeupJourney full persist track={track} classes={data.classes} sources={data.sources} onSubmit={({ rpc }) => submitMakeup(supabaseBrowser, rpc)} />;
 }

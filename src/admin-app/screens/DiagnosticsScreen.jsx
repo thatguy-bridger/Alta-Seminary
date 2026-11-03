@@ -7,6 +7,7 @@ import { Button } from '../../design-system/components/forms/Button.jsx';
 import { Toast } from '../../design-system/components/core/Toast.jsx';
 import { Switch } from '../../design-system/components/forms/Switch.jsx';
 import { withBase } from '../../lib/url.js';
+import { UsageCard } from './UsageCard.jsx';
 
 const STATUS_TONE = { ok: 'success', warn: 'warning', error: 'error', info: 'info', checking: 'neutral' };
 const STATUS_LABEL = { ok: 'Healthy', warn: 'Needs attention', error: 'Broken', info: 'Info', checking: 'Checking…' };
@@ -246,6 +247,8 @@ export function DiagnosticsScreen() {
       <div style={{ margin: 'var(--space-4) 0' }}>
         <Button variant="outline" size="sm" onClick={runAllChecks}>↻ Re-run all checks</Button>
       </div>
+
+      <div style={{ margin: '0 0 var(--space-4)' }}><UsageCard /></div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <DiagnosticItem

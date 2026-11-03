@@ -213,3 +213,26 @@ describe('getting a chapter', () => {
     await expect(fetchChapter('Job', 2, { fetcher: vi.fn() })).rejects.toThrow('not available here');
   });
 });
+
+describe('what the journey reports for the statistics', () => {
+  it('only names: the step, and which features were used, never anything written', async () => {
+    const track = vi.fn();
+    await start([READING], { track, loadScripture: async () => VERSES });
+    await act(() => refs()[0].click()); await act(() => tick(40));
+    await act(() => document.querySelector('.mw-scrip .mw-notes-x').click());
+    await act(() => document.querySelector('.mw-foot .mw-notesbtn').click());
+    await act(() => btn('Skip step').click()); await act(() => tick(60));
+    const seen = track.mock.calls.map((c) => c.join(':'));
+    expect(seen).toContain('step:learn');
+    expect(seen).toContain('action:lesson:scripture');
+    expect(seen).toContain('action:scripture');
+    expect(seen).toContain('action:notes');
+    expect(seen).toContain('step:truth');
+    expect(JSON.stringify(track.mock.calls)).not.toMatch(/Think about|Verse 17|A reading/);   // no lesson text, titles or verses
+  });
+  it('does nothing at all when nobody is listening (a preview)', async () => {
+    await start([READING]);
+    await act(() => btn('Skip step').click());
+    expect(document.querySelector('.mw-card')).not.toBeNull();
+  });
+});

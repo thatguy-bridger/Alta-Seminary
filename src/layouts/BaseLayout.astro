@@ -84,5 +84,10 @@ const organizationSchema = {
   </head>
   <body>
     <slot />
+    {/* Anonymous page counting for the Diagnostics page: see src/lib/usage.js and migration 0050 for exactly what is kept. */}
+    <script>
+      import { trackPageView } from '../lib/usage.js';
+      trackPageView();
+    </script>
   </body>
 </html>

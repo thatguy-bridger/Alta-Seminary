@@ -302,7 +302,7 @@ function Reader({ src, onDone, onSeconds, answers = {}, onAnswer = () => {}, dra
   );
 }
 
-function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipEnabled, answers = {}, onAnswer = () => {}, drafts = {}, onDraft = () => {}, resume, registerMedia, onLeave, foot, fieldProps }) {
+function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipEnabled, answers = {}, onAnswer = () => {}, drafts = {}, onDraft = () => {}, resume, registerMedia, onLeave, foot, onRed, fieldProps }) {
   const duration = src.duration_seconds || 0;
   const p = useMediaPlayer({ url: mediaUrl, type: mediaType, durationHint: duration, resume });
   // Lets the page ask where the player is, and which seconds were played, whenever it saves the student's place.
@@ -385,7 +385,7 @@ function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipE
           return (
             <div className="mw-tl-wrap">
               <Timeline duration={total} seen={place.seen} reached={place.reached} played={p.played} time={p.time}
-                onJump={(part) => seekTo(skipStart(segs, part.from, part.to))} jumpLabel={(part) => `Play the skipped part from ${formatTimestamp(skipStart(segs, part.from, part.to))}`} />
+                onJump={(part) => { if (onRed) onRed(); seekTo(skipStart(segs, part.from, part.to)); }} jumpLabel={(part) => `Play the skipped part from ${formatTimestamp(skipStart(segs, part.from, part.to))}`} />
               <p className="mw-fine mw-tl-note"><TimelineKey />{lost > 0 && <span className="mw-tl-lost"> · {formatTimestamp(lost)} skipped. Tap the red to play it and count it.</span>}</p>
             </div>
           );
@@ -445,7 +445,7 @@ function MediaStage({ src, mediaUrl, mediaType, cites, onCite, onProgress, skipE
 }
 
 /* ---------- the journey ---------- */
-export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, phone = false, testMode = false, full = false, persist = false, startAtLesson = '', today = '', loadScripture }) {
+export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, phone = false, testMode = false, full = false, persist = false, startAtLesson = '', today = '', loadScripture, track = null }) {
   const stageRef = React.useRef(null);
   const day = today || todayLocal();                                          // which Come, Follow Me week is "this week"
   // Only the student page keeps a student's place (on their own device); previews and tests always start clean.
@@ -467,7 +467,9 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   const [notesOpen, setNotesOpen] = React.useState(false);
   const [footSlot, setFootSlot] = React.useState(null);              // where the lesson's time bars go: a footer that is always there
   const [scripture, setScripture] = React.useState(null);            // the reference open in the pop-up, and the link that opened it
-  const openRef = React.useCallback((ref, el) => setScripture({ ref, el }), []);
+  const trackRef = React.useRef(track); trackRef.current = track;
+  const note = React.useCallback((name) => { if (trackRef.current) trackRef.current('action', name); }, []);   // what was used, never what was written
+  const openRef = React.useCallback((ref, el) => { note('scripture'); setScripture({ ref, el }); }, [note]);
   const closeRef = React.useCallback(() => setScripture((cur) => { if (cur?.el?.focus) cur.el.focus({ preventScroll: true }); return null; }), []);
   const [notesHint, setNotesHint] = React.useState(false);       // pointing out the notes button, the first time only
   React.useEffect(() => { if (!notesHint) return undefined; const id = setTimeout(() => setNotesHint(false), 9000); return () => clearTimeout(id); }, [notesHint]);
@@ -514,7 +516,10 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
     if (step !== 'begin' || S.settled) return undefined;
     const id = setTimeout(() => upd({ settled: true }), RULES.settleSeconds * 1000); return () => clearTimeout(id);
   }, [step, S.settled]);
+  React.useEffect(() => { note(restored ? 'resumed' : 'start'); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (trackRef.current) trackRef.current('step', step); }, [step]);
   const lessonKey = cur ? learnKey(S.learnIndex, cur.id) : '';
+  React.useEffect(() => { if (step === 'learn' && cur) note(`lesson:${cur.kind}`); }, [lessonKey, step === 'learn']); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { setLearnDone(!!(lessonKey && lessons.current[lessonKey]?.done)); }, [lessonKey]);   // a lesson already finished stays finished
 
   /* ----- keeping the student's place on their device ----- */
@@ -735,7 +740,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
         </div>
         <p className="mw-quote">{hint}</p>
         {isAV ? (media ? (
-          <MediaStage key={cur.id + S.learnIndex} src={cur} mediaUrl={media.url} mediaType={media.type} cites={cites} answers={pauseAnswers} onAnswer={answerPause} drafts={pauseDrafts} onDraft={draftPause} resume={resumeFor(cur, S.learnIndex)} registerMedia={(fn) => { mediaCollect.current = fn; }} onLeave={(place) => record(lessonKey, place)} foot={footSlot} fieldProps={tracker.fieldProps}
+          <MediaStage key={cur.id + S.learnIndex} src={cur} mediaUrl={media.url} mediaType={media.type} cites={cites} answers={pauseAnswers} onAnswer={answerPause} drafts={pauseDrafts} onDraft={draftPause} resume={resumeFor(cur, S.learnIndex)} registerMedia={(fn) => { mediaCollect.current = fn; }} onLeave={(place) => record(lessonKey, place)} foot={footSlot} onRed={() => note('timeline-red')} fieldProps={tracker.fieldProps}
             onCite={(c) => { sound.play('cite'); setCites((x) => (x.some((y) => y.sourceId === c.sourceId && Math.round(y.seconds) === Math.round(c.seconds)) ? x.filter((y) => !(y.sourceId === c.sourceId && Math.round(y.seconds) === Math.round(c.seconds))) : [...x, c])); }}
             onProgress={({ played, duration, done, playing, mutedPlayed }) => { sound.duck(!!playing); record(lessonKey, { played, duration, mutedPlayed: mutedPlayed || 0, done }); setLearnDone(done); }} />
         ) : <p className="mw-err">This video or audio address is not one we can play. An admin can fix it.</p>) : (
@@ -892,11 +897,13 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
   })[step] || '';
   const stepBack = () => {
     if (!canBack) return;
+    note('back');
     sound.play('untick');
     if (step === 'learn' && S.learnIndex > 0) { upd({ learnIndex: S.learnIndex - 1 }); return; }
     setS((s) => ({ ...s, step: Math.max(0, s.step - 1), learnIndex: STEPS[s.step] === 'truth' ? Math.max(0, learnSources.length - 1) : 0 }));   // from the first thing after the lessons, land on the last lesson
   };
   const stepForward = () => {
+    if (forwardReady) note('forward');
     if (!forwardReady) { if (forwardHint && !sending) setToast(forwardHint); return; }
     if (step === 'begin') startJourney();
     else if (step === 'choose') confirmPicks(S.picks);
@@ -924,7 +931,7 @@ export function MakeupJourney({ classes, sources, onSubmit, skipTools = false, p
       </section></div>
       <div className="mw-headfade" aria-hidden="true" />
       <div className="mw-foot">
-        <NotesButton open={notesOpen} hasNotes={!!notes.trim()} hint={notesHint} onToggle={() => { setNotesHint(false); setNotesOpen((o) => !o); }} />
+        <NotesButton open={notesOpen} hasNotes={!!notes.trim()} hint={notesHint} onToggle={() => { setNotesHint(false); if (!notesOpen) note('notes'); setNotesOpen((o) => !o); }} />
         <div className="mw-foot-slot" ref={setFootSlot} />
       </div>
       <ScriptureModal refObj={scripture?.ref || null} load={(b, c) => (loadScripture || ((bk, ch) => fetchChapter(bk, ch, { sources })))(b, c)} onClose={closeRef} />
