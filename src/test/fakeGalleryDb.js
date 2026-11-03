@@ -106,6 +106,7 @@ export function createGalleryDb({ images = [], usage = [], registerUploads = fal
       update(p) { q.op = 'update'; q.payload = p; return b; },
       delete() { q.op = 'delete'; return b; },
       eq(col, v) { q.filters.push((r) => r[col] === v); return b; },
+      is(col, v) { q.filters.push((r) => (r[col] ?? null) === v); return b; },
       in(col, vs) { q.filters.push((r) => vs.includes(r[col])); return b; },
       order(col, o) { q.order.push([col, o?.ascending !== false]); return b; },
       limit(n) { q.limit = n; return b; },

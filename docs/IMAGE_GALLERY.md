@@ -53,6 +53,10 @@ A picture that only lives on another website is registered when a lesson is save
 - `supabase/migrations/0047_image_library.sql`: the columns, the search index, the usage view, the triggers, the policies, and a derived backfill (older bucket files, the Church and YouTube pictures, titles and tags). It only fills blanks, so it is safe to run again.
 - `scripts/gallery-backfill/`: a temporary token-protected edge function that copied the site's own images into the bucket (read from the live site, nothing passed through any chat) and read every hosted image's dimensions from the file itself. Already run and replaced by a stub that answers 410. `make-manifest.mjs` regenerates the list of site images (with credits) from the same data the site uses (`src/makeup/thumbnails.js`, `art.js`).
 
+## Checking the database rules
+
+`scripts/gallery-backfill/verify.sql` holds the checks for the rules that live in the database (the public gets nothing, an address cannot be changed, tags are tidied, uploads are registered). Each block ends by raising an error on purpose, so nothing is saved, and says which line to expect. Run them after moving to a new project. The screen and the upload code are covered by the automated tests; those tests use a stand-in database that behaves the way these checks showed the real one does.
+
 ## Moving to another Supabase project
 
 - The database trigger needs to know where public files live: **update the one row in `media_config`** (`public_base_url`, for example `https://<project>.supabase.co/storage/v1/object/public/images/`). If it is empty, the trigger simply does nothing and the admin's upload code still registers everything.

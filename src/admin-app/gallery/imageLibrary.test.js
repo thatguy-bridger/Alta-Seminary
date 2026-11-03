@@ -211,6 +211,14 @@ describe('removing an image', () => {
     expect(db.tables.media_library).toHaveLength(0);
   });
 
+  it('never deletes a file for a link, even one that somehow carries a storage path', async () => {
+    const db = createGalleryDb({ images: [{ url: 'https://example.org/a.jpg', origin: 'linked', storage_path: 'pages/precious.webp' }] });
+    db.files.set('pages/precious.webp', { blob: blob() });
+    expect((await deleteImage(db, db.tables.media_library[0])).ok).toBe(true);
+    expect(db.files.has('pages/precious.webp')).toBe(true);
+    expect(db.log.some((l) => l.op === 'remove')).toBe(false);
+  });
+
   it('checks again at the moment of removing, in case it has been put to use since the screen was opened', async () => {
     const db = createGalleryDb({ images: [img()] });
     const stale = { ...db.tables.media_library[0] };                      // the screen thought it was unused
