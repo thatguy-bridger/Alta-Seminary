@@ -136,6 +136,44 @@ describe('choosing Come, Follow Me', () => {
   });
 });
 
+describe('a whole course, on the day a student is actually there', () => {
+  // The real 2026 course: 52 weeks, Monday to Sunday, the first beginning December 29, 2025.
+  const ymd = (n) => { const t = new Date(Date.UTC(2025, 11, 29 + n)); return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`; };
+  const COURSE = Array.from({ length: 52 }, (_, i) => cfm(`k${i + 1}`, i + 1, ymd(i * 7), ymd(i * 7 + 6)));
+
+  it('offers this week and the weeks before it, and nothing from December in late October', async () => {
+    seed({ step: 1 });
+    await open([...COURSE, VERSE], { today: '2026-10-29' });
+    const options = [...document.querySelectorAll('.mw-week option')].map((o) => o.textContent);
+    expect(options).toHaveLength(44);                                                        // weeks 1 to 44 have begun
+    expect(options[0]).toBe('October 26–November 1 (this week) · Ref 44');
+    expect(options[1]).toBe('October 19–25 · Ref 43');                                       // the week they most likely missed
+    expect(options[43]).toBe('December 29–January 4 · Ref 1');                              // all the way back to the start
+    expect(options.join('|')).not.toContain('November 2–8');                                 // week 45 has not begun
+    expect(options.join('|')).not.toMatch(/December (7|14|21)/);                             // December's lessons are not offered yet
+    expect(weekSelect().value).toBe('k44');
+  });
+
+  it('gives this week\'s lesson to a student who just taps Come, Follow Me, never a later one', async () => {
+    seed({ step: 1 });
+    await open([...COURSE, VERSE], { today: '2026-10-29' });
+    await act(() => card('Come, Follow Me').click());
+    await act(() => tick(400));
+    expect(heading()).toBe('“Week 44”');
+  });
+
+  it('opens a new week on its first day, and not the day before', async () => {
+    seed({ step: 1 });
+    await open([...COURSE, VERSE], { today: '2026-11-01' });                                // the last day of week 44
+    expect([...document.querySelectorAll('.mw-week option')]).toHaveLength(44);
+    await mounted.unmount(); mounted = null; document.body.innerHTML = '';
+    seed({ step: 1 });
+    await open([...COURSE, VERSE], { today: '2026-11-02' });                                // the first day of week 45
+    expect([...document.querySelectorAll('.mw-week option')]).toHaveLength(45);
+    expect(document.querySelector('.mw-week option').textContent).toContain('November 2–8 (this week)');
+  });
+});
+
 describe('going back and choosing again', () => {
   it('keeps the same week, and what was done in it, when Come, Follow Me is chosen again', async () => {
     seed({ step: 2, sourceIds: ['w3'], picks: ['cfm'], cfmWeek: 'w3', learned: true }, { lessons: { '0:w3': DONE } });
@@ -166,6 +204,21 @@ describe('going back and choosing again', () => {
     await open(LIB, { today: '2026-01-27' });                                                // week 4 has begun, but they chose week 3
     await act(() => document.querySelector('.mw-pill.back').click());
     expect(weekSelect().value).toBe('w3');
+    await act(() => document.querySelector('.mw-pill.fwd').click());
+    expect(heading()).toBe('“Week 3”');
+  });
+
+  it('remembers this week as the week they chose, so it does not move on if they come back after the week has ended', async () => {
+    seed({ step: 1 });                                                                       // nothing chosen yet: "this week" is the default
+    await open(LIB, { today: '2026-01-21' });                                                // inside week 3
+    await act(() => card('Come, Follow Me').click());
+    await act(() => tick(400));
+    expect(heading()).toBe('“Week 3”');
+    await closePage();
+    await open(LIB, { today: '2026-01-27' });                                                // the next week has begun; they return mid-lesson
+    expect(heading()).toBe('“Week 3”');
+    await act(() => document.querySelector('.mw-pill.back').click());
+    expect(weekSelect().value).toBe('w3');                                                   // still the week they chose, not the new one
     await act(() => document.querySelector('.mw-pill.fwd').click());
     expect(heading()).toBe('“Week 3”');
   });

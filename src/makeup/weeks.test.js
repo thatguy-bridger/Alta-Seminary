@@ -129,6 +129,43 @@ describe('which lessons a journey gets', () => {
   });
 });
 
+describe('a whole course', () => {
+  const ymd = (n) => dayFromNumber(dayNumber('2025-12-29') + n);
+  const COURSE = Array.from({ length: 52 }, (_, i) => week(`k${i + 1}`, ymd(i * 7), ymd(i * 7 + 6)));
+
+  it('runs Monday to Sunday with nothing missing between weeks, ending December 27, 2026', () => {
+    expect(COURSE[0].week_start).toBe('2025-12-29');
+    expect(COURSE[51].week_end).toBe('2026-12-27');
+    COURSE.slice(1).forEach((w, i) => expect(dayNumber(w.week_start) - dayNumber(COURSE[i].week_end)).toBe(1));
+  });
+
+  it('on October 29 is offered up to this week (October 26 to November 1), and no week after it', () => {
+    const offered = weeksUpTo(COURSE, '2026-10-29');
+    expect(offered).toHaveLength(44);
+    expect(offered[0].id).toBe('k44');
+    expect(weekLabel(offered[0])).toBe('October 26–November 1');
+    expect(isCurrentWeek(offered[0], '2026-10-29')).toBe(true);
+    expect(offered.some((l) => dayNumber(l.week_start) > dayNumber('2026-10-29'))).toBe(false);
+    expect(offered.map((l) => l.id)).not.toContain('k45');
+    expect(offered.map((l) => l.id)).not.toContain('k52');                          // Christmas week is not offered in October
+    expect(weekOptions(COURSE, '2026-10-29').filter((o) => o.current)).toHaveLength(1);
+  });
+
+  it('gives a student who just wants the week they are in this week, and the weeks before it for more days missed', () => {
+    expect(chooseWeeks(COURSE, 1, { day: '2026-10-29' })).toEqual(['k44']);
+    expect(chooseWeeks(COURSE, 3, { day: '2026-10-29' })).toEqual(['k44', 'k43', 'k42']);
+    expect(chooseWeeks(COURSE, 8, { day: '2026-10-29' })).not.toContain('k45');
+  });
+
+  it('grows by one week every Monday, and is complete after Christmas week', () => {
+    expect(weeksUpTo(COURSE, '2026-11-01')).toHaveLength(44);                       // Sunday: still week 44
+    expect(weeksUpTo(COURSE, '2026-11-02')).toHaveLength(45);                       // Monday: week 45 opens
+    expect(weeksUpTo(COURSE, '2026-12-21')).toHaveLength(52);
+    expect(weeksUpTo(COURSE, '2027-06-01')).toHaveLength(52);
+    expect(currentWeek(COURSE, '2027-06-01').id).toBe('k52');
+  });
+});
+
 describe('what the student sees in the list', () => {
   it('is each week that has begun, newest first, with a label, marking this week', () => {
     const opts = weekOptions(ALL, '2026-01-14');
