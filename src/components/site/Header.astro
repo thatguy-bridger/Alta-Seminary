@@ -57,6 +57,7 @@ const { header } = await getSiteChrome();
     padding: var(--space-4) var(--space-6);
     border-bottom: 1px solid var(--border-subtle);
     background: var(--surface-card);
+    position: relative;   /* the open menu hangs from the header */
     flex-wrap: nowrap;   /* always one row: nothing in here is allowed to drop onto a second line */
   }
   .site-header__brand { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }

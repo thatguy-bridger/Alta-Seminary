@@ -262,6 +262,17 @@ const currentPath = Astro.url.pathname;
     border-left-color: var(--brand-secondary);
     background: var(--surface-sunken);
   }
+  /* The open menu hangs from the whole header (not from the button, which sits beside the logo and can be nowhere near the right
+     edge of a phone), with a gutter either side and never wider than the screen, so no part of it can fall off the edge. */
+  .site-nav.is-collapsed { position: static; }
+  .site-nav.is-collapsed.is-open .site-nav__list {
+    left: auto;
+    right: var(--space-4);
+    min-width: 0;
+    width: min(320px, calc(100vw - 2 * var(--space-4)));
+    box-sizing: border-box;
+    margin-top: 0;
+  }
 </style>
 
 <script>
