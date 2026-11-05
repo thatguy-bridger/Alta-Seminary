@@ -65,7 +65,7 @@ export function SiteSearch() {
         <SearchIcon />
       </button>
 
-      <Dialog open={open} title="Search" onClose={() => { setOpen(false); setQuery(''); }} wide>
+      <Dialog open={open} title="Search" onClose={() => { setOpen(false); setQuery(''); }} wide className="dialog--search">
         <input
           ref={inputRef}
           type="text"
@@ -75,6 +75,7 @@ export function SiteSearch() {
           className="input"
           style={{ width: '100%', marginBottom: 'var(--space-4)' }}
         />
+        <div className="dialog-scroll">
         {index === null ? (
           <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-small)' }}>Loading…</p>
         ) : query.trim() && results.length === 0 ? (
@@ -108,6 +109,7 @@ export function SiteSearch() {
             ))}
           </ul>
         )}
+        </div>
       </Dialog>
     </>
   );

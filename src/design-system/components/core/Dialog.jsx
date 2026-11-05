@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
-export function Dialog({open,title,children,onClose,wide=false}) {
+export function Dialog({open,title,children,onClose,wide=false,className=""}) {
   const panelRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -50,7 +50,7 @@ export function Dialog({open,title,children,onClose,wide=false}) {
     // position, not React's event tree, which is what dnd-kit listens on).
     <div className="dialog-overlay" onClick={onClose} onPointerDown={(e) => e.stopPropagation()}>
       <div
-        className="dialog"
+        className={className ? `dialog ${className}` : "dialog"}
         role="dialog"
         aria-modal="true"
         aria-label={title || undefined}

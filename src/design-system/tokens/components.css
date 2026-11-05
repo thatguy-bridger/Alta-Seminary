@@ -123,6 +123,13 @@ a:hover{color:var(--text-link-hover)}
 .tooltip:hover .bubble{opacity:1}
 .dialog-overlay{position:fixed;inset:0;z-index:1000;background:rgba(26,24,20,0.5);display:flex;align-items:center;justify-content:center}
 .dialog{background:var(--surface-card);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:var(--space-8);max-width:440px;width:90%}
+/* The search box: never taller than 80% of the screen. The heading and the search field stay put and only the results scroll,
+   inside the box. dvh follows the phone's real visible height (address bar, on-screen keyboard); vh is the fallback. */
+.dialog--search{display:flex;flex-direction:column;max-height:80vh;max-height:80dvh;overflow:hidden;box-sizing:border-box}
+.dialog--search>h3{flex-shrink:0}
+.dialog--search>input{flex-shrink:0;font-size:16px}  /* 16px stops iPhones zooming the page when the field is tapped */
+.dialog--search .dialog-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+@media (max-width:640px){.dialog--search{width:calc(100% - 24px);padding:var(--space-4)}}
 .toast{display:flex;align-items:center;gap:10px;background:var(--surface-inverse);color:var(--text-on-inverse);padding:14px 18px;border-radius:var(--radius-md);box-shadow:var(--shadow-md);font-family:var(--font-sans);font-size:var(--fs-small)}
 
 /* Page-builder blocks (src/blocks/*) */
