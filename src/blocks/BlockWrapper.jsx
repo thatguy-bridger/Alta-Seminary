@@ -44,6 +44,12 @@ export function BlockWrapper({ layout, children, editable }) {
       setRevealed(true);
       return;
     }
+    // Anything with even a pixel inside the window is shown, and a block
+    // is also shown a little BEFORE it scrolls in (the positive bottom
+    // margin), so the page never opens with content waiting below the fold
+    // for a scroll that has not happened. This used to need a block to be
+    // 80px above the bottom edge and 5% visible, which left blocks that were
+    // plainly on screen invisible.
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -53,7 +59,7 @@ export function BlockWrapper({ layout, children, editable }) {
           setRevealed(false);
         }
       },
-      { rootMargin: '0px 0px -80px 0px', threshold: 0.05 }
+      { rootMargin: '0px 0px 12% 0px', threshold: 0 }
     );
     observer.observe(el);
     return () => observer.disconnect();
