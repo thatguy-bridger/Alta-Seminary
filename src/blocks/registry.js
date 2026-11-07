@@ -465,7 +465,7 @@ export const BLOCK_REGISTRY = {
     chromeless: true,
     defaultProps: {
       preset: 'snow', customGlyph: '', density: 40, speed: 100, size: 24,
-      reverseDirection: false, wind: 0, opacity: 90, interactive: false,
+      reverseDirection: false, wind: 0, opacity: 90, interactive: false, bursts: true,
     },
     fields: [
       { key: 'preset', kind: 'select', label: 'Effect', options: SITE_EFFECT_PRESET_OPTIONS },
@@ -481,6 +481,10 @@ export const BLOCK_REGISTRY = {
       {
         key: 'reverseDirection', kind: 'toggle', label: 'Float upward instead of falling',
         showIf: (p) => !['rain', 'bubbles', 'fireworks', 'sparkle', 'fireflies', 'stars'].includes(p.preset),
+      },
+      {
+        key: 'bursts', kind: 'toggle',
+        label: 'Occasional big moments (a lightning flash, a confetti cannon, a shooting star, a firework finale...). Turn off for just the quiet background effect.',
       },
       {
         key: 'interactive', kind: 'toggle',

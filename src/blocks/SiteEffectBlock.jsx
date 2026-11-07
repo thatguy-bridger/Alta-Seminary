@@ -72,7 +72,7 @@ const PREVIEW_GLYPH = {
 //     an otherwise transparent one.
 export function SiteEffectBlock({
   preset = 'snow', customGlyph = '', density = 40, speed = 100, size = 24,
-  reverseDirection = false, wind = 0, opacity = 90, interactive = false,
+  reverseDirection = false, wind = 0, opacity = 90, interactive = false, bursts = true,
   editable,
 }) {
   const isCustom = preset === 'custom';
@@ -111,7 +111,7 @@ export function SiteEffectBlock({
   return (
     <SiteEffectCanvas
       def={def} density={clampedDensity} speedMul={speedMul} size={clampedSize}
-      reverseDirection={!!reverseDirection} wind={clampedWind} opacity={clampedOpacity} interactive={!!interactive}
+      reverseDirection={!!reverseDirection} wind={clampedWind} opacity={clampedOpacity} interactive={!!interactive} bursts={bursts !== false}
     />
   );
 }
@@ -1139,7 +1139,7 @@ function buildSystem(def, density, speedMul, size, reverseDirection, wind) {
 // STYLES (classic ring / willow trails / double crackle) are picked at
 // random per launch so consecutive fireworks don't all look identical --
 // the specific "more variation" ask.
-function useFireworks(canvasRef, density, speedMul, size, interactive, opacity) {
+function useFireworks(canvasRef, density, speedMul, size, interactive, opacity, bursts = true) {
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1223,8 +1223,9 @@ function useFireworks(canvasRef, density, speedMul, size, interactive, opacity) 
         if (++i >= 5) clearInterval(id);
       }, 180);
     }
-    const finaleTimeout = setTimeout(fireFinale, 1500);
-    const signatureTimer = setInterval(fireFinale, rand(20000, 38000));
+    // "Bursts" off: no finale at all, only the steady single rockets.
+    const finaleTimeout = bursts ? setTimeout(fireFinale, 1500) : null;
+    const signatureTimer = bursts ? setInterval(fireFinale, rand(20000, 38000)) : null;
 
     function frame(now) {
       const dt = Math.min(0.032, (now - last) / 1000);
@@ -1280,7 +1281,7 @@ function useFireworks(canvasRef, density, speedMul, size, interactive, opacity) 
       window.removeEventListener('resize', resize);
       if (interactive) window.removeEventListener('pointerdown', handleClick);
     };
-  }, [canvasRef, density, speedMul, size, interactive, opacity]);
+  }, [canvasRef, density, speedMul, size, interactive, opacity, bursts]);
 }
 
 const TOUCH_RADIUS = 55;
@@ -1315,7 +1316,7 @@ function pickLayer() {
   return SITE_EFFECT_DEPTH_TIERS[SITE_EFFECT_DEPTH_TIERS.length - 1].key;
 }
 
-function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind, opacity, interactive }) {
+function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind, opacity, interactive, bursts = true }) {
   // One ref per depth tier, in the same order as SITE_EFFECT_DEPTH_TIERS --
   // React refs can't be created in a loop, so this is the fixed-arity
   // equivalent (four tiers, four named refs, each nulled and paired up
@@ -1327,7 +1328,7 @@ function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind
   const layerRefs = { back: backRef, mid1: mid1Ref, mid2: mid2Ref, front: canvasRef };
   const isFirework = def.kind === 'firework';
 
-  useFireworks(isFirework ? canvasRef : { current: null }, density, speedMul, size, interactive, opacity);
+  useFireworks(isFirework ? canvasRef : { current: null }, density, speedMul, size, interactive, opacity, bursts);
 
   React.useEffect(() => {
     if (isFirework) return;
@@ -1399,10 +1400,13 @@ function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind
         scheduleSignature();
       }, rand(20000, 40000));
     }
-    signatureTimer = setTimeout(() => {
-      fireSignature();
-      scheduleSignature();
-    }, 800);
+    // Bursts switched off: the quiet ambient loop only, no big moment.
+    if (bursts) {
+      signatureTimer = setTimeout(() => {
+        fireSignature();
+        scheduleSignature();
+      }, 800);
+    }
 
     function onPointerMove(e) {
       pointer.x = e.clientX;
@@ -1542,7 +1546,7 @@ function SiteEffectCanvas({ def, density, speedMul, size, reverseDirection, wind
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuilds the whole particle system on any of these changing, not per-frame
-  }, [def, density, speedMul, size, isFirework, reverseDirection, wind, opacity, interactive]);
+  }, [def, density, speedMul, size, isFirework, reverseDirection, wind, opacity, interactive, bursts]);
 
   return (
     <>
